@@ -1,0 +1,17 @@
+pipeline:
+  - name: gcv_recognizer
+    config:
+      bucket: pedia
+
+  - name: num_marker
+    config:
+      x_search_range: [0, 0.3]
+      max_number: 150
+
+  - name: html_generator
+    config:
+      image_root: ../.img      
+      html_root: html
+      color_dict:
+        nummarker: green
+

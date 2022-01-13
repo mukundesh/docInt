@@ -1,0 +1,4 @@
+pipeline:
+  - name: hello_prabhat
+    config:
+      lane: 7

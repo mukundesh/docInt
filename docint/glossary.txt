@@ -1,0 +1,3 @@
+output_dir: name of the directory 'output'
+output_path: path of the output directorty '/home/docit/doOcr/output'
+output_dir_path: path of the directory
