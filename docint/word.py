@@ -1,36 +1,60 @@
+from enum import IntEnum
+from pydantic import BaseModel, Field
+from typing import Any, Union
 
+#from .doc import Doc
+from .shape import Shape, Poly, Box
 
-class Word:
-    def __init__(self, doc, pageIdx, wordIdx, text, break_type, shape, user_data=None):
-        self.doc = doc
-        self.page_idx = pageIdx
-        self.word_idx = wordIdx
+class BreakType(IntEnum):
+    Unknown = 0
+    Space = 1
+    Sure_space = 2     # very wide
+    Eol_sure_space = 3 # line wrapping break
+    Hyphen = 4         # end line hyphen that is not in text
+    Line_break = 5     # line break that ends paragraph
+    
 
-        self._text = text
-        self.break_type = "space"
+break_type_str = {
+    BreakType.Unknown: ' ',
+    BreakType.Space: ' ',
+    BreakType.Sure_space: ' ',
+    BreakType.Eol_sure_space: ' ',
+    BreakType.Hyphen: ' ',
+    BreakType.Line_break: '\n',
+}
+ 
+class Word(BaseModel):
+    doc: Any = None
+    page_idx: int
+    word_idx: int
+    text_: str
+    break_type: BreakType
+    shape_: Union[Poly, Box]
+    orig_text_: str = None
 
-        self._shape = shape
-        self.user_data = {} if user_data is None else user_data
-
+    class Config:
+        fields = {'doc': {'exclude': True}}
+        use_enum_values = True
+    
     @property
     def text(self):
-        return self._text
-
+        return self.text_
+ 
     @property
-    def text_(self):
-        return self._text + str(self.break_type)
+    def text_with_ws(self):
+        return self.text_ + break_type_str[self.break_type]
 
     @property
     def shape(self):
-        return self._shape
+        return self.shape_
 
     @property
     def box(self):
-        return self._shape.box
+        return self.shape_.box
 
     @property
     def coords(self):
-        return self._shape.coords
+        return self.shape_.coords
 
     @property
     def path(self):
@@ -42,36 +66,76 @@ class Word:
 
     @property
     def xmin(self):
-        return self.shape.get_min("x")
+        return self.shape_.xmin
 
     @property
     def xmax(self):
-        return self.shape.get_max("x")
+        return self.shape_.xmax
 
     @property
     def ymin(self):
-        return self.shape.get_min("y")
+        return self.shape_.ymin
 
     @property
     def ymax(self):
-        return self.shape.get_max("y")
+        return self.shape_.ymax
+
+    @property
+    def page(self):
+        return self.doc.pages[self.page_idx]
+    
 
     def update_coords(self, coords):
         self.shape.update_coords(coords)
 
-    def in_xrange(self, xrange, partial=False):
-        left, right = xrange
-        if partial:
-            return (left < self.xmin < right) or (left < self.xmax < right)
-        else:
-            return (left < self.xmin < right) and (left < self.xmax < right)
+    def __bool__(self):
+        # A word is not valid if it is empty, but needs to be kept
+        # for various reasons.
+        return bool(self.text_)
 
-    def in_yrange(self, yrange, partial=False):
-        top, bot = yrange
-        if partial:
-            return (top < self.ymin < bot) or (top < self.ymax < bot)
+
+    # def merge_word(self, next_word):
+    #     self.text_ += next_word.text_
+    #     next_word.text_ = ''
+    #     return self
+
+
+    def correct_word(self, correct_text):
+        self.text_ = correct_text
+        
+    # edit words
+    # TODO: Should we add more info in the word or keep that info
+    # at top level, currently thinking top level, then why should we
+    # store orig_ Check issue #13
+    
+    def clear(self, clearChar=None):
+        old = '<all>' if clearChar is None else clearChar
+        self.replaceStr(old, '')
+
+    def replaceStr(self, old, new):
+        if self.orig_text_ is None:
+            self.orig_text_ = self.text_
+
+        if old.lower() ==  '<all>':
+            self.text_ = new
         else:
-            return (top < self.ymin < bot) and (top < self.ymax < bot)
+            self.text_ = self.text_.replace(old, new)
+
+
+    def mergeWord(self, next_word):
+        if self.orig_text_ is None:
+            self.orig_text_ = self.text_
+
+        if next_word.orig_text_ is None:
+            next_word.orig_text_ = self.text_
+
+        top = self.box.top
+        bot = next_word.box.bot
+
+        self.text_ += next_word.text_
+        next_word.text_ = ''
+        
+        self.shape_ = Box(top=top, bot=bot)
 
     def __len__(self):
         return len(self.text)

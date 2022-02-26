@@ -99,16 +99,24 @@ class HtmlGenerator:
 
         svgs = []
         for (page_idx, page) in enumerate(doc.pages):
-            page_num, doc_stub = page_idx + 1, doc_name[:-4]
-            img_filename = pathlib.Path(f"orig-{page_num:03d}-000.png")
-            img_url = str(self.image_root / doc_stub / img_filename)
+            page_num = page_idx + 1
+            angle = getattr(page, 'reoriented_angle', 0)
+            if angle != 0:
+                angle = page.reoriented_angle
+                print(f"Page: {page_num} Rotated: {angle}")
+                img_filename = pathlib.Path(f"orig-{page_num:03d}-000-r{angle}.png")
+            else:
+                img_filename = pathlib.Path(f"orig-{page_num:03d}-000.png")
+            img_url = str(self.image_root / doc.pdf_stem / img_filename)
             
             svg_filename = pathlib.Path(f"svg-{page_num:03}.svg")
-            svg_path = self.html_root / doc_stub / svg_filename
+            svg_dir_path = self.html_root / doc.pdf_stem
+            svg_path =  svg_dir_path / svg_filename
             
+            svg_dir_path.mkdir(exist_ok=True, parents=True)
             self.write_svg(page_idx, page, img_url, svg_path)
 
-            html_svg = f'<object data="{doc_stub}/{svg_path.name}" type="image/svg+xml"></object>'
+            html_svg = f'<object data="{doc.pdf_stem}/{svg_path.name}" type="image/svg+xml"></object>'
             svgs.append(html_svg)
 
         html_path = self.html_root / f"{doc_name}.html"

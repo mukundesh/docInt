@@ -1,0 +1,24 @@
+name: __role__
+description: Roles for Cabinet, note contains all roles (current + legacy)
+orgCode: cabsec
+roles:
+  - name: Prime Minister
+    alias: [ PM, P.M.]
+    reportees:
+      - name: Deputy Prime Minister
+        alias: [ Deputy PM, Deputy P.M. ]
+
+      - name: Cabinet Minister
+        reportees:
+          - name: Minister of State
+
+          - name: Deputy Minister
+
+      - name: Minister of State (Independent Charge)
+      
+
+    
+
+
+
+

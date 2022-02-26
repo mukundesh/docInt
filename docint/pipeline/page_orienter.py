@@ -1,67 +1,102 @@
 from collections import Counter
+from pathlib import Path
+#import subprocess
+
+from PIL import Image
 
 from ..vision import Vision
 from ..page import Page
 from ..shape import Coord, Poly
 
 
-@Vision.component("orient_pages", default_config={"min_word_len": 4})
+@Vision.factory("orient_pages", default_config={"min_word_len": 4, "images_dir": None})
 class OrientPage:
-    def __init__(self, min_word_len):
+    def __init__(self, min_word_len, images_dir):
         self.min_word_len = min_word_len
-        if not Page.has_extension("reoriented_angle"):
-            Page.set_extension("reoriented_angle", default=0, type_hint=int)
+        self.images_dir = Path(images_dir)
 
     def needs_reorientation(self, page):
-        horzScore = [1 if w.box.is_horizontal else 0 for w in page]
-        return True if horzScore > len(page) / 2.0 else False
+        horz_score = sum([1 if w.box.is_horz else 0 for w in page.words])
+        return True if horz_score < (len(page.words) / 2.0) else False
 
     def get_reorient_angle(self, page):
-        long_words = [w for w in page if len(w) > self.min_word_len]
+        long_words = [w for w in page.words if len(w) > self.min_word_len]
 
         angleDict = {
             (0, 1, 3, 2): 0,
             (1, 0, 2, 3): 0,
             (1, 0, 3, 2): 0,
+            (0, 1, 2, 3): 0,
+            
             (3, 0, 2, 1): 90,
+            (0, 3, 1, 2): 90,
+            (0, 3, 2, 1): 90,                        
+            
             (2, 3, 1, 0): 180,
+            
             (1, 2, 0, 3): 270,
+            (1, 2, 3, 0): 270,            
+            (2, 1, 3, 0): 270,
+            (2, 1, 0, 3): 270,                        
         }
         angle_counter = Counter()
         for w in long_words:
             wCoordIdxs = list(enumerate(w.coords))
             wCoordIdxs.sort(key=lambda tup: (tup[1].y, tup[1].x))
-            idxs = [tup[0] for tup in wCoordIdxs]
-            angle = angleDict[idxs]
+            idxs = tuple([tup[0] for tup in wCoordIdxs])
+            if tuple(idxs) not in angleDict:
+                print(f'idx: {w.page_idx} {w.word_idx} -> {idxs}')
+                assert False
+            else:
+                angle = angleDict[tuple(idxs)]
             angle_counter[angle] += 1
         return max(angle_counter, key=angle_counter.get)
 
-    def orient_page(page, angle):
+    def orient_image(self, img_path, angle):
+        assert angle in (90, 180, 270)
+        new_path = img_path.parent / (img_path.stem + f'-r{angle}' + img_path.suffix)
+        if not new_path.exists():
+            print(f'rotating the image {new_path}')
+            img = Image.open(img_path).rotate(angle)
+            img.save(new_path)
+
+        
+
+    def orient_page(self, page, angle):
         xMultiplier = (page.height / float(page.width)) if angle in (90, 270) else 1.0
         yMultiplier = (page.width / float(page.height)) if angle in (90, 270) else 1.0
 
         def updateCoord(coord, angle, xoffset, yoffset):
             x, y, a = coord.x, coord.y, angle
             # TODO FIX THIS
-            newX = y - offset if a == 90 else 1 - y - offset if a == 270 else 1 - x
-            newY = 1 - x + offset if a == 90 else x + offset if a == 270 else 1 - y
+            newX = y - xoffset if a == 90 else 1 - y - xoffset if a == 270 else 1 - x
+            newY = 1 - x + yoffset if a == 90 else x + yoffset if a == 270 else 1 - y
 
             newX, newY = newX * xMultiplier, newY * yMultiplier
-            return Coord(newX, newY)
+            newX, newY = min(max(newX, 0.0), 1.0), min(max(newY, 0.0), 1.0)
+            return Coord(x=newX, y=newY)
 
         def updateCoords(word, angle, w, h):
             xoffset = (1.0 - (w / float(h))) / 2.0
             yoffset = ((float(h) / w) - 1.0) / 2.0
             newCoords = [updateCoord(c, angle, xoffset, yoffset) for c in word.coords]
-            word.coords = newCoords
+            word.update_coords(newCoords)
 
-        [updateCoord(w, angle, page.wt, page.ht) for w in page]
+        [updateCoords(w, angle, page.width, page.height) for w in page.words]
 
     def __call__(self, doc):
+        print(f'Processing {doc.pdf_name}')
+        doc.add_extra_page_field('reoriented_angle', ('noparse', '', ''))
         for page in doc.pages:
             if self.needs_reorientation(page):
+                print(f'Orienting page_idx: {page.page_idx}')
                 angle = self.get_reorient_angle(page)
                 self.orient_page(page, angle)
-                page._.reoriented_angle = angle
+                page.reoriented_angle = angle
+                if self.images_dir:
+                    img_filename = Path(f"orig-{page.page_idx+1:03d}-000.png")
+                    img_path = self.images_dir / doc.pdf_stem / img_filename
+                    self.orient_image(img_path, angle)
             else:
-                page._.reoriented_angle = 0
+                page.reoriented_angle = 0
+        return doc

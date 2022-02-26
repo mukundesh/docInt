@@ -39,20 +39,24 @@ class Vision:
     def __init__(self):
         self._components = []
         self.default_error_handler = raise_error
+        self.images_dir = '.img'
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
         viz = Vision()
+        viz.images_dir = config.get('images_dir', '.img')
+        viz.ignore_docs = config.get('ignore_docs', [])
         for pipe_config in config["pipeline"]:
             viz.add_pipe(
                 pipe_config.get("name"),
                 pipe_config=pipe_config.get("config", {}),
             )
             print(f'Added {pipe_config.get("name")}')
+        
         return viz
 
-    def build_doc(pdf_path):
-        return Doc.build_doc(pdf_path)
+    def build_doc(self, pdf_path):
+        return Doc.build_doc(pdf_path, self.images_dir)
 
     def add_pipe(
         self,
@@ -140,18 +144,18 @@ class Vision:
             return after + 1
         raise ValueError(Errors.E006.format(args=all_args, opts=self.component_names))
 
-    def build_doc(self, pdf_path: Path):
-        if isinstance(pdf_path, str) or isinstance(pdf_path, Path):
-            return Doc.build_doc(pdf_path)
-        else:
-            raise ValueError("Expecting a path")
-
     def __call__(
         self,
         path: Path,
         component_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Doc:
-        doc = self.build_doc(path)
+        path = Path(path)
+        if path.suffix == '.json':
+            doc = Doc.from_disk(path)
+        else:
+            doc = self.build_doc(path)
+
+            
         if component_cfg is None:
             component_cfg = {}
 
@@ -175,32 +179,12 @@ class Vision:
                 raise ValueError("Errors.E005.format(name=name)")
         return doc
 
-    def pipe(
-        self,
-        paths,
-        *,
-        component_cfg={},
-    ):
-
-        """Process documents as a stream, and yield `Doc` objects in order.
-
-        paths (Iterable[Path]): A sequence of documents to process
-        component_cfg (Dict[str, Dict]): An optional dictionary with extra keyword
-            arguments for specific components.
-        YIELDS (Doc): Documents in the order of the original text.
-
-        DOCS: https://docint.github.io/api/vision#pipe
-        """
-
+    def pipe_all(self, paths):
         print("INSIDE PIPE")
-        if component_cfg is None:
-            component_cfg = {}
-
-        pipes = (
-            []
-        )  # contains functools.partial objects to easily create multiprocess worker.
+        paths = (Path(p) for p in paths)        
+        pipes = []
         for name, proc in self.pipeline:
-            kwargs = component_cfg.get(name, {})
+            kwargs = {}
             f = functools.partial(
                 _pipe,
                 proc=proc,
@@ -210,12 +194,19 @@ class Vision:
             )
             pipes.append(f)
 
-        docs = (self.make_doc(path) for path in paths)
+
+        print(f'Building docs...')            
+        docs = list(self.build_doc(p) if p.suffix == '.pdf' else Doc.from_disk(p) for p in paths)
+        print(f'Before {len(docs)}')
+        
+        # filter based on ignore_files
+        docs = [ d for d in docs if d.pdf_name not in self.ignore_docs]
+        print('After {len(docs)}')        
+        
         for pipe in pipes:
             docs = pipe(docs)
-
-        for doc in docs:
-            yield doc
+        print("Leaving PIPE")            
+        return docs
 
     @property
     def factory_names(self) -> List[str]:

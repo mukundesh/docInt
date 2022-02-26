@@ -5,12 +5,9 @@ from .errors import Errors
 from .vision import Vision
 from .util import SimpleFrozenDict
 from .util import is_readable, read_config_from_disk
-
-from . import pipeline
 from .vision import Vision
 
-
-
+from . import pipeline
 
 
 def load(name: Path, *, config: Dict[str, Any] = SimpleFrozenDict()) -> Vision:

@@ -1,86 +1,52 @@
-from dataclasses import dataclass
+from typing import List
+
+from pydantic import BaseModel, Field
 
 
-class Coord:
-    def __init__(self, x, y):
-        assert not isinstance(x, list)
-        assert not isinstance(y, list)        
-        self.x = x
-        self.y = y
+class Coord(BaseModel):
+    x: float
+    y: float
 
-class Shape:
+    def __str__(self):
+        return f'{self.x}:{self.y}'
+    
+
+
+class Shape(BaseModel):
     @classmethod
     def build_box(cls, boxes):
-        xmin, ymin = min([b.get_min('x') for b in boxes]), min([b.get_min('y') for b in boxes])
-        xmax, ymax = max([b.get_max('x') for b in boxes]), max([b.get_max('y') for b in boxes])
-        return Box([Coord(xmin, ymin), Coord(xmax, ymax)])
+        if isinstance(boxes[0], float):
+            coord_vals = boxes
+            assert len(coord_vals) == 4
+            [x0, y0, x1, y1] = coord_vals
+            return Box(top=Coord(x=x0, y=y0), bot=Coord(x=x1, y=y1))
+        else:
+            xmin, ymin = min([b.xmin for b in boxes]), min([b.ymin for b in boxes])
+            xmax, ymax = max([b.xmax for b in boxes]), max([b.ymax for b in boxes])
+            return Box(top=Coord(x=xmin, y=ymin), bot=Coord(x=xmax, y=ymax))
 
     @classmethod
     def build_box_ranges(cls, xrange, yrange):
-        return Box([Coord(xrange[0], yrange[0]), Coord(xrange[1], yrange[1])])
-
-
-class Poly(Shape):
-    def __init__(self, coords):
-        self.check_coords(coords)
-        self.coords = coords
-        self._box = None
-
-    @classmethod
-    def check_coords(cls, coords):
-        # TODO
-        return True
-
-    def is_box(self):
-        return False
-
-    def get_min(self, axis):
-        if axis == "x":
-            return min([c.x for c in self.coords])
-        else:
-            return min([c.y for c in self.coords])
-
-    def get_max(self, axis):
-        if axis == "x":
-            return max([c.x for c in self.coords])
-        else:
-            return max([c.y for c in self.coords])
-
-    def is_horz(self):
-        (minX, minY) = self.get_min("x"), self.get_min("y")
-        (maxX, maxY) = self.get_max("x"), self.get_max("y")
-        return True if (maxX - minX) > (maxY - minY) else False
-
-    @property
-    def box(self):
-        if self._box is None:
-            (minX, minY) = self.get_min("x"), self.get_min("y")
-            (maxX, maxY) = self.get_max("x"), self.get_max("y")
-            top, bot = Coord(minX, minY), Coord(maxX, maxY)
-            self._box = Box([top, bot])
-        return self._box
-
-    def get_coords_inpage(self, page_size, delim=" "):
-        w, h = page_size
-        pg_coords = [f"{int(w * c.x)},{int(h * c.y)}" for c in self.coords]
-        coord_str = delim.join(pg_coords)
-        return coord_str
+        return Box(top=Coord(x=xrange[0], y=yrange[0]), bot=Coord(x=xrange[1], y=yrange[1]))
 
 
 class Box(Shape):
-    def __init__(self, coords):
-        self.check_coords(coords)
-        self.coords = coords
+    top: Coord
+    bot: Coord
+
+    
+    def __post__init__(self):
+        self.check_coords(top, bot)
 
     def is_box(self):
         return True
 
-    @classmethod
-    def check_coords(cls, coords):
-        if len(coords) != 2:
-            raise ValueError("Expected two coords, instead got {len(coords)}")
+    def __str__(self):
+        return f'[{self.top}, {self.bot}]'
 
-        [minC, maxC] = coords
+    @classmethod
+    def check_coords(cls, top, bot):
+        [minC, maxC] = top, bot
         if (minC.x > maxC.x) or (minC.y > maxC.y):
             raise ValueError("Incorrect order of coords {coords}")
 
@@ -93,14 +59,6 @@ class Box(Shape):
         return True if self.width > self.height else False
 
     @property
-    def top(self):
-        return self.coords[0]
-
-    @property
-    def bot(self):
-        return self.coords[1]
-
-    @property
     def width(self):
         return self.bot.x - self.top.x
 
@@ -108,36 +66,49 @@ class Box(Shape):
     def height(self):
         return self.bot.y - self.top.y
 
-
     def width_inpage(self, pageSize):
         w, h = pageSize
         return self.width * w
-
 
     def height_inpage(self, pageSize):
         w, h = pageSize
         return self.height * h
 
-
     def top_inpage(self, pageSize):
         (w, h) = pageSize
-        return Coord(self.top.x * w, self.top.y * h)
-
+        return Coord(x=self.top.x * w, y=self.top.y * h)
 
     def bot_inpage(self, pageSize):
         (w, h) = pageSize
-        return Coord(self.bot.x * w, self.bot.y * h)
+        return Coord(x=self.bot.x * w, y=self.bot.y * h)
 
     def size_inpage(self, pageSize):
         return (self.width_inpage(pageSize), self.height_inpage(pageSize))
-    
-    def get_min(self, axis):
-        return self.top.x if axis == "x" else self.top.y
 
-    def get_max(self, axis):
-        return self.bot.x if axis == "x" else self.bot.y
+    @property
+    def xmin(self):
+        return self.top.x
 
-    def overlapPercent(self, bigBox):
+    @property
+    def xmax(self):
+        return self.bot.x
+
+    @property
+    def ymin(self):
+        return self.top.y
+
+    @property
+    def ymax(self):
+        return self.bot.y
+
+    @property    
+    def coords(self):
+        return [self.top, self.bot]
+
+    def update_coords(self, coords):
+        self.top, self.bot = coords[0], coords[1]
+
+    def get_overlap_percent(self, bigBox):
         (wtop, wbot), (ctop, cbot) = self.coords, bigBox.coords
         (wx0, wy0), (wx1, wy1) = (wtop.x, wtop.y), (wbot.x, wbot.y)
         (cx0, cy0), (cx1, cy1) = (ctop.x, ctop.y), (cbot.x, cbot.y)
@@ -158,5 +129,91 @@ class Box(Shape):
         # logger.debug(f'\t\tWord id: {self.id} overlap: {oPercent}%')
         return oPercent
 
-    def overlaps(self, bigBox, overlap_percent):
-        return True if self.overlap_percent(bigBox) > overlap_percent else False
+    def overlaps(self, bigBox, overlap_percent=1.0):
+        return True if self.get_overlap_percent(bigBox) > overlap_percent else False
+
+    def in_xrange(self, xrange, partial=False):
+        lt, rt = xrange
+        xmin, xmax = self.top.x, self.bot.x
+        if partial:
+            return (lt <= xmin <= rt) or (lt <= xmax <= rt) or (xmin < lt < rt < xmax)
+        else:
+            return (lt < xmin < rt) and (lt < xmax < rt)
+
+    def in_yrange(self, yrange, partial=False):
+        top, bot = yrange
+        ymin, ymax = self.top.y, self.bot.y
+        if partial:
+            return  (top <= ymin <= bot) or (top <= ymax <= bot) or (ymin < top < bot < ymax)
+        else:
+            return (top < ymin < bot) and (top < ymax < bot)
+    
+
+class Poly(Shape):
+    coords: List[Coord]
+    box_: Box = None
+    
+    def __post__init__(self):
+        self.check_coords(coords)        
+        
+
+    @classmethod
+    def check_coords(cls, coords):
+        # TODO
+        return True
+
+    def update_coords(self, coords):
+        self.coords = coords
+        self.box_ = None
+
+    def is_box(self):
+        return False
+
+    def _get_min(self, axis):
+        if axis == "x":
+            return min([c.x for c in self.coords])
+        else:
+            return min([c.y for c in self.coords])
+
+    def _get_max(self, axis):
+        if axis == "x":
+            return max([c.x for c in self.coords])
+        else:
+            return max([c.y for c in self.coords])
+
+    def is_horz(self):
+        (minX, minY) = self.get_min("x"), self.get_min("y")
+        (maxX, maxY) = self.get_max("x"), self.get_max("y")
+        return True if (maxX - minX) > (maxY - minY) else False
+
+    @property
+    def box(self):
+        if self.box_ is None:
+            (minX, minY) = self._get_min("x"), self._get_min("y")
+            (maxX, maxY) = self._get_max("x"), self._get_max("y")
+            top, bot = Coord(x=minX, y=minY), Coord(x=maxX, y=maxY)
+            self.box_ = Box(top=top, bot=bot)
+        return self.box_
+
+    def get_coords_inpage(self, page_size, delim=" "):
+        w, h = page_size
+        pg_coords = [f"{int(w * c.x)},{int(h * c.y)}" for c in self.coords]
+        coord_str = delim.join(pg_coords)
+        return coord_str
+
+    @property
+    def xmin(self):
+        return self.box.top.x
+
+    @property
+    def xmax(self):
+        return self.box.bot.x
+
+    @property
+    def ymin(self):
+        return self.box.top.y
+
+    @property
+    def ymax(self):
+        return self.box.bot.y
+    

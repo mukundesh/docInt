@@ -3,14 +3,23 @@ import json
 import pathlib
 
 from google.protobuf.json_format import MessageToDict
-
 from google.cloud import vision_v1
 from google.cloud import storage
 
 from ..vision import Vision
+from ..doc import Doc
 from ..page import Page
-from ..word import Word
+from ..word import Word, BreakType
 from ..shape import Coord, Poly
+
+_break_type_dict = {
+    "UNKNOW": BreakType.Unknown,
+    "SPACE": BreakType.Space,
+    "SURE_SPACE": BreakType.Sure_space,
+    "EOL_SURE_SPACE": BreakType.Eol_sure_space,
+    "HYPHEN": BreakType.Hyphen,
+    "LINE_BREAK": BreakType.Line_break,
+}
 
 
 @Vision.factory(
@@ -38,25 +47,36 @@ class CloudVisionRecognizer:
         coords = []
         for v in ocr_word["boundingBox"]["normalizedVertices"]:
             try:
-                coords.append(Coord(v["x"], v["y"]))
+                coords.append(Coord(x=v["x"], y=v["y"]))
             except KeyError:
                 if not v:
                     coords.append(0.0, 0.0)
                 elif "x" not in v and "y" in v:
-                    coords.append(Coord(0.0, v["y"]))
+                    coords.append(Coord(x=0.0, y=v["y"]))
                 elif "y" not in v and "x" in v:
-                    coords.append(Coord(v["x"], 0.0))
+                    coords.append(Coord(x=v["x"], y=0.0))
                 else:
                     raise ValueError("Unknon vertex: " + str(v))
-        shape = Poly(coords)
+        shape = Poly(coords=coords)
 
         text = "".join([c["text"] for c in ocr_word["symbols"]])
 
         last_symbol = ocr_word["symbols"][-1]
-        break_type = (
-            ""  # BreakType(last_symbol["property"].get("detectedBreak", "SPACE"))
+
+        gcv_break_type = (
+            last_symbol.get("property", {"detectedBreak": {"type": "SPACE"}})
+            .get("detectedBreak", {"type": "SPACE"})
+            .get("type", "SPACE")
         )
-        return Word(doc, page_idx, word_idx, text, break_type, shape)
+        break_type = _break_type_dict[gcv_break_type]
+        return Word(
+            doc=doc,
+            page_idx=page_idx,
+            word_idx=word_idx,
+            text_=text,
+            break_type=break_type,
+            shape_=shape,
+        )
 
     def build_pages(self, doc, output_path):
         def get_words(pg):
@@ -69,7 +89,6 @@ class CloudVisionRecognizer:
         responses = ocr_doc["responses"]
         ocr_pages = [r["fullTextAnnotation"]["pages"][0] for r in responses]
 
-        pages = []
         for (page_idx, ocr_page) in enumerate(ocr_pages):
 
             ocr_words = get_words(ocr_page)
@@ -79,8 +98,9 @@ class CloudVisionRecognizer:
                 words.append(self.build_word(doc, page_idx, word_idx, ocr_word))
 
             width, height = ocr_page["width"], ocr_page["height"]
-            page = Page(doc, page_idx, width, height)
-            page.words = words
+            page = Page(
+                doc=doc, page_idx=page_idx, words=words, width_=width, height_=height
+            )
             doc.pages.append(page)
         return doc
 
@@ -132,7 +152,9 @@ class CloudVisionRecognizer:
         batch_size = min(doc.num_pages, 100)
 
         image_client = vision_v1.ImageAnnotatorClient()
-        feature = vision_v1.Feature(type_=vision_v1.Feature.Type.DOCUMENT_TEXT_DETECTION)
+        feature = vision_v1.Feature(
+            type_=vision_v1.Feature.Type.DOCUMENT_TEXT_DETECTION
+        )
         gcs_source = vision_v1.GcsSource(uri=gcs_source_uri)
         input_config = vision_v1.InputConfig(gcs_source=gcs_source, mime_type=mime_type)
 
@@ -183,11 +205,15 @@ class CloudVisionRecognizer:
     def read_gcv(self, doc, output_path):
         return self.build_pages(doc, output_path)
 
-
     def __call__(self, doc):
         output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
         if output_path.exists():
             return self.read_gcv(doc, output_path)
         else:
+            # imports are expensive
+            from google.protobuf.json_format import MessageToDict
+            from google.cloud import vision_v1
+            from google.cloud import storage
+
             self.run_gcv(doc, output_path)
             return self.build_pages(doc, output_path)

@@ -8,6 +8,10 @@ pipeline:
       x_range: [0, 0.3]
       max_number: 150
 
+  - name: list_finder
+    config:
+      find_roman: True
+
   - name: html_generator
     config:
       image_root: ../.img      

@@ -18,6 +18,8 @@ import yaml
 
 from .errors import Errors
 
+from dateutil import parser
+
 
 class SimpleFrozenDict(dict):
     """Simplified implementation of a frozen dict, mainly used as default
@@ -126,13 +128,18 @@ def is_writeable_dir(path):
     path = Path(path)
     return path.is_dir() and os.access(path, os.W_OK)
 
+def is_readable_dir(path):
+    path = Path(path)
+    return path.is_dir() and os.access(path, os.R_OK)
+
 
 def read_config_from_disk(path):
     config = yaml.load(path.read_text(), Loader=yaml.FullLoader)
+    config = {} if not config else config
     return config
 
 def load_config(config_dir, doc_name, stub):
-    config_file_path = Path(config_dir) / (doc_name + stub + '.yml')
+    config_file_path = Path(config_dir) / f'{doc_name}.{stub}.yml'
     if is_readable(config_file_path):
         return read_config_from_disk(config_file_path)
     elif not config_file_path.exists():
@@ -140,6 +147,12 @@ def load_config(config_dir, doc_name, stub):
     else:
         raise ValueError(f'Config file is not readable: {config_file_path}')
 
+def find_date(date_line):
+    try:
+        dt = parser.parse(date_line, fuzzy=True)
+        return str(dt.date()), ''
+    except ValueError as e:
+        return None, str(e)
 
 def raise_error(proc_name, proc, docs, e):
     raise e
@@ -169,3 +182,15 @@ def _pipe(
                 yield doc
             except Exception as e:
                 error_handler(name, proc, [doc], e)
+
+
+
+    
+        
+    
+
+
+    
+    
+    
+    
