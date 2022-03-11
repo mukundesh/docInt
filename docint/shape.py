@@ -34,6 +34,14 @@ class Box(Shape):
     top: Coord
     bot: Coord
 
+    @classmethod
+    def build_box_inpage(cls, bbox, page_size):
+        [x0, y0, x1, y1] = bbox
+        (w, h) = page_size
+        top, bot = Coord(x=x0/w, y=y0/h), Coord(x=x1/w, y=y1/h)
+        return Box(top=top, bot=bot)
+
+
     
     def __post__init__(self):
         self.check_coords(top, bot)

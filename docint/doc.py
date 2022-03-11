@@ -12,6 +12,7 @@ import shlex
 import pdfplumber
 import pdf2image
 import pydantic
+import msgpack
 
 from .shape import Shape, Box, Coord
 from .page import Page
@@ -77,7 +78,6 @@ class Doc(BaseModel):
         return sum([i.num_images for i in self.page_infos]) > 0
 
     def get_image_path(self, page_idx):
-        root_dir = Path('/Users/mukund/orgpedia/cabsec/import/images') ### TODO
         page_num = page_idx + 1
         image_dir = root_dir / self.pdf_stem
         angle = getattr(self.pages[page_idx], 'reoriented_angle', 0)
@@ -120,7 +120,7 @@ class Doc(BaseModel):
         
 
         pdf_path = Path(pdf_path)
-        image_dir_name = pdf_path.name.lower()[:-4]
+        image_dir_name = pdf_path.name[:-4]
 
         image_dirs_path = (
             cls.image_dirs_path if not image_dirs_path else image_dirs_path
@@ -170,10 +170,16 @@ class Doc(BaseModel):
     def to_json(self):
         return self.json(models_as_dict=False, indent=2)
 
-    def to_disk(self, json_file):
-        json_file = Path(json_file)
-        json_file.write_text(self.to_json())
+    def to_msgpack(self):
+        import msgpack
+        return msgpack.packb(json.loads(self.to_json()))
 
+    def to_disk(self, disk_file):
+        disk_file = Path(disk_file)
+        if disk_file.suffix.lower() in ('.json', '.jsn'):
+            disk_file.write_text(self.to_json())
+        else:
+            disk_file.write_bytes(self.to_msgpack())
 
     def add_extra_page_field(self, field_name, field_tuple):
         self.extra_page_fields[field_name] = field_tuple
@@ -192,14 +198,18 @@ class Doc(BaseModel):
         def update_links(doc, regions):
             if regions and not isinstance(regions[0], Region):
                 return 
-            
-            for region in regions:
+
+            inner_regions = [ ir for r in regions for ir in r.get_regions() ]
+            for region in inner_regions:
                 region.words = [doc[w.page_idx][w.word_idx] for w in region.words]
                 if region.word_lines:
                     region.word_lines = [[doc[w.page_idx][w.word_idx] for w in wl] for wl in region.word_lines]
 
         json_file = Path(json_file)
-        doc_dict = json.loads(json_file.read_text())
+        if json_file.suffix.lower() in ('.json', '.jsn'):
+            doc_dict = json.loads(json_file.read_text())
+        else:
+            doc_dict = msgpack.unpackb(json_file.read_bytes())
         new_doc = Doc(**doc_dict)
 
         # link doc to page and words
@@ -238,6 +248,9 @@ class Doc(BaseModel):
                 setattr(page, extra_field, extra_attr_obj)
         return new_doc
 
+    @property
+    def doc(self):
+        return self
 
     # TODO proper path processing please...
     def _splitPath(self, path):
@@ -251,10 +264,6 @@ class Doc(BaseModel):
     def get_page(self, jpath):
         page_idx, word_idx = self._splitPath(jpath)
         return self.pages[page_idx]
-
-    @property
-    def doc(self):
-        return self
 
     def edit(self, edits):
         def clearWord(doc, path):

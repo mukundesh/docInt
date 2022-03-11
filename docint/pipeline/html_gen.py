@@ -65,7 +65,7 @@ class HtmlGenerator:
                 box = shape
                 top = box.top_inpage(page.size)
                 (sw, sh) = box.size_inpage(page.size)
-                shape_str = f'x="{top.x}" y="{top.y}" width="{sw}" height="{sw}"'
+                shape_str = f'x="{top.x}" y="{top.y}" width="{sw}" height="{sh}"'
                 svg_str = f'<rect class="item_shape" {shape_str} {color_str}/>'
             else:
                 poly = shape

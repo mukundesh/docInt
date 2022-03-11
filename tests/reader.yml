@@ -1,0 +1,11 @@
+pipeline:
+  - name: pdf_reader
+    config:
+      x_tol: 1
+
+  - name: html_generator
+    config:
+      html_root: html
+      image_root: ../.img
+    
+

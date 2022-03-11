@@ -191,7 +191,7 @@ class FindNumMarker:
         return True
 
     def __call__(self, doc):
-        self.add_log_handler(doc)        
+        #self.add_log_handler(doc)        
         self.lgr.info(f'num_marker: {doc.pdf_name}')
         
         doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
@@ -214,5 +214,5 @@ class FindNumMarker:
             page.num_markers = num_markers
             self.lgr.info(f'> Page {page.page_idx} {[str(m) for m in num_markers]}')
 
-        self.remove_log_handler(doc)            
+        #self.remove_log_handler(doc)            
         return doc

@@ -1,0 +1,13 @@
+pipeline:
+  - name: pdf_reader
+    config:
+      x_tol: 1
+
+  - name: pdftable_finder
+    config:
+      edit_doc: True
+      pdfplumber_config:
+        vertical_strategy: lines
+        horizontal_strategy: lines        
+    
+

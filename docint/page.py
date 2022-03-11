@@ -83,12 +83,18 @@ class Page(BaseModel):
     def words_in_yrange(self, yrange, partial=False):
         return [w for w in self.words if w.box.in_yrange(yrange, partial)]
 
-    def words_to(self, direction, word, overlap_percent=1.0, min_height=None):
-        if direction not in ("left", "right", "up", "down"):
+    def words_to(self, direction, word, offset=1.0, overlap_percent=1.0, min_height=None):
+        if direction not in ("left", "right", "above", "below"):
             raise ValueError(f"Incorrect value of direction {direction}")
 
         if direction in ("left", "right"):
-            xrange = (0.0, word.xmin) if direction == "left" else (word.xmax, 1.0)
+            if direction == 'left':
+                left_most = max(0.0, word.xmin - offset)
+                xrange = (left_most, word.xmin)
+            else:
+                right_most = min(1.0, word.xmax + offset)
+                xrange = (word.xmax, right_most)
+
             if min_height and word.box.height < min_height:
                 height_inc = (min_height - word.box.height) / 2.0
                 yrange = (word.ymin - height_inc, word.ymax + height_inc)
@@ -103,8 +109,13 @@ class Page(BaseModel):
             return Region(words=horz_words)
         else:
             xrange = (word.xmin, word.xmax)
-            yrange = (0.0, word.ymin) if direction == "top" else (word.ymax, 1.0)
-
+            if direction == 'above':
+                top_most = max(0.0, word.ymin - offset)
+                yrange = (0.0, word.ymin)
+            else:
+                bot_most = min(1.0, word.ymax + offste)
+                yrange = (word.ymax, bot_most)
+            
             vert_words = self.words_in_xrange(xrange, partial=True)
 
             vert_box = Shape.build_box_ranges(xrange, yrange)
@@ -121,4 +132,5 @@ class Page(BaseModel):
     @property
     def page(self):
         return self
-    
+
+        

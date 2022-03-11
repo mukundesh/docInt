@@ -27,6 +27,7 @@ class LineWord(Region):
     linenum: int = -1
     char_width_: Union[int, None]
     is_merged: bool = False
+    is_selected: bool = False
 
     @classmethod
     def build(cls, word):
@@ -34,6 +35,9 @@ class LineWord(Region):
 
     def is_short(self, config):
         return self.text_len() < config.merge_word_len
+
+    def set_selected(self):
+        self.is_selected = True
 
     def set_position(self):
         if not self.lt_lwords and not self.rt_lwords:
@@ -44,6 +48,10 @@ class LineWord(Region):
             self.position = "last"
         else:
             self.position = "middle"
+
+    @property
+    def idx_str(self):
+        return '-'.join([f'[{w.word_idx}]' for w in self.words])
 
     @property
     def char_width(self):
@@ -76,15 +84,19 @@ class LineWord(Region):
         self.lt_lwords = [lw for lw in self.lt_lwords if id(lw) != id(self)]
         self.rt_lwords = [lw for lw in self.rt_lwords if id(lw) != id(self)]
 
-        #print(f'{self.words[0].text} lt: {len(self.lt_lwords)} rt: {len(self.rt_lwords)}')
+        lt_str = ','.join([str(lw.words[0].word_idx) for lw in self.lt_lwords])
+        rt_str = ','.join([str(lw.words[0].word_idx) for lw in self.rt_lwords])        
+
+        #print(f'[{self.words[0].word_idx}]{self.words[0].text} lt: {len(self.lt_lwords)}{lt_str} rt: {len(self.rt_lwords)} {rt_str}')
         
 
     def add_at(self, direction, lword):
         if direction == "left":
-            self.words = lword.words + self.words
-        else:
-            self.words = self.words + lword.words
+            words = lword.words + self.words
 
+        else:
+            words = self.words + lword.words
+        self.words = words
         lword.is_merged = True
         self.text_ = None
         self.shape_ = None
@@ -108,18 +120,24 @@ class LineWord(Region):
     def merge_side_words(self, conf):
         if self.text_len() > conf.merge_word_len:
             return
+                    
+        if self.text_len() == 0:
+            print('Empty String')
+            return 
 
         # self is short word and needs to be merged
         
         if self.lt_lwords:
             rt_most_lword = max(self.lt_lwords, key=lambda lw: lw.xmax)
-            if not rt_most_lword.is_merged:
+            if not rt_most_lword.is_merged and rt_most_lword.is_selected:
+                #print(f'Merging {len(rt_most_lword.words)} [{rt_most_lword.words[0].word_idx}]{rt_most_lword.words[0].text} -> {self.words[0].text} [{self.words[0].word_idx}]')
                 rt_most_lword.add_at("right", self)
                 return True
 
         if self.rt_lwords:
             lt_most_lword = min(self.rt_lwords, key=lambda lw: lw.xmin)
-            if not lt_most_lword.is_merged:
+            if not lt_most_lword.is_merged and lt_most_lword.is_selected:
+                #print(f'MergingL {len(lt_most_lword.words)} [{lt_most_lword.words[0].word_idx}]{lt_most_lword.words[0].text} -> {self.words[0].text} [{self.words[0].word_idx}]')
                 lt_most_lword.add_at("left", self)
                 return True
         return False
@@ -159,7 +177,7 @@ def print_word_lines(word_lines):
 def words_in_lines(
     region,
     *,
-    merge_word_len=2,
+    merge_word_len=3,
     num_slots=1000,
     newline_height_multiple=1.0,
     para_indent=True
@@ -173,6 +191,8 @@ def words_in_lines(
 
     page_lWords = [LineWord.build(word) for word in first_word.page.words ]
     lWords = [page_lWords[w.word_idx] for w in region.words ]
+
+    [lw.set_selected() for lw in lWords]
 
     [lw.set_side_words(page_lWords, avg_height) for lw in lWords]
     [lw.set_position() for lw in lWords]
@@ -190,9 +210,11 @@ def words_in_lines(
     # Using side words remove side overlap
     [lw.remove_side_overlap() for lw in lWords]
 
+    #print(f'# Before lWords: {len(lWords)} {[lW.idx_str for lW in lWords]}')    
     # merge short words and remove merged words
     [lw.merge_side_words(conf) for lw in lWords if lw.is_short(conf)]
     lWords = [lw for lw in lWords if not lw.is_merged]
+    #print(f'# After lWords: {len(lWords)} {[lW.idx_str for lW in lWords]}')    
 
     # set the positions again as merging could have changed the words
     [lw.set_position() for lw in lWords]

@@ -1,5 +1,7 @@
 import logging
 import statistics
+import sys
+from pathlib import Path
 from enum import Enum
 
 from ..word_line import words_in_lines
@@ -68,10 +70,31 @@ class ListFinder:
         self.has_footer = has_footer
         self.footer_delim = footer_delim
         self.footer_height_multiple = footer_height_multiple
+        self.conf_stub = 'listfinder'
+
+        self.lgr = logging.getLogger(f'docint.pipeline.{self.conf_stub}')
+        self.lgr.setLevel(logging.DEBUG)
+
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setLevel(logging.INFO)
+        self.lgr.addHandler(stream_handler)
+        self.file_handler = None
+
+    def add_log_handler(self, doc):
+        handler_name = f'{doc.pdf_name}.{self.conf_stub}.log'
+        log_path = Path('logs') / handler_name
+        self.file_handler = logging.FileHandler(log_path, mode='w')
+        self.lgr.info(f'adding handler {log_path}')
+
+        self.file_handler.setLevel(logging.DEBUG)        
+        self.lgr.addHandler(self.file_handler)
+
+    def remove_log_handler(self, doc):
+        self.file_handler.flush()
+        self.lgr.removeHandler(self.file_handler)
+        self.file_handler = None
         
-        self.logger = logging.getLogger(__name__ + ".FindNumMarker")
-        self.logger.setLevel(logging.DEBUG)
-        self.logger.addHandler(logging.StreamHandler())
+        
 
     def remove_footer(self, word_lines):
         last_word_lines = []
@@ -88,7 +111,7 @@ class ListFinder:
 
             line_text = " ".join(w.text for w in word_line if w.text)
             
-            self.logger.info(f'footer adding: {line_text}')
+            self.lgr.debug(f'footer adding: {line_text}')
             last_word_lines.append(word_line)
 
             if line_text.strip().endswith(footer_delim_tuple):
@@ -135,7 +158,8 @@ class ListFinder:
         return filtered_markers
 
     def __call__(self, doc):
-        self.logger.info(f"list_finder: {doc.pdf_name}")
+        self.add_log_handler(doc)
+        self.lgr.info(f"list_finder: {doc.pdf_name}")
         
         doc_config = load_config(self.doc_confdir, doc.pdf_name, "listfinder")
 
@@ -148,4 +172,5 @@ class ListFinder:
                 page.list_items = self.find_inpage(word_lines, num_markers)
             else:
                 page.list_items = []
+        self.remove_log_handler(doc)
         return doc

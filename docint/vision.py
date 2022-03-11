@@ -150,7 +150,7 @@ class Vision:
         component_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Doc:
         path = Path(path)
-        if path.suffix == '.json':
+        if path.suffix.lower() in ('.json', '.msgpack', '.jsn'):
             doc = Doc.from_disk(path)
         else:
             doc = self.build_doc(path)
@@ -201,7 +201,7 @@ class Vision:
         
         # filter based on ignore_files
         docs = [ d for d in docs if d.pdf_name not in self.ignore_docs]
-        print('After {len(docs)}')        
+        print(f'After {len(docs)}')        
         
         for pipe in pipes:
             docs = pipe(docs)

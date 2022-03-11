@@ -39,6 +39,10 @@ class Word(BaseModel):
     @property
     def text(self):
         return self.text_
+
+    @property
+    def orig_text(self):
+        return self.orig_text_ if self.orig_text_ is not None else self.text_
  
     @property
     def text_with_ws(self):
@@ -127,7 +131,7 @@ class Word(BaseModel):
             self.orig_text_ = self.text_
 
         if next_word.orig_text_ is None:
-            next_word.orig_text_ = self.text_
+            next_word.orig_text_ = next_word.text_
 
         top = self.box.top
         bot = next_word.box.bot

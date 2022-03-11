@@ -1,30 +1,14 @@
 from typing import List
 import logging
-import itertools as it
+from itertools import groupby, chain
+
+from pydantic import BaseModel
 
 from ..vision import Vision
 from ..region import Region
+from ..table import Table, Row, Cell
 from ..util import load_config
 
-class Cell(Region):
-    pass
-
-class BodyRow(Region):
-    cells: List[Cell]
-
-    @classmethod
-    def build(cls, cells):
-        words = [w for cell in cells for w in cell.words]
-        return BodyRow(words=words, cells=cells)
-
-
-class Table(Region):
-    body_rows: List[BodyRow]
-
-    @classmethod    
-    def build(cls, body_rows):
-        words = [w for row in body_rows for w in row.words]
-        return Table(words=words, body_rows=body_rows)
 
 
 @Vision.factory(
@@ -82,7 +66,7 @@ class TableFinder:
             [fill_slots(slots, word) for word in list_item.words]
 
             enum_slots = list(enumerate(slots))[self.x_range_slice]
-            gb = it.groupby(enum_slots, key=lambda tup: tup[1] == 0)
+            gb = groupby(enum_slots, key=lambda tup: tup[1] == 0)
 
             empty_ranges = []
             for is_empty, empty_slots in gb:
@@ -100,7 +84,7 @@ class TableFinder:
                 lt_cell, rt_cell = Cell(words=lt_words), Cell(words=rt_words)
                 #print(f"{list_item.marker.text}|{lt_cell.text}|{rt_cell.text}")
 
-                body_rows.append(BodyRow.build([lt_cell, rt_cell]))
+                body_rows.append(Row.build([lt_cell, rt_cell]))
         return Table.build(body_rows)
 
     def __call__(self, doc):

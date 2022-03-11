@@ -2,9 +2,9 @@ import io
 import json
 import pathlib
 
-from google.protobuf.json_format import MessageToDict
-from google.cloud import vision_v1
-from google.cloud import storage
+#from google.protobuf.json_format import MessageToDict
+#from google.cloud import vision_v1
+#from google.cloud import storage
 
 from ..vision import Vision
 from ..doc import Doc
@@ -207,6 +207,7 @@ class CloudVisionRecognizer:
 
     def __call__(self, doc):
         output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
+        print(output_path)
         if output_path.exists():
             return self.read_gcv(doc, output_path)
         else:

@@ -23,9 +23,13 @@ class Post(Region):
     role_hpath: List[str]
     juri_hpath: List[str]
     loca_hpath: List[str]
-    stat_hpath: List[str]    
+    stat_hpath: List[str]
 
-    spans: List[Span]
+    dept_spans: List[Span]
+    role_spans: List[Span]
+    juri_spans: List[Span]
+    loca_spans: List[Span]
+    stat_spans: List[Span]            
 
     @property
     def dept(self):
@@ -35,10 +39,30 @@ class Post(Region):
     def role(self):
         return self.role_hpath[-1]
 
+    @property
+    def spans(self):
+        return self.dept_spans + self.role_spans + self.juri_spans + self.loca_spans + self.stat_spans
+
+    @property
+    def spans_dict(self):
+        s_dict = {'dept': self.dept_spans, 'role': self.role_spans, 'juri': self.juri_spans,
+                     'loca': self.loca_spans, 'stat': self.stat_spans}
+        return dict((field, spans) for field, spans in s_dict.items() if spans)
+
+
+    @classmethod
+    def to_str(self, posts, post_str):
+        p = post_str
+        posts_to_strs = []
+        for post in posts:
+            strs = [ f'{f[0].upper()}:{Span.to_str(p, s)}<' for (f, s) in post.spans_dict.items() ]
+            posts_to_strs.append(' '.join(strs))
+        return '-'.join(posts_to_strs)
+
     @classmethod
     def build(cls, words, post_str, dept, role, juri=None, loca=None, stat=None):
         def build_spans(label, spans):
-            return [Span(start=s, end=e, label=label) for (s,e) in spans]
+            return [Span(start=span.start, end=span.end, label=label) for span in spans]
         
         dept_spans = build_spans('dept', dept.spans) if dept else []
         role_spans = build_spans('role', role.spans) if role else []
@@ -46,18 +70,19 @@ class Post(Region):
         loca_spans = build_spans('loca', loca.spans) if loca else []
         stat_spans = build_spans('stat', stat.spans) if stat else []
 
-        dept_hpath = dept.get_hpath() if dept else []
-        role_hpath = role.get_hpath() if role else []
-        juri_hpath = juri.get_hpath() if juri else []
-        loca_hpath = loca.get_hpath() if loca else []
-        stat_hpath = stat.get_hpath() if stat else []                                
+        dept_hpath = dept.hierarchy_path if dept else []
+        role_hpath = role.hierarchy_path if role else []
+        juri_hpath = juri.hierarchy_path if juri else []
+        loca_hpath = loca.hierarchy_path if loca else []
+        stat_hpath = stat.hierarchy_path if stat else [] 
         
-        spans = dept_spans + role_spans + juri_spans + loca_spans + stat_spans
-
         return Post(words=words, word_line=[words], post_str=post_str,
                     dept_hpath=dept_hpath, role_hpath=role_hpath,
                     juri_hpath=juri_hpath, loca_hpath=loca_hpath,
-                    stat_hpath=stat_hpath, spans=spans)
+                    stat_hpath=stat_hpath, dept_spans=dept_spans,
+                    role_spans=role_spans, juri_spans=juri_spans,
+                    loca_spans=loca_spans, stat_spans=stat_spans)
+                    
     
         
 class OrderDetail(Region):
