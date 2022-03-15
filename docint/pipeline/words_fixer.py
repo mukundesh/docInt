@@ -181,10 +181,17 @@ class WordsFixer:
             if not word or not text:
                 continue
 
-            if len(text) <= 2 or self.dictionary.check(text):
+            if self.dictionary.check(text):
                 continue
 
-            if self.is_correctable(text):
+            if len(text) <= 2:
+                if text in ('uf', 'cf', 'qf', 'nf', 'af', 'bf'):
+                    replace_words.append((word, 'of'))
+                    self.lgr.debug(f"SpellCorrected {text} -> of")
+                    correct_count += 1
+                else:
+                    pass
+            elif self.is_correctable(text):
                 suggestions = self.dictionary.suggest(text)
                 self.lgr.debug(f"SpellCorrected {text} -> {suggestions[0]}")
                 replace_words.append((word, suggestions[0]))

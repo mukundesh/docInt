@@ -149,7 +149,7 @@ def load_config(config_dir, doc_name, stub):
 
 def find_date(date_line):
     try:
-        dt = parser.parse(date_line, fuzzy=True)
+        dt = parser.parse(date_line, fuzzy=True, dayfirst=True)
         return str(dt.date()), ''
     except ValueError as e:
         return None, str(e)

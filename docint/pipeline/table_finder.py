@@ -1,3 +1,5 @@
+import sys
+from pathlib import Path
 from typing import List
 import logging
 from itertools import groupby, chain
@@ -15,7 +17,7 @@ from ..util import load_config
     "table_finder",
     default_config={
         "doc_confdir": "conf",
-        "pre_edit": True,
+        "conf_stub": "table",
         "num_slots": 1000,
         "x_range": [0.3, 0.6],
         "sent_delim": ".;",
@@ -26,14 +28,14 @@ class TableFinder:
     def __init__(
         self,
         doc_confdir,
-        pre_edit,
+        conf_stub,
         num_slots,
         x_range,
         sent_delim,
         table_header,
     ):
         self.doc_confdir = doc_confdir
-        self.pre_edit = pre_edit
+        self.conf_stub = conf_stub
         self.sent_delim = sent_delim
         self.table_header = table_header
         self.num_slots = num_slots
@@ -42,9 +44,28 @@ class TableFinder:
         s, e = int(x_range[0] * num_slots), int(x_range[1] * num_slots)
         self.x_range_slice = slice(s, e)
 
-        self.logger = logging.getLogger(__name__ + ".FindNumMarker")
-        self.logger.setLevel(logging.INFO)
-        self.logger.addHandler(logging.StreamHandler())
+
+        self.lgr = logging.getLogger(f'docint.pipeline.{self.conf_stub}')
+        self.lgr.setLevel(logging.DEBUG)
+
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setLevel(logging.INFO)
+        self.lgr.addHandler(stream_handler)
+        self.file_handler = None
+
+    def add_log_handler(self, doc):
+        handler_name = f'{doc.pdf_name}.{self.conf_stub}.log'
+        log_path = Path('logs') / handler_name
+        self.file_handler = logging.FileHandler(log_path, mode='w')
+        self.lgr.info(f'adding handler {log_path}')
+
+        self.file_handler.setLevel(logging.DEBUG)        
+        self.lgr.addHandler(self.file_handler)
+
+    def remove_log_handler(self, doc):
+        self.file_handler.flush()
+        self.lgr.removeHandler(self.file_handler)
+        self.file_handler = None
 
     def find_inpage(self, list_items):
         def fill_slots(slots, word):
@@ -81,18 +102,29 @@ class TableFinder:
                 empty_range = ((empty_range[0] - 5)/ len(slots), (empty_range[1] +5)/ len(slots))
                 lt_words, rt_words = split_words(list_item.words, empty_range)
 
-                lt_cell, rt_cell = Cell(words=lt_words), Cell(words=rt_words)
-                #print(f"{list_item.marker.text}|{lt_cell.text}|{rt_cell.text}")
+                lt_cell, rt_cell = Cell(words=lt_words, word_lines=[lt_words]), Cell(words=rt_words, word_lines=[rt_words])
+                marker_cell = Cell(words=list_item.marker.words)
 
-                body_rows.append(Row.build([lt_cell, rt_cell]))
+                self.lgr.info(f"{list_item.marker.raw_text()}|{lt_cell.raw_text()}|{rt_cell.raw_text()}")
+
+                body_rows.append(Row.build([marker_cell, lt_cell, rt_cell]))
         return Table.build(body_rows)
 
     def __call__(self, doc):
-        self.logger.info(f"processing document: {doc.pdf_name}")
-        doc_config = load_config(self.doc_confdir, doc.pdf_name, "listfinder")
+        self.add_log_handler(doc)                        
+        self.lgr.info(f"table_finder: {doc.pdf_name}")
+
+        doc.add_extra_page_field('tables', ('list', 'docint.pipeline.table_finder', 'Table'))
+        doc.add_extra_page_field('heading', ('obj', 'docint.region', 'Region'))              
+
         for page in doc.pages:
             if page.list_items:
-                page.table = self.find_inpage(page.list_items)
+                table = self.find_inpage(page.list_items)
+                page.tables = [ table]
             else:
-                page.table = None
+                page.tables = []
+
+        self.remove_log_handler(doc)                
         return doc
+
+#/Users/mukund/Software/docInt/docint/pipeline/table_finder.py

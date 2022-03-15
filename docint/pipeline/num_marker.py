@@ -93,6 +93,8 @@ class FindNumMarker:
         self.roman_dict = self.build_roman_dict()
         self.alpha_dict = self.build_alphabet_dict()
 
+        self.valid_num_types = self.get_valid_types()
+        
         self.lgr = logging.getLogger(f'docint.pipeline.{self.conf_stub}')
         self.lgr.setLevel(logging.DEBUG)
 
@@ -101,6 +103,16 @@ class FindNumMarker:
         self.lgr.addHandler(stream_handler)
 
         self.file_handler = None
+
+    def get_valid_types(self):
+        num_types = []
+        if self.find_alphabet:
+            num_types.append(NumType.Alphabet)
+        if self.find_roman:
+            num_types.append(NumType.Roman)
+        if self.find_ordinal:
+            num_types.append(NumType.Ordinal)
+        return num_types
 
     def add_log_handler(self, doc):
         handler_name = f'{doc.pdf_name}.{self.conf_stub}.log'
@@ -172,6 +184,9 @@ class FindNumMarker:
 
     def is_valid(self, page, word, marker):
         if marker.num_type == NumType.NotNumber:
+            return False
+
+        if marker.num_type not in self.valid_num_types:
             return False
 
         if marker.num_val > self.max_number or marker.num_val <= 0 :

@@ -14,4 +14,6 @@ from .pdf_reader import PDFReader
 from .do_nothing import DoNothing
 from .pdftable_finder import PDFTableFinder
 from .pdforder_builder import InferHeaders
+from .pdforder_builder import PDFOrderBuilder
 from .pdfpost_parser import PostParser
+from .table_order_builder import TableOrderBuidler

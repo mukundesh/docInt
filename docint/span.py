@@ -5,6 +5,8 @@ import operator as op
 from pydantic import BaseModel
 
 
+
+
 class Span(BaseModel):
     start: int
     end: int
@@ -44,6 +46,18 @@ class Span(BaseModel):
                 return False
         return True
 
+    @classmethod
+    def remove_subsumed(cls, spans):
+        def rm_subsumed(spans, span):
+            if not spans:
+                return [ span ]
+            last_span = spans[-1]
+            if not last_span.subsumes(span):
+                spans.append(span)
+            return spans
+
+        sort_spans = sorted(spans, key=op.attrgetter('start_longest_len'))
+        return functools.reduce(rm_subsumed, sort_spans, [])
     
     @classmethod
     def str_spans(cls, spans):
@@ -65,7 +79,7 @@ class Span(BaseModel):
 
         #print(cls.str_spans(spans))
 
-        spans.sort(key=lambda s: (s.start, len(s)))
+        spans.sort(key=lambda s: (s.start, len(s))) ## TODO why sort these spans ?
         new_spans = functools.reduce(merge_spans, spans, [])
         return new_spans
 
@@ -90,6 +104,10 @@ class Span(BaseModel):
 
     def __str__(self):
         return f'[{self.start}:{self.end}]'
+
+    @property
+    def start_longest_len(self):
+        return (self.start, -1 * len(self))
     
 
     def span_str(self, text):
@@ -99,6 +117,9 @@ class Span(BaseModel):
     def slice(self):
         return slice(self.start, self.end)
 
+    def get_overlap_len(self, span):
+        min_end, max_start = min(span.end, self.end), max(span.start, self.start)
+        return max(0,  min_end - max_start)
 
     def overlaps(self, span):
         return self.get_overlap_len(span) > 0
@@ -134,9 +155,9 @@ class Span(BaseModel):
             gap_text = text[gs:ge].strip(ignore_chars)
             return True if gap_text == '' else False
 
-    def get_overlap_len(self, span):
-        min_end, max_start = min(span.end, self.end), max(span.start, self.start)
-        return max(0,  min_end - max_start)
+    def subsumes(self, span):
+        return self.start <= span.start and self.end >= span.end
+
 
     def update(self, pos, inc):
         ## TODO check with pos should depend on offset sign
@@ -175,13 +196,19 @@ class SpanGroup(BaseModel):
     def max_end(self):
         return max([s.end for s in self.spans])
 
+    # TBD this should be called max_span
     @property
     def full_span(self):
         return Span(start=self.min_start, end=self.max_end)
 
+    # TBD this is not correct, thsi name should be used for span_len
     @property
     def span_len(self):
         return self.max_end - self.min_start
+
+    @property
+    def sum_span_len(self):
+        return sum([len(s) for s in self.spans])
 
 
     def overlaps(self, span_group):

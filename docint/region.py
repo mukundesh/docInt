@@ -29,6 +29,15 @@ class DataError(BaseModel):
         ctr = Counter(e.name for e in errors)
         return ' '.join(f'{n}:{ct}' for n, ct in ctr.most_common(None))
 
+class UnmatchedTextsError(DataError):
+    texts: List[str]
+
+    @classmethod
+    def build(cls, path, unmatched_texts):
+        msg = ' '.join(unmatched_texts)
+        return UnmatchedTextsError(path=path, msg=msg, texts=unmatched_texts)
+    
+
 
 class DataEdit(BaseModel):
     msg: str

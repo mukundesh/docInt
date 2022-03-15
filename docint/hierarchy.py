@@ -18,8 +18,10 @@ Additional matching:
 """
 from dataclasses import dataclass
 from pathlib import Path
+from itertools import chain
 import itertools as it
 import logging
+
 
 
 from docint.span import Span, SpanGroup
@@ -37,7 +39,7 @@ class HierarchyNode:
     def __init__(self, name, alias, hierarchy_path, level, children, node_info):
         self.name = name
         self.alias = alias
-        self.hierarchy_path = hierarchy_path
+        self.hierarchy_path = tuple(hierarchy_path)
         self.level = level
         self.children = children
 
@@ -51,6 +53,10 @@ class HierarchyNode:
 
         self._debug = lgr.isEnabledFor(logging.DEBUG)
         self._names = None
+
+    @property
+    def full_path(self):
+        return tuple(list(self.hierarchy_path) + [self.name])
 
     @property
     def depth(self):
@@ -83,17 +89,29 @@ class HierarchyNode:
         # Ignoring options like word_boundary
         all_spans = []
         for name in self.get_all_names(match_options):
-            if self._debug: 
-                lgr.debug(f'\tMatching >{name}<') 
             spans = list(iter_spans(name, text))
             if spans:
                 all_spans.extend(spans)
                 if self._debug:
-                    spans_str = ", ".join(s.span_str(text) for s in spans)                
-                    lgr.debug(f"\t\t# spans: {len(spans)} name:{name} {spans_str}") 
+                    lgr.debug(f'\t\tMatching >{self.level}={name}*<')
+            else:
+                if self._debug:
+                    lgr.debug(f'\t\tMatching >{self.level}={name}<')
+        if all_spans:
+            #all_spans = Span.accumulate(all_spans) ### HAS AN IMPACT
+            spans_str = ", ".join(s.span_str(text) for s in all_spans)                                
+            lgr.debug(f"\t# before_spans: {len(all_spans)} {spans_str} {all_spans}")
+            all_spans = Span.remove_subsumed(all_spans)
+            spans_str = ", ".join(s.span_str(text) for s in all_spans)                    
+            lgr.debug(f"\t# spans: {len(all_spans)} name:{name}< {spans_str}") 
         return all_spans
 
     def rec_find_match(self, text, match_options):
+        def print_groups(span_groups):
+            print(text)
+            print(f'>{self.name}< {[len(span_groups)]} {"|".join(str(sg) for sg in span_groups)}')
+
+        
         #lgr.debug(f"\trec_find_match:{self.name}")
 
         span_groups = []  # child span_groups
@@ -102,9 +120,16 @@ class HierarchyNode:
             span_groups.extend(child_span_groups)
 
         spans = self.match(text, match_options)  # self matches
+        
         if spans and span_groups:
             spans_str = ", ".join(s.span_str(text) for s in spans)
-            #lgr.debug(f"\tFound:{self.name} #spans: {len(spans)} {spans_str}")
+            lgr.debug(f"\tBefore Found:{self.name} #spans: {len(spans)} {spans_str} sgs: {len(span_groups)}")
+            
+            # remove spans already covered in span_groups, TODO throw a warning BIAS towards deeper matches
+            sg_spans = chain(*[sg.spans for sg in span_groups])
+            spans = [ s for s in spans if not s.overlaps_any(sg_spans)]
+            lgr.debug(f"\tAfter Found:{self.name} #spans: {len(spans)} {spans_str} sgs: {len(span_groups)}")            
+            
             for span in spans:
                 adjoin_groups = [
                     span_group
@@ -112,13 +137,14 @@ class HierarchyNode:
                     if span.adjoins(span_group.full_span, text, " (),.;")
                 ]
                 if adjoin_groups:
-                    assert len(adjoin_groups) == 1
+                    assert len(adjoin_groups) == 1, print_groups(adjoin_groups)
                     hier_span = HierarchySpan.build(self, span)
                     adjoin_groups[0].add(hier_span)
                 else:
                     hier_span = HierarchySpan.build(self, span)
                     span_groups.append(HierarchySpanGroup.build(text, hier_span))
         elif spans:
+            assert Span.is_non_overlapping(spans)
             hier_spans = [HierarchySpan.build(self, span) for span in spans]
             span_groups = [HierarchySpanGroup.build(text, h) for h in hier_spans]
 
@@ -140,12 +166,14 @@ class HierarchySpanGroup(SpanGroup):
 
     @property
     def hierarchy_path(self):
-        hier_path = self.spans[0].node.hierarchy_path
-        for hier_span in self.spans[1:]:
-            span_idx = hier_path.index(hier_span.node.name)
-            hier_path[span_idx] = f"{hier_path[span_idx]}"
-        hier_path[-1] = f"{hier_path[-1]}"
-        return hier_path
+        # TODO THIS IS NEEDED IN POST, but is WRONG, as full_path, pelase fix
+        return self.spans[0].node.hierarchy_path
+        # hier_path = self.spans[0].node.hierarchy_path
+        # for hier_span in self.spans[1:]:
+        #     span_idx = hier_path.index(hier_span.node.name)
+        #     hier_path[span_idx] = f"{hier_path[span_idx]}"
+        # hier_path[-1] = f"{hier_path[-1]}"
+        # return hier_path
 
     def __str__(self):
         names = [s.node.name for s in reversed(self.spans)]
@@ -213,8 +241,9 @@ class Hierarchy:
                 lgr.info(f'Expanding names >{old_sub_str}< >{new_sub_str}<')
                 assert old_sub_str != new_sub_str
                 self.expand_names(old_sub_str, new_sub_str)
-                
         self._match_options = None
+
+        self.record_dict = {}
 
     def rec_build_tree(self, yml_dict, path=[], level=None):
         def get_children(yml_dict):
@@ -283,8 +312,9 @@ class Hierarchy:
         text = text.lower() if match_options.ignore_case else text                    
         span_groups = self.root.rec_find_match(text, match_options)
 
+        self.record(text, span_groups)
         
-        # select which match_paths to save
+        # select which span_groups to save
         retain_idxs = [True] * len(span_groups)
         for (idx1, idx2) in it.combinations(range(len(span_groups)), 2):
             m1, m2 = span_groups[idx1], span_groups[idx2]
@@ -303,7 +333,40 @@ class Hierarchy:
     def visit_depth_first(self, visit_func):
         def rec_visit(node):
             for child in node.children:
-                visit_func(child)
+                rec_visit(child)
             visit_func(node)
 
         rec_visit(self.root)
+
+    def visit_breadth_first(self, visit_func):
+        def rec_visit(node):
+            visit_func(node)            
+            for child in node.children:
+                rec_visit(child)
+
+        rec_visit(self.root)
+
+    def record(self, text, span_groups):
+        for hier_span in [s for sg in span_groups for s in sg.spans]:
+            match_text =  text[hier_span.slice()]
+            idx = hier_span.node.get_all_names(self._match_options).index(match_text)
+            self.record_dict.setdefault(hier_span.node.full_path, set()).add(idx)
+
+    def write_record(self, record_file_path):
+        assert record_file_path != self.file_path
+
+        def print_node(node):
+            indent = node.depth * 2 * ' '
+            n_str = f'{indent}- name: {node.name}\n'
+            assert n_str.isascii()
+            record_file.write(f'{indent}- name: {node.name}\n')
+            rec_idxs = self.record_dict.get(node.full_path, [])
+            enum_names = enumerate(node.get_all_names(self._match_options))
+            new_aliases = [a for idx, a in enum_names if idx in rec_idxs ]
+            if new_aliases:
+                a_str = f'{indent}  alias: [{",".join(new_aliases)}]\n'
+                #assert a_str.isascii(), f'{a_str} not ascii'
+                record_file.write(a_str)
+
+        with open(record_file_path, 'w', encoding="utf-8") as record_file:
+            self.visit_breadth_first(print_node)

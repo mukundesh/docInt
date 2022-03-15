@@ -1,3 +1,5 @@
+import datetime
+
 from typing import List
 from ..region import Region, Span
 
@@ -5,6 +7,12 @@ class Officer(Region):
     salut: str
     name: str
     full_name: str
+    birth_date: datetime.date = None
+    relative_name: str = ''
+    home_district: str = ''
+    posting_date: datetime.date = None
+    cadre: str = ''
+    
     officer_idx: int = -1
     officer_ID: str = ''
     lang: str = 'en'
@@ -60,7 +68,7 @@ class Post(Region):
         return '-'.join(posts_to_strs)
 
     @classmethod
-    def build(cls, words, post_str, dept, role, juri=None, loca=None, stat=None):
+    def build(cls, words, post_str, dept=None, role=None, juri=None, loca=None, stat=None):
         def build_spans(label, spans):
             return [Span(start=span.start, end=span.end, label=label) for span in spans]
         
@@ -92,7 +100,6 @@ class OrderDetail(Region):
     assumes: List[Post] = []
     detail_idx: int
     is_valid: bool = True
-    #extra_spans: [Span] = []
 
     @property
     def page_idx(self):

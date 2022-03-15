@@ -7,17 +7,12 @@ from collections import Counter
 from ..vision import Vision
 from ..word_line import words_in_lines
 
+
 from ..extracts.orgpedia import Officer, OrderDetail
 from ..util import find_date, load_config
-from ..region import DataError
+from ..region import DataError, UnmatchedTextsError
 
-class UnmatchedTextsError(DataError):
-    texts: List[str]
 
-    @classmethod
-    def build(cls, path, unmatched_texts):
-        msg = ' '.join(unmatched_texts)
-        return UnmatchedTextsError(path=path, msg=msg, texts=unmatched_texts)
     
 
 @Vision.factory(
@@ -39,6 +34,7 @@ class OrderBuilder:
             'post-dept-relinquishes': 'white on spring_green1',
             'post-dept-assumes': 'white on dark_slate_gray1',
             'dept': 'white on spring_green1',
+            'department': 'white on spring_green1',            
             
             'post-role-continues': 'white on red',
             'post-role-relinquishes': 'white on magenta',
@@ -47,7 +43,7 @@ class OrderBuilder:
             'verb': 'white on black'
             
         }
-        self.ignore_unmatched = set(['the', 'of', 'office', 'charge', 'and', 'will', 'he', 'additional', '&', 'has', 'offices', 'also', 'to', 'be', 'uf', 'continue', 'addition', 'she', 'other', 'hold', 'temporarily', 'assist',  'held', 'his', 'in', 'that', '(a)', '(b)', 'temporary', 'as', 'or', 'with', 'effect', 'holding', 'allocated', 'duties', 'been', 'after', 'under', 'of(a)', 'and(b)', 'and(c)', 'him', 'till', 'recovers', 'fully', 'look', 'work', 'from', 'th', 'june', '1980', 'for', 'time', 'being', ')', '(', '/', 'by', 'portfolio', 'discharge', 'assisting'])
+        self.ignore_unmatched = set(['the', 'of', 'office', 'charge', 'and', 'will', 'he', 'additional', '&', 'has', 'offices', 'also', 'to', 'be', 'uf', 'continue', 'addition', 'she', 'other', 'hold', 'temporarily', 'assist',  'held', 'his', 'in', 'that', '(a)', '(b)', 'temporary', 'as', 'or', 'with', 'effect', 'holding', 'allocated', 'duties', 'been', 'after', 'under', 'of(a)', 'and(b)', 'and(c)', 'him', 'till', 'recovers', 'fully', 'look', 'work', 'from', 'th', 'june', '1980', 'for', 'time', 'being', ')', '(', '/', 'by', 'portfolio', 'discharge', 'assisting', 'hereafter', 'designated'])
         self.unmatched_ctr = Counter()
 
         self.lgr = logging.getLogger(__name__)
@@ -137,7 +133,7 @@ class OrderBuilder:
         if u_texts:
             errors.append(UnmatchedTextsError.build('{detail_idx}', u_texts))
 
-        u_texts_str = ' '.join(u_texts)
+        # u_texts_str = ' '.join(u_texts)
         # if not ('minis' in u_texts_str or 'depa' in u_texts_str):
         #     return []
 
@@ -157,8 +153,8 @@ class OrderBuilder:
     def __call__(self, doc):
         self.add_log_handler(doc)        
         self.lgr.info(f"order_builder: {doc.pdf_name}")
-        doc.add_extra_field("order_details", ("list", __name__, "OrderDetails"))
-        doc.add_extra_field("order", ("obj", __name__, "Order"))
+        doc.add_extra_field('order_details', ('list', 'docint.extracts.orgpedia', 'OrderDetails'))        
+        doc.add_extra_field("order", ("obj", 'docint.extracts.orgpedia', 'Order'))        
 
         if self.pre_edit:
             doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
