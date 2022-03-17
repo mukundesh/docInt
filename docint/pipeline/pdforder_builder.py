@@ -147,6 +147,8 @@ class PDFOrderBuilder:
             assumes=[],
             detail_idx=row_idx,
         )
+        print('--------')
+        print(d.to_str())
         return d, o_errors + p_errors
 
     def build_officer(self, row, header_info, row_idx):

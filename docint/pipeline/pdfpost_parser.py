@@ -69,6 +69,41 @@ class PostParser:
         self.file_handler = None
 
 
+    def get_juri(self, post_str, dept_sg, role_sg, juri_sgs):
+        def is_commissioner_role(role_sg):
+            return 'Commissioner' in role_sg.hierarchy_path if role_sg else False
+
+        def is_dept_with_juri_label(dept_sg):
+            return dept_sg.get_label_val('_juri') is not None if dept_sg else None
+
+        def get_juri_marker(post_str):
+            markers = [('DSITT', 'districts'), ('DISTT', 'districts'),
+                       ('DISST', 'districts'),
+                       ('Range', 'ranges'),]
+            for marker,category in markers:
+                if marker.lower() in post_str.lower():
+                    return category
+            return None
+
+        print(f'is_commissioner_role: {is_commissioner_role(role_sg)}')
+        print(f'is_dept_with_juri_label: {is_dept_with_juri_label(dept_sg)}')
+        print(f'get_juri_marker: {get_juri_marker(post_str)}')
+        juriMarker = get_juri_marker(post_str)
+
+        if is_dept_with_juri_label(dept_sg):
+            label = dept_sg.get_label_val('_juri')
+            sub_path = f'juri.{label}'.lower().split('.')
+            juri_hier = self.hierarchy_dict['juri']
+            juri_sgs = juri_hier.find_match_in_sub_hierarchy(post_str, sub_path, self.match_options)
+            assert len(juri_sgs) == 1
+            print(len(juri_sgs))
+            return juri_sgs[0]
+        elif juriMarker:
+            print(f'{juriMarker}, {Hierarchy.to_str(juri_sgs)} {juri_sgs[0].hierarchy_path}')
+            juri_sgs = [sg for sg in juri_sgs if sg.spans[0].node.level == juriMarker]
+            return juri_sgs[0]
+        
+
     def build_post(self, hier_sg_dict, post_words, post_str, detail_idx):
         def get_role(role_sgs):
             sgs = [sg for sg in role_sgs if sg.full_span.start == 0]
@@ -85,17 +120,25 @@ class PostParser:
         def get_loca(loca_sgs):
             txts_sgs = [ (Span.to_str(post_str, sg), sg) for sg in loca_sgs ]
             txts_sgs.sort(key=lambda tup: len(tup[0]), reverse=True)
-            return txts_sgs[0] if txts_sgs else None
+            return txts_sgs[0][1] if (txts_sgs and txts_sgs[0]) else None
 
         def get_stat(stat_sgs):
             return stat_sgs[0] if stat_sgs else None
 
         post_dict = {}
         for (field, span_groups) in hier_sg_dict.items():
+            #if field != 'juri':
             proc = f'get_{field}'
             field_sg = locals()[proc](span_groups)
+            post_dict[field] = field_sg
+            
+            #else:
+            #    dept_sg, role_sg = post_dict['dept'], post_dict['role']
+            #    field_sg = self.get_juri(post_str, dept_sg, role_sg, hier_sg_dict['juri'])
+            #post_dict[field] = field_sg
+            #self.lgr.info(f"\t{field}: {Hierarchy.to_str([field_sg])}")                                
 
-        post = Post.build(post_words, post_str, *post_dict)
+        post = Post.build(post_words, post_str, **post_dict)
         return post
 
 
@@ -104,7 +147,7 @@ class PostParser:
         self.lgr.info(f'>{post_str}')
         for (field, hierarchy) in self.hierarchy_dict.items():
             try:
-                match_paths = hierarchy.find_match_paths(post_str, self.match_options)
+                match_paths = hierarchy.find_match(post_str, self.match_options)
             except Exception as e:
                 self.lgr.info(f'\t{field}: PARSE FAILED {post_str}')
                 match_paths = []
@@ -117,7 +160,6 @@ class PostParser:
         post = self.build_post(match_paths_dict, post_words, post_str, detail_idx)
         return post
         
-        #post_info = self.build_post_info(post_words, match_paths_dict, detail_idx)
 
     def __call__(self, doc):
         self.add_log_handler(doc)        
@@ -152,6 +194,19 @@ class PostParser:
             #self.hierarchy_dict[field].write_record(hierarchy_path)
         
 
+
+if __name__ == '__main__':
+    hierarchy_files = {
+        "dept": "dept.yml",
+        "role": "role.yml",
+        "juri": "juri.yml",
+        "loca": "loca.yml",
+        "stat": "stat.yml",                        
+    }
+    
+    post_parser = PostParser("conf", hierarchy_files, ["ignore"], "postparser")
+
+    post_parser.parser([], sys.argv[1],0)
 
 
 

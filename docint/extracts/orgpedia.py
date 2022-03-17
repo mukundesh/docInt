@@ -19,7 +19,8 @@ class Officer(Region):
 
     @classmethod
     def build(cls, words, salut, name):
-        full_name = salut + ' ' + name
+        salut, name = salut.strip(), name.strip()
+        full_name = salut + ' ' + name if salut else name
         return Officer(words=words, word_line=[words], salut=salut, name=name,
                        full_name=full_name)
 
@@ -57,6 +58,33 @@ class Post(Region):
                      'loca': self.loca_spans, 'stat': self.stat_spans}
         return dict((field, spans) for field, spans in s_dict.items() if spans)
 
+    def __str__(self):
+        def p_s(hpath):
+            return '->'.join(hpath) if hpath else ''
+        
+        pLines = []
+        pLines.append(f'role: {p_s(self.role_hpath)}')
+        pLines.append(f'dept: {p_s(self.dept_hpath)}')
+        for field in ['juri', 'loca', 'stat']:
+            field_hpath = getattr(self, f'{field}_hpath')
+            if field_hpath:
+                pLines.append(f'{field}: {p_s(field_hpath)}')
+        return '\n'.join(pLines)
+
+    def to_str2(self, indent=''):
+        def p_s(hpath):
+            return '->'.join(hpath) if hpath else ''
+        
+        pLines = []
+        pLines.append(f'{indent}role: {p_s(self.role_hpath)}')
+        pLines.append(f'{indent}dept: {p_s(self.dept_hpath)}')
+        for field in ['juri', 'loca', 'stat']:
+            field_hpath = getattr(self, f'{field}_hpath')
+            if field_hpath:
+                pLines.append(f'{indent}{field}: {p_s(field_hpath)}')
+        return '\n'.join(pLines)
+        
+        
 
     @classmethod
     def to_str(self, posts, post_str):
@@ -112,3 +140,19 @@ class OrderDetail(Region):
                            relinquishes=post_info.relinquishes,
                            assumes=post_info.assumes,
                            detail_idx=detail_idx)
+
+
+    def to_str(self, print_color=False):
+        d_lines = [self.raw_text()]
+        
+        d_lines.append(self.officer.full_name)
+        for verb in ['continues', 'relinquishes', 'assumes']:
+            posts = getattr(self, verb)
+            if  posts:
+                d_lines.append(f'{verb}:')
+                d_lines.extend([f'{p.to_str2("  ")}' for p in posts])
+        #end
+        if self.errors:
+            d_lines += ['Errors:']
+            d_lines += [f'  {str(e)}' for e in self.errors ]
+        return '\n'.join(d_lines)

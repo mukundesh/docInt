@@ -2,11 +2,15 @@ from typing import List, Dict, Iterable
 from itertools import zip_longest, groupby, chain
 from collections import Counter
 from textwrap import wrap
+from string import punctuation
+import sys
+import re
 
 from pydantic import BaseModel
 
 from rich.text import Text
 from rich import print as rprint
+from enchant.utils import levenshtein
 
 
 from .word import Word
@@ -33,8 +37,8 @@ class UnmatchedTextsError(DataError):
     texts: List[str]
 
     @classmethod
-    def build(cls, path, unmatched_texts):
-        msg = ' '.join(unmatched_texts)
+    def build(cls, path, unmatched_texts, post_str=""):
+        msg = f'{",".join(unmatched_texts)}|{post_str}'
         return UnmatchedTextsError(path=path, msg=msg, texts=unmatched_texts)
     
 
@@ -294,7 +298,129 @@ class Region(BaseModel):
 
         line_text = "".join(line_text)
         return line_text.replace("|", "")
-    
+
+
+    def make_ascii(self,  unicode_dict={}, text_config=None):
+        not_found = []
+        for text, word in self.iter_word_text(text_config):
+            if not word.text.isascii():
+                u_text = word.text
+                if u_text in unicode_dict:
+                    a_text = unicode_dict[u_text]
+                    #self.lgr.debug(f'UnicodeFixed: {u_text}->{a_text}')
+                    self.replace_word_text(word, '<all>',  a_text)
+                else:
+                    not_found.append(word.text)
+                    pass
+                    #self.lgr.info(f'unicode text not found: {u_text}\n')
+        return not_found
+
+    def _fix_text(self, text):
+        if not text.isascii():
+            sys.stderr.write(f'{text}\n')
+        text = text.strip()
+
+        punct_tbl = str.maketrans(punctuation, " " * len(punctuation))        
+        text = text.translate(punct_tbl).strip()
+        return text
+
+    def is_correctable(self, text, dictionary):
+        suggestions = dictionary.suggest(text)
+        if not suggestions:
+            return False
+        lv_dist_cutoff = 1
+
+        top_suggestion = suggestions[0].lower()
+        lv_dist = levenshtein(top_suggestion, text.lower())
+        #print(f'\t{text}->{suggestions[0]} {lv_dist}')
+        
+        if lv_dist <= lv_dist_cutoff or \
+           top_suggestion.startswith(text.lower()):
+            return True
+        else:
+            return False
+
+    def is_mergeable(self, text, next_word, dictionary):
+        if next_word is None:
+            return False
+        
+        next_text = self._fix_text(next_word.text)
+        if not next_text:
+            return False
+
+        merged_text = text + next_text
+        if dictionary.check(merged_text):
+            #self.lgr.debug(f"MergeFound >{text}+{next_text}<")
+            return True
+        elif self.is_correctable(merged_text, dictionary):
+            #self.lgr.debug(f"MergeCorrected {merged_text}")
+            return True
+        else:
+            #print(f"Merge NotFound {merged_text}")
+            return False
+                    
+
+    def merge_words(self, dictionary, text_config=None):
+        merge_count = 0
+
+        if len(self.words) == 0:
+            return
+
+        last_merged_word, merge_words = None, [] # don't alter spans while iterating
+        for word, next_word in self.iter_word_pairs(text_config):
+            text = self._fix_text(word.text)
+            
+            if (not word) or (not next_word) or (not text) or (id(word) == id(last_merged_word)):
+                continue
+
+            if self.is_mergeable(text, next_word, dictionary):
+                #self.lgr.debug(f'Merged: {word.text} {next_word.text}')
+                merge_words.append((word, next_word))
+                merge_count += 1
+                last_merged_word = next_word
+
+        [ self.merge_word(word, next_word) for (word, next_word) in merge_words]
+        return merge_count
+
+
+    def correct_words(self, dictionary, text_config=None):
+        correct_count = 0
+        replace_words = [] # don't alter spans while iterating
+        for text, word in self.iter_word_text(text_config):
+            text = self._fix_text(text)
+            if not word or not text:
+                continue
+
+            if dictionary.check(text):
+                continue
+
+            if len(text) <= 2:
+                if text in ('uf', 'cf', 'qf', 'nf', 'af', 'bf'):
+                    replace_words.append((word, 'of'))
+                    #self.lgr.debug(f"SpellCorrected {text} -> of")
+                    correct_count += 1
+                else:
+                    pass
+            elif self.is_correctable(text, dictionary):
+                suggestions = dictionary.suggest(text)
+                #self.lgr.debug(f"SpellCorrected {text} -> {suggestions[0]}")
+                replace_words.append((word, suggestions[0]))
+                correct_count += 1
+            else:
+                pass
+                #self.lgr.debug(f"SpellNOTFOUND {text}")
+        [ self.replace_word_text(w, '<all>', t) for (w, t) in replace_words]
+        return correct_count
+
+    def mark_regex(self, regexes, label, text_config=None):
+        line_text = self.line_text(text_config)
+        new_spans = []
+        for regex in regexes:
+            for m in re.finditer(regex, line_text):
+                new_spans.append(m.span())
+        new_spans.sort(reverse=True)
+        for (s, e) in new_spans:
+            self.add_span(s, e, label, text_config)
 
     def print_color(self, error_type, color_config):
         line_text = self.line_text()

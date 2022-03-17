@@ -1,6 +1,7 @@
 from typing import List, Dict
 import functools
 import operator as op
+from itertools import chain
 
 from pydantic import BaseModel
 
@@ -187,6 +188,11 @@ class SpanGroup(BaseModel):
         for span in self.spans:
             yield span
 
+
+    @classmethod
+    def blank_text(cls, span_groups, text):
+        spans = list(chain(*[sg.spans for sg in span_groups]))
+        return Span.blank_text(spans, text)
 
     @property
     def min_start(self):

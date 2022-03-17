@@ -33,6 +33,9 @@ lgr = logging.getLogger(__name__)
 class MatchOptions:
     ignore_case: bool = True
     longest_name_first: bool = True
+    merge_strategy: str = 'adjoin'
+    select_strategy: str = 'non_overlap'
+    select_level: str = ''
 
 
 class HierarchyNode:
@@ -106,6 +109,18 @@ class HierarchyNode:
             lgr.debug(f"\t# spans: {len(all_spans)} name:{name}< {spans_str}") 
         return all_spans
 
+    def find_adjoin_span_groups(self, span, span_groups, text):
+        return [ span_group for span_group in span_groups if span.adjoins(span_group.full_span, text, " (),.;")]
+
+    def find_child_span_groups(self, span, span_groups):
+        span_path, child_sgs = self.full_path, []
+        path_len = len(span_path)
+        for sg in span_groups:
+            if sg.hierarchy_path[-path_len:] == span_path:
+                child_sgs.append(sg)
+        return child_sgs
+    
+
     def rec_find_match(self, text, match_options):
         def print_groups(span_groups):
             print(text)
@@ -124,22 +139,23 @@ class HierarchyNode:
         if spans and span_groups:
             spans_str = ", ".join(s.span_str(text) for s in spans)
             lgr.debug(f"\tBefore Found:{self.name} #spans: {len(spans)} {spans_str} sgs: {len(span_groups)}")
-            
-            # remove spans already covered in span_groups, TODO throw a warning BIAS towards deeper matches
+            # Hierarchy could have two nodes with same names, not ideal, but possible
+            # leading to two spans matching the same text, in that case we prefer
+            # deeper span
+
             sg_spans = chain(*[sg.spans for sg in span_groups])
             spans = [ s for s in spans if not s.overlaps_any(sg_spans)]
-            lgr.debug(f"\tAfter Found:{self.name} #spans: {len(spans)} {spans_str} sgs: {len(span_groups)}")            
-            
             for span in spans:
-                adjoin_groups = [
-                    span_group
-                    for span_group in span_groups
-                    if span.adjoins(span_group.full_span, text, " (),.;")
-                ]
-                if adjoin_groups:
-                    assert len(adjoin_groups) == 1, print_groups(adjoin_groups)
+                
+                #merge_sgs = self.find_adjoin_span_groups(span, span_groups, text)
+
+                merge_sgs = self.find_child_span_groups(span, span_groups)                
+
+                
+                if merge_sgs:
+                    assert len(merge_sgs) == 1, print_groups(merge_sgs)
                     hier_span = HierarchySpan.build(self, span)
-                    adjoin_groups[0].add(hier_span)
+                    merge_sgs[0].add(hier_span)
                 else:
                     hier_span = HierarchySpan.build(self, span)
                     span_groups.append(HierarchySpanGroup.build(text, hier_span))
@@ -156,6 +172,22 @@ class HierarchySpanGroup(SpanGroup):
     def build(cls, text, span):
         return HierarchySpanGroup(spans=[span], text=text)
 
+    @classmethod
+    def select_non_overlapping(cls, span_groups):
+        retain_idxs = [True] * len(span_groups)
+        for (idx1, idx2) in it.combinations(range(len(span_groups)), 2):
+            m1, m2 = span_groups[idx1], span_groups[idx2]
+            if m1.overlaps(m2) and retain_idxs[idx1] and retain_idxs[idx2]:
+                min_len, min_idx = min((m1.span_len, idx1), (m2.span_len, idx2))
+                retain_idxs[min_idx] = False
+
+        return [m for (idx, m) in enumerate(span_groups) if retain_idxs[idx]]
+
+        
+    @classmethod
+    def select_level(cls, span_groups, level):
+        return [ sg for sg in span_groups if sg.spans[0].node.level == level ]
+
     @property
     def root(self):
         return self.spans[0].node.hierarchy_path[0]
@@ -166,14 +198,11 @@ class HierarchySpanGroup(SpanGroup):
 
     @property
     def hierarchy_path(self):
-        # TODO THIS IS NEEDED IN POST, but is WRONG, as full_path, pelase fix
-        return self.spans[0].node.hierarchy_path
-        # hier_path = self.spans[0].node.hierarchy_path
-        # for hier_span in self.spans[1:]:
-        #     span_idx = hier_path.index(hier_span.node.name)
-        #     hier_path[span_idx] = f"{hier_path[span_idx]}"
-        # hier_path[-1] = f"{hier_path[-1]}"
-        # return hier_path
+        node = self.spans[0].node
+        return tuple(chain(node.hierarchy_path, [node.name]))
+
+    def get_label_val(self, label):
+        return self.spans[0].node.node_info.get(label, None)
 
     def __str__(self):
         names = [s.node.name for s in reversed(self.spans)]
@@ -201,6 +230,7 @@ class HierarchySpan(Span):
     @property
     def depth(self):
         return self.node.depth
+
 
 
 class Hierarchy:
@@ -258,8 +288,9 @@ class Hierarchy:
             else:
                 return [], None
 
-        def get_info(yml_dict):
-            return {}
+        def get_info(yml_dict, child_level):
+            ignore = ['name', 'alias'] + [child_level]
+            return dict((k,v) for (k, v) in yml_dict.items() if k not in ignore)
 
         children_yml, child_level = get_children(yml_dict)
         name, children = yml_dict["name"], []
@@ -271,7 +302,7 @@ class Hierarchy:
                 children.append(child)
         #
 
-        node_info = get_info(yml_dict)
+        node_info = get_info(yml_dict, child_level)
         alias = yml_dict.get("alias", [])
         node = HierarchyNode(name, alias, path, level, children, node_info)
         return node
@@ -291,18 +322,26 @@ class Hierarchy:
         else:
             raise NotImplementedError("Not implemented no parse")
 
-    def find_match_paths(self, text, match_options, blank_span_groups=[]):
-        return self.find_match(text, match_options, blank_span_groups)
+    def find_match_in_sub_hierarchy(self, text, sub_path, match_options):
+        lgr.debug(f"find_match_in_sub_hierarchy: {text}")
+        sub_node = self.get_node(sub_path, MatchOptions(ignore_case=False))
+        assert sub_node
 
-    def find_match(self, text, match_options, blank_span_groups=[]):
+        if self._match_options and self._match_options != match_options:
+            lgr.debug('New match options, clearing names')
+            self.visit_depth_first(lambda node: node.clear_names_cache())
+        self._match_options = match_options
+
+        text = text.lower() if match_options.ignore_case else text                    
+        span_groups = sub_node.rec_find_match(text, match_options)
+
+        self.record(text, span_groups)
+
+        return HierarchySpanGroup.select_non_overlapping(span_groups)        
+        
+
+    def find_match(self, text, match_options):
         lgr.debug(f"find_match: {text}")
-
-        # blank out the spans and keep them
-        if len(blank_span_groups) >  0:
-            spans = [s for sg in blank_span_groups for s in sg.spans]
-            text = Span.blank_text(spans, text)
-            lgr.debug(f'text after blanking: {text}')
-        #end if
 
         if self._match_options and self._match_options != match_options:
             lgr.debug('New match options, clearing names')
@@ -313,17 +352,7 @@ class Hierarchy:
         span_groups = self.root.rec_find_match(text, match_options)
 
         self.record(text, span_groups)
-        
-        # select which span_groups to save
-        retain_idxs = [True] * len(span_groups)
-        for (idx1, idx2) in it.combinations(range(len(span_groups)), 2):
-            m1, m2 = span_groups[idx1], span_groups[idx2]
-            if m1.overlaps(m2) and retain_idxs[idx1] and retain_idxs[idx2]:
-                min_len, min_idx = min((m1.span_len, idx1), (m2.span_len, idx2))
-                retain_idxs[min_idx] = False
-
-        span_groups = [m for (idx, m) in enumerate(span_groups) if retain_idxs[idx]]
-        return span_groups
+        return HierarchySpanGroup.select_non_overlapping(span_groups)
 
 
     @classmethod
@@ -370,3 +399,19 @@ class Hierarchy:
 
         with open(record_file_path, 'w', encoding="utf-8") as record_file:
             self.visit_breadth_first(print_node)
+
+        
+    def get_node(self, hierarchy_path, match_options):
+        def rec_get_node(node, hierarchy_path):
+            assert hierarchy_path[0] in node.get_all_names(match_options)
+            
+            child_hier_path = hierarchy_path[1:]
+            if not child_hier_path:
+                return node
+            child_name = child_hier_path[0]
+            for child in node.children:
+                if child_name in child.get_all_names(match_options):
+                    return rec_get_node(child, child_hier_path)
+            return None
+
+        return rec_get_node(self.root, hierarchy_path)

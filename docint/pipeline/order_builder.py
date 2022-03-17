@@ -81,9 +81,9 @@ class OrderBuilder:
         if person_spans:
             person_span = person_spans[0]
             full_name = list_item.get_text_for_spans([person_span])
-            salut, name = self.split_name(full_name)
+            #salut, name = self.split_name(full_name)
             officer_words = list_item.get_words_in_spans([person_span])
-            officer = Officer.build(officer_words, salut, name)
+            officer = Officer.build(officer_words, '', full_name)
 
 
             order_detail = OrderDetail.build(
@@ -178,6 +178,7 @@ class OrderBuilder:
                 if post_info.is_valid:
                     order_detail = self.build_detail(list_item, post_info, detail_idx)
                     if order_detail:
+                        print(order_detail.to_str())
                         doc.order_details.append(order_detail)
                         detail_idx += 1
                     errors += self.test(list_item, order_detail, post_info, idx)

@@ -2,7 +2,7 @@ import logging
 import sys
 
 from docint.hierarchy import Hierarchy, MatchOptions
-from docint.span import Span
+from docint.span import Span, SpanGroup
 
 l1 = "prime minister has assumed the office of Home Ministry"
 m1 = "D:2 Prime Minister [0:14]"
@@ -58,22 +58,22 @@ def perf_test():
     respect_case = MatchOptions(ignore_case=False)    
 
     for i in range(300):
-        match_paths = dept_hierarchy.find_match_paths(l3, ignore_case)
-        match_paths = dept_hierarchy.find_match_paths(l5, ignore_case)
-        match_paths = dept_hierarchy.find_match_paths(l6, ignore_case)
-        match_paths = dept_hierarchy.find_match_paths(l7, ignore_case)
+        match_paths = dept_hierarchy.find_match(l3, ignore_case)
+        match_paths = dept_hierarchy.find_match(l5, ignore_case)
+        match_paths = dept_hierarchy.find_match(l6, ignore_case)
+        match_paths = dept_hierarchy.find_match(l7, ignore_case)
         
     role_hiearchy = Hierarchy("cabsec_role.yml")
     for i in range(300):    
-        match_paths = role_hiearchy.find_match_paths(l1, ignore_case)
-        match_paths = role_hiearchy.find_match_paths(l1, respect_case)
-        match_paths = role_hiearchy.find_match_paths(l2, ignore_case)
+        match_paths = role_hiearchy.find_match(l1, ignore_case)
+        match_paths = role_hiearchy.find_match(l1, respect_case)
+        match_paths = role_hiearchy.find_match(l2, ignore_case)
 
 
 if __name__ == "__main__":
     ignore_case = MatchOptions(ignore_case=True)
 
-    hierarchy_logger = logging.getLogger('docint.hierarchy2')
+    hierarchy_logger = logging.getLogger('docint.hierarchy')
     hierarchy_logger.setLevel(logging.INFO)
     
     hierarchy_logger.addHandler(logging.StreamHandler())
@@ -93,26 +93,26 @@ if __name__ == "__main__":
     dept_hierarchy = Hierarchy("cabsec_dept.yml")
 
     print('\nD: Testing dept with new level added')
-    match_paths = dept_hierarchy.find_match_paths(l3, ignore_case)
+    match_paths = dept_hierarchy.find_match(l3, ignore_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
     assert m3 == match_paths_str, f'Unmatched >{m3}< != >{match_paths_str}<'    
     
 
     print('\nD: Testing dept with two levels same parent')
-    match_paths = dept_hierarchy.find_match_paths(l5, ignore_case)
+    match_paths = dept_hierarchy.find_match(l5, ignore_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
     assert m5 == match_paths_str, f'Unmatched >{m5}< != >{match_paths_str}<'
 
     print('\nD: Testing dept occuring twice')
-    match_paths = dept_hierarchy.find_match_paths(l6, ignore_case)
+    match_paths = dept_hierarchy.find_match(l6, ignore_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
     assert m6 == match_paths_str, f'Unmatched >{m6}< != >{match_paths_str}<'
 
     print('\nD: Testing two depts')    
-    match_paths = dept_hierarchy.find_match_paths(l7, ignore_case)
+    match_paths = dept_hierarchy.find_match(l7, ignore_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
     assert m7 == match_paths_str, f'Unmatched >{m7}< != >{match_paths_str}<'
@@ -120,33 +120,33 @@ if __name__ == "__main__":
 
     role_hiearchy = Hierarchy("cabsec_role.yml")
     print('\nD: Testing single role')        
-    match_paths = role_hiearchy.find_match_paths(l1, ignore_case)
+    match_paths = role_hiearchy.find_match(l1, ignore_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
     assert m1 == match_paths_str, f'Unmatched >{m1}< != >{match_paths_str}<'
 
     print('\nD: Testing single role in case sensitive')            
     respect_case = MatchOptions(ignore_case=False)
-    match_paths = role_hiearchy.find_match_paths(l1, respect_case)
+    match_paths = role_hiearchy.find_match(l1, respect_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
     assert '' == match_paths_str, f'Unmatched >< != >{match_paths_str}<'
 
     ignore_case = MatchOptions(ignore_case=True)    
-    match_paths = role_hiearchy.find_match_paths(l2, ignore_case)
+    match_paths = role_hiearchy.find_match(l2, ignore_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
     assert m2 == match_paths_str, f'Unmatched >{m2}< != >{match_paths_str}<'
 
 
     print('blank out span groups')
-    dept_match_paths = dept_hierarchy.find_match_paths(l8, ignore_case)
+    dept_match_paths = dept_hierarchy.find_match(l8, ignore_case)
     dept_match_paths_str = ", ".join(str(m) for m in dept_match_paths)
     print(dept_match_paths_str)
     assert md8 == dept_match_paths_str, f'\nAct:{dept_match_paths_str}\nExp:{md8}'
 
-
-    role_match_paths = role_hiearchy.find_match_paths(l8, ignore_case, dept_match_paths)
+    blank_l8 = SpanGroup.blank_text(dept_match_paths, l8)    
+    role_match_paths = role_hiearchy.find_match(blank_l8, ignore_case)
     role_match_paths_str = ", ".join(str(m) for m in role_match_paths)
     print(role_match_paths_str)
     assert mr8 == role_match_paths_str, f'\nAct:{role_match_paths_str}\nExp:{mr8}'

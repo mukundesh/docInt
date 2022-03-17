@@ -262,7 +262,7 @@ class PostParserOnSentence:
         
         self.lgr.debug(f"SpanGroups:\n----------")
         for (field, hierarchy) in self.hierarchy_dict.items():
-            match_paths = hierarchy.find_match_paths(post_str, self.match_options)
+            match_paths = hierarchy.find_match(post_str, self.match_options)
             match_paths_dict[field] = match_paths
             self.lgr.debug(f"{field}: {Hierarchy.to_str(match_paths)}")
             #[self.lgr.debug(f"\t{str(mp)}") for mp in match_paths]

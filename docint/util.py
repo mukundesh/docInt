@@ -134,7 +134,7 @@ def is_readable_dir(path):
 
 
 def read_config_from_disk(path):
-    config = yaml.load(path.read_text(), Loader=yaml.FullLoader)
+    config = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.FullLoader)
     config = {} if not config else config
     return config
 

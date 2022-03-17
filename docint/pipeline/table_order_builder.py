@@ -3,15 +3,19 @@ import sys
 from itertools import chain
 from pathlib import Path
 import operator as op
+from collections import Counter
+from string import punctuation
 
 from enchant import request_pwl_dict
+import yaml
 
 from ..vision import Vision
 from ..table import TableEmptyBodyCellError, TableMismatchColsError
 from ..hierarchy import Hierarchy, MatchOptions
-from ..region import DataError, UnmatchedTextsError
+from ..region import DataError, UnmatchedTextsError, TextConfig
 from ..extracts.orgpedia import OrderDetail, Post, Officer
-from ..span import Span
+from ..span import Span, SpanGroup
+from ..util import read_config_from_disk
 
 
 @Vision.factory(
@@ -24,7 +28,7 @@ from ..span import Span
             "role": "role.yml",
         },
         "dict_file": "output/pwl_words.txt",
-        "unicode_file": "conf/unicode.txt",
+        "unicode_file": "conf/unicode.yml",
     },
 )
 class TableOrderBuidler:
@@ -32,8 +36,8 @@ class TableOrderBuidler:
         self.conf_dir = Path(conf_dir)
         self.conf_stub = conf_stub
         self.hierarchy_files = hierarchy_files
-        self.dict_file = dict_file
-        self.unicode_file = unicode_file
+        self.dict_file = Path(dict_file)
+        self.unicode_file = Path(unicode_file)
         
         self.hierarchy_dict = {}
         for field, file_name in self.hierarchy_files.items():
@@ -42,11 +46,18 @@ class TableOrderBuidler:
             self.hierarchy_dict[field] = hierarchy
         self.match_options = MatchOptions(ignore_case=True)
         
-        self.dict_file = dict_file
-        self.unicode_file = unicode_file
+        yml = read_config_from_disk(self.unicode_file)
+        self.unicode_dict = dict((u, a if a != '<ignore>' else '') for u, a in yml.items())
 
-        self.ignore_unmatched = set(["of", "the"])
-        self.dictionary = request_pwl_dict(str(self.dict_file))        
+        ## ADDING DEPARTMENTS
+        i = "of-the-and-to-hold-temporary-charge-in-also-not-any-additional-incharge-with-departments"
+        self.ignore_unmatched = set(i.split('-'))
+        self.dictionary = request_pwl_dict(str(self.dict_file))
+
+        self.unmatched_ctr = Counter()
+        self.punct_tbl = str.maketrans(punctuation, " " * len(punctuation))
+
+        self.missing_unicode_dict={}
 
         self.lgr = logging.getLogger(f'docint.pipeline.{self.conf_stub}')
         self.lgr.setLevel(logging.DEBUG)
@@ -68,6 +79,9 @@ class TableOrderBuidler:
         self.file_handler.flush()
         self.lgr.removeHandler(self.file_handler)
         self.file_handler = None
+
+    def add_missing_unicode(self, missing):
+        [self.missing_unicode_dict.setdefault(k, 'missing') for k in missing]
 
     def get_officer(self, officer_cell, path):
         errors = []
@@ -91,11 +105,28 @@ class TableOrderBuidler:
             msg = "empty cell"
             errors.append(TableEmptyBodyCellError(path=path, msg=msg, is_none=True))
 
-        post_str, hier_span_groups = post_cell.raw_text(), []
-        for (field, hierarchy) in self.hierarchy_dict.items():
-            field_sgs = hierarchy.find_match_paths(post_str, self.match_options)
-            self.lgr.debug(f"{field}: {Hierarchy.to_str(field_sgs)}")
-            hier_span_groups += field_sgs
+        self.lgr.debug(f'Before: {post_cell.line_text()}')
+        missing_unicode = post_cell.make_ascii(unicode_dict=self.unicode_dict)
+        post_cell.merge_words(dictionary=self.dictionary)
+        post_cell.correct_words(dictionary=self.dictionary)
+        post_cell.mark_regex([r'[.,;\']', 'in the'], 'ignore')
+        self.add_missing_unicode(missing_unicode)
+
+
+        ignore_config = TextConfig(rm_labels=['ignore'])        
+        self.lgr.debug(f'After: {post_cell.line_text(ignore_config)}')        
+
+        post_str, hier_span_groups = post_cell.line_text(ignore_config), []
+        self.lgr.debug(f"{post_str}")
+        
+        dept_sgs = self.hierarchy_dict['dept'].find_match(post_str, self.match_options)
+        self.lgr.debug(f"dept: {Hierarchy.to_str(dept_sgs)}")
+        
+        b_post_str = SpanGroup.blank_text(dept_sgs, post_str)
+        role_sgs = self.hierarchy_dict['role'].find_match(b_post_str, self.match_options)
+        self.lgr.debug(f"role: {Hierarchy.to_str(role_sgs)}")
+        
+        hier_span_groups = dept_sgs + role_sgs
         hier_span_groups = sorted(hier_span_groups, key=op.attrgetter("min_start"))
 
         role_sg = None
@@ -109,11 +140,14 @@ class TableOrderBuidler:
         all_spans = list(chain(*[sg.spans for sg in hier_span_groups]))
         
         u_texts = Span.unmatched_texts(all_spans, post_str)
-        u_texts = [t.lower() for t in u_texts]
+        u_texts = [t.lower() for ts in u_texts for t in ts.strip().split()]
+        u_texts = [t.translate(self.punct_tbl).strip() for t in u_texts]
+        u_texts = [t for t in u_texts if t]
         u_texts = [t for t in u_texts if t not in self.ignore_unmatched]
         
         if u_texts:
-            errors.append(UnmatchedTextsError.build(path, u_texts))
+            self.unmatched_ctr.update(u_texts)
+            errors.append(UnmatchedTextsError.build(path, u_texts, post_str))
         return posts, errors
 
     def build_detail(self, row, path, doc_verb, detail_idx):
@@ -138,6 +172,9 @@ class TableOrderBuidler:
             assumes=[],
             detail_idx=detail_idx,
         )
+        d.errors = officer_errors + post_errors
+        print('--------')
+        print(d.to_str())
         all_errors = officer_errors + post_errors
         return d, all_errors
 
@@ -165,6 +202,13 @@ class TableOrderBuidler:
             details.append(detail)
             errors.extend(d_errors)
         
-        self.lgr.info(f"==Total:{len(errors)} {DataError.error_counts(errors)}")
+        self.lgr.info(f"=={len(details)} Total:{len(errors)} {DataError.error_counts(errors)}")
         self.remove_log_handler(doc)
         return doc
+
+    def __del__(self):
+        u_word_counts = self.unmatched_ctr.most_common(None)
+        self.lgr.info(f'++{"|".join(f"{u} {c}" for (u,c) in u_word_counts)}')
+        Path('/tmp/missing.yml').write_text(yaml.dump(self.missing_unicode_dict), encoding="utf-8")
+
+
