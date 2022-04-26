@@ -5,9 +5,11 @@ from pathlib import Path
 import operator as op
 from collections import Counter
 from string import punctuation
+import re
 
 from enchant import request_pwl_dict
 import yaml
+from more_itertools import first
 
 from ..vision import Vision
 from ..table import TableEmptyBodyCellError, TableMismatchColsError
@@ -16,6 +18,13 @@ from ..region import DataError, UnmatchedTextsError, TextConfig
 from ..extracts.orgpedia import OrderDetail, Post, Officer
 from ..span import Span, SpanGroup
 from ..util import read_config_from_disk
+
+class IncorrectOfficerNameError(DataError):
+    pass
+
+class EnglishWordsInNameError(DataError):
+    pass
+
 
 
 @Vision.factory(
@@ -49,8 +58,13 @@ class TableOrderBuidler:
         yml = read_config_from_disk(self.unicode_file)
         self.unicode_dict = dict((u, a if a != '<ignore>' else '') for u, a in yml.items())
 
+        self.ignore_paren_strs = ['harg', 'depart', 'defence', 'banking', 'indep',
+                                  'state', 'indapendent', 'smt .', 'deptt', 'shrimati',
+                                  'indap', 'indop']
+
+
         ## ADDING DEPARTMENTS
-        i = "of-the-and-to-hold-temporary-charge-in-also-not-any-additional-incharge-with-departments"
+        i = "of-the-and-to-hold-temporary-charge-in-also-not-any-additional-incharge-with-departments-for"
         self.ignore_unmatched = set(i.split('-'))
         self.dictionary = request_pwl_dict(str(self.dict_file))
 
@@ -80,8 +94,22 @@ class TableOrderBuidler:
         self.lgr.removeHandler(self.file_handler)
         self.file_handler = None
 
-    def add_missing_unicode(self, missing):
+    def add_missing_unicodes(self, missing):
         [self.missing_unicode_dict.setdefault(k, 'missing') for k in missing]
+
+    def get_salut(self, name):
+        short = 'capt-col-dr.(smt.)-dr. (smt.)-dr. (shrimati)-dr-general ( retd . )-general (retd.)-general-km-kum-kumari-maj. gen. (retd.)-maj-miss-ms-prof. (dr.)-prof-sadhvi-sardar-shri-shrimati-shrinati-shrl-shrt-shr-smt-sushree-sushri'
+
+        saluts = []
+        for s in short.split("-"):
+            p = f"{s} .-{s} -{s}. -({s}) -({s}.) -({s}.)-{s}."
+            saluts.extend(p.split("-"))
+
+        name_lower = name.lower()
+        found_salut = first([s for s in saluts if name_lower.startswith(s)], "")
+        result = name[:len(found_salut)]
+        return result
+        
 
     def get_officer(self, officer_cell, path):
         errors = []
@@ -89,15 +117,73 @@ class TableOrderBuidler:
             msg = "empty cell"
             errors.append(TableEmptyBodyCellError(path=path, msg=msg, is_none=True))
 
+        missing_unicodes = officer_cell.make_ascii(self.unicode_dict)
+        self.add_missing_unicodes(missing_unicodes) # save the missing unicodes
+
         officer_text = officer_cell.line_text()
-        d_texts = [t for t in officer_text.split() if self.dictionary.check(t)]
+        officer_text = officer_text.strip(".|,-*@():%/1234567890$ '")
 
-        if d_texts:
-            msg = 'found text: {",".join(dictionary_texts)}'
-            #errors.append(DictionaryTextFound(path=path, msg=msg))
+        if missing_unicodes:
+            print(f'Unicode: {officer_text}: {missing_unicodes}')
 
-        officer = Officer.build(officer_cell.words, '', officer_text)
+
+        # check if there are english words
+        englist_texts = []
+        for text in officer_text.split():
+            text = text.strip('()')
+            if text and self.dictionary.check(text):
+                if text.isupper():
+                    officer_text = officer_text.replace(text, '')
+                else:
+                    englist_texts.append(text)
+                    
+        if englist_texts:
+            if 'Deputy Prime Minister' in officer_text:
+                officer_text = officer_text.replace('Deputy Prime Minister', '')
+                
+            eng_str = ','.join(englist_texts)
+            msg = f'English words in officer name: >{eng_str}<'
+            errors.append(EnglishWordsInNameError(msg=msg, path=path))
+
+        if len(officer_text) < 10 or len(officer_text) > 45:
+            msg = f'Short officer name: >{officer_text}<'
+            errors.append(IncorrectOfficerNameError(msg=msg, path=path))
+
+        if ',' in officer_text:
+            print(f'Replacing comma {officer_text}')
+            officer_text = officer_text.replace(',', '.')
+
+        salut = self.get_salut(officer_text)
+        name = officer_text[len(salut):].strip()
+
+        officer = Officer.build(officer_cell.words, salut, name, cadre='goi_minister')
         return officer, errors
+
+    def get_paren_spans(self, post_str, ignore_paren_len=5, ):
+        paren_spans = []
+        for m in re.finditer(r'\((.*?)\)', post_str):
+            mat_str = m.group(1).lower()
+            if len(mat_str) < ignore_paren_len:
+                continue
+            elif any([sl in mat_str for sl in self.ignore_paren_strs]):
+                continue
+            else:
+                s, e = m.span()
+                self.lgr.debug(f'BLANKPAREN: {m.group(0)} ->[{s}: {e}]')
+                paren_spans.append(Span(start=s, end=e))
+        return paren_spans
+
+    def get_allcaps_spans(self, post_str):
+        allcaps_spans = []
+        for m in re.finditer(r'\S+', post_str):
+            mat_str = m.group(0).strip('()')
+            if mat_str.isupper() and len(mat_str) > 1 and '.' not in mat_str:
+                s, e = m.span()
+                allcaps_spans.append(Span(start=s, end=e))
+                
+        allcaps_spans = Span.accumulate(allcaps_spans, post_str)
+        return allcaps_spans
+    
 
     def get_posts(self, post_cell, path):
         posts, errors = [], []
@@ -106,17 +192,34 @@ class TableOrderBuidler:
             errors.append(TableEmptyBodyCellError(path=path, msg=msg, is_none=True))
 
         self.lgr.debug(f'Before: {post_cell.line_text()}')
-        missing_unicode = post_cell.make_ascii(unicode_dict=self.unicode_dict)
-        post_cell.merge_words(dictionary=self.dictionary)
-        post_cell.correct_words(dictionary=self.dictionary)
-        post_cell.mark_regex([r'[.,;\']', 'in the'], 'ignore')
-        self.add_missing_unicode(missing_unicode)
+        
+        missing_unicodes = post_cell.make_ascii(self.unicode_dict)
+        self.add_missing_unicodes(missing_unicodes) # save the missing unicodes
+        
+        ignore_config = TextConfig(rm_labels=['ignore'])
+        post_str = post_cell.line_text(ignore_config)
+        
+        paren_spans = self.get_paren_spans(post_str)
+        [ post_cell.add_span(s.start, s.end, 'ignore', ignore_config) for s in paren_spans ]
 
+        post_str = post_cell.line_text(ignore_config)
+        allcaps_spans = self.get_allcaps_spans(post_str)
+        [ post_cell.add_span(s.start, s.end, 'ignore', ignore_config) for s in allcaps_spans ]
+        if allcaps_spans:
+            print(f'Removed Before >{post_str}<')
+            print(f'Removed After  >{post_cell.line_text(ignore_config)}')
 
-        ignore_config = TextConfig(rm_labels=['ignore'])        
+        
+        
+        post_cell.merge_words(self.dictionary, ignore_config)
+        post_cell.correct_words(self.dictionary, ignore_config)
+        post_cell.mark_regex([r'[.,;\']', 'in the'], 'ignore', ignore_config)
+
         self.lgr.debug(f'After: {post_cell.line_text(ignore_config)}')        
 
         post_str, hier_span_groups = post_cell.line_text(ignore_config), []
+        ## replacing double space
+        post_str = post_str.replace('  ', ' ')
         self.lgr.debug(f"{post_str}")
         
         dept_sgs = self.hierarchy_dict['dept'].find_match(post_str, self.match_options)
@@ -140,10 +243,12 @@ class TableOrderBuidler:
         all_spans = list(chain(*[sg.spans for sg in hier_span_groups]))
         
         u_texts = Span.unmatched_texts(all_spans, post_str)
+        
         u_texts = [t.lower() for ts in u_texts for t in ts.strip().split()]
         u_texts = [t.translate(self.punct_tbl).strip() for t in u_texts]
         u_texts = [t for t in u_texts if t]
         u_texts = [t for t in u_texts if t not in self.ignore_unmatched]
+        u_texts = [t for t in u_texts if not t.isdigit()]
         
         if u_texts:
             self.unmatched_ctr.update(u_texts)
@@ -187,28 +292,28 @@ class TableOrderBuidler:
     def __call__(self, doc):
         self.add_log_handler(doc)
         self.lgr.info(f"table_order_builder: {doc.pdf_name}")
-        doc.add_extra_field("order_details", ("list", __name__, "OrderDetails"))
-        doc.add_extra_field("order", ("obj", __name__, "Order"))
+        doc.add_extra_field("order_details", ("list", "docint.extracts.orgpedia", "OrderDetail"))
+        #doc.add_extra_field("order", ("obj", __name__, "Order"))
 
         #doc.order_date = self.get_order_date(doc)
         #doc.order_number = self.get_order_number(doc)
 
-        details, errors = [], []
+        doc.order_details, errors = [], []
         self.verb = "continues"  # self.get_verb(doc)
         for page_idx, table_idx, row_idx, row in self.iter_rows(doc):
             path = f"p{page_idx}.t{table_idx}.r{row_idx}"
             detail, d_errors = self.build_detail(row, path, 'continues', row_idx)
             detail.errors = d_errors
-            details.append(detail)
+            doc.order_details.append(detail)
             errors.extend(d_errors)
         
-        self.lgr.info(f"=={len(details)} Total:{len(errors)} {DataError.error_counts(errors)}")
+        self.lgr.info(f"=={doc.pdf_name}.table_order_builder {len(doc.order_details)} {DataError.error_counts(errors)}")
         self.remove_log_handler(doc)
         return doc
 
     def __del__(self):
         u_word_counts = self.unmatched_ctr.most_common(None)
         self.lgr.info(f'++{"|".join(f"{u} {c}" for (u,c) in u_word_counts)}')
-        Path('/tmp/missing.yml').write_text(yaml.dump(self.missing_unicode_dict), encoding="utf-8")
+        #Path('/tmp/missing.yml').write_text(yaml.dump(self.missing_unicode_dict), encoding="utf-8")
 
 

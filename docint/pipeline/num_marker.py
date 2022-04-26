@@ -4,12 +4,14 @@ import string
 from typing import Union
 import sys
 from pathlib import Path
+from itertools import chain
 
 
 from ..vision import Vision
-from ..region import Region
+from ..region import Region, DataError
 from ..util import load_config
 from ..word import Word
+from ..word_line import words_in_lines
 
 
 class NumType(IntEnum):
@@ -19,7 +21,6 @@ class NumType(IntEnum):
     Alphabet = 3
 
 
-## TODO should this be a word ?
 class NumMarker(Region):
     num_type: NumType
     num_text: str
@@ -48,6 +49,19 @@ class NumMarker(Region):
     def word_idx(self):
         return self.words[0].word_idx
 
+    @property
+    def alt_text(self):
+        return self.num_text
+    
+
+
+
+class MarkerMisalginedError(DataError):
+    exp_val: int
+    act_val: int
+    word_idx: int
+    
+
 @Vision.factory(
     "num_marker",
     default_config={
@@ -62,6 +76,7 @@ class NumMarker(Region):
         "y_range": (0, 1.0),
         "num_chars": ".,()",
         "max_number": 49,
+        "page_idxs": []
     },
 )
 class FindNumMarker:
@@ -78,8 +93,9 @@ class FindNumMarker:
         y_range,
         num_chars,
         max_number,
+        page_idxs,
     ):
-        self.conf_dir = conf_dir
+        self.conf_dir = Path(conf_dir)
         self.conf_stub = conf_stub        
         self.min_marker = min_marker
         self.pre_edit = pre_edit
@@ -90,6 +106,8 @@ class FindNumMarker:
         self.y_range = y_range
         self.num_chars = num_chars
         self.max_number = max_number
+        self.page_idxs = page_idxs
+        
         self.roman_dict = self.build_roman_dict()
         self.alpha_dict = self.build_alphabet_dict()
 
@@ -190,7 +208,7 @@ class FindNumMarker:
             return False
 
         if marker.num_val > self.max_number or marker.num_val <= 0 :
-            self.lgr.debug(f'\t{word.text}[word.word_idx] not in [0, {self.max_number}]')
+            self.lgr.debug(f'\t{word.text}[{word.word_idx}] not in [0, {self.max_number}]')
             return False
 
         if not ( word.box.in_xrange(self.x_range) and word.box.in_yrange(self.y_range) ):
@@ -205,12 +223,70 @@ class FindNumMarker:
         self.lgr.debug(f'\t{word.text} True')        
         return True
 
-    def __call__(self, doc):
-        #self.add_log_handler(doc)        
-        self.lgr.info(f'num_marker: {doc.pdf_name}')
+    
+    def get_fix(self, error):
+        e = error
+        page_path, marker_path = e.path.split('.')
+        word_path = f'{page_path}.wo{e.word_idx}'
+        msg = f'{e.path} {e.msg}'
+        if e.act_val > e.exp_val and (0 < (e.act_val - e.exp_val) < 2):
+            return (msg, 'newWord', e.exp_val, word_path, word_path)
+        else:
+            return (msg, 'replaceStr', word_path, '<all>', e.exp_val)
         
-        doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
+    def write_fixes(self, doc, errors):
+        def get_page_str(page):
+            p = f'> Page {page.page_idx}'
+            ms = [ f"{m.num_val}-{m.word_idx}" for m in page.num_markers]
+            return f'{p} [{", ".join(ms)}]'
 
+        config_file = self.conf_dir / f'{doc.pdf_name}.{self.conf_stub}.yml'        
+        if config_file.exists():
+            return
+        
+        fixes = [ self.get_fix(error) for error in errors ]
+
+        page_strs = [ get_page_str(page) for page in doc.pages]
+
+        nl = "\n# "
+        pgs = f'# {nl.join(page_strs)}'
+        msgs  = f'# {nl.join(f[0] for f in fixes)}'
+        edits = [f' - {f[1]} {f[2]} {f[3]} {f[3]}' for f in fixes]
+        config_file.write_text(f'{pgs}\n\n{msgs}\n\n#edits:\n# {nl.join(edits)}')
+
+    def test(self, doc, num_type):
+        errors, exp_val = [], 1
+        mIter = [(i, m, p) for p in doc.pages for (i, m) in enumerate(p.num_markers)]
+        for (m_idx, marker, page) in mIter:
+            if marker.num_type != num_type:
+                continue
+            
+            if marker.num_val != exp_val and marker.num_val != 1:
+                word_idx = marker.words[0].word_idx
+                path = f'pa{page.page_idx}.nu{m_idx}'
+                msg = f'Expected: {exp_val} Actual: {marker.num_val} word_idx: {word_idx}'
+                err = MarkerMisalginedError(path=path, msg=msg,
+                                            exp_val=exp_val,
+                                            act_val=marker.num_val,
+                                            word_idx=word_idx)
+                exp_val = marker.num_val
+                marker.errors.append(err)
+                errors.append(err)
+                
+            exp_val = 1 if marker.num_val == 1 else exp_val
+            exp_val += 1
+        return errors
+
+    def __call__(self, doc):
+        self.add_log_handler(doc)        
+        self.lgr.info(f'num_marker: {doc.pdf_name}')
+
+        doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
+        
+        old_x_range = self.x_range
+        self.x_range = doc_config.get('x_range', self.x_range)
+
+        
         if self.pre_edit:
             edits = doc_config.get("edits", [])
             if edits:
@@ -219,15 +295,38 @@ class FindNumMarker:
             
         doc.add_extra_page_field('num_markers', ('list', __name__, 'NumMarker'))
         for page in doc.pages:
-            self.lgr.debug(f'< Page {page.page_idx}')            
+            self.lgr.debug(f'< Page {page.page_idx}')
+            
+            if self.page_idxs:
+                if page.page_idx not in self.page_idxs:
+                    page.num_markers = []                    
+                    self.lgr.debug(f'\tSkipping')
+                    continue
+
+
+            # TODO fix this, current good for debugging, bad for efficiency
             markers = [self.build_marker(w) for w in page.words]
             z_pgmks = zip(page.words, markers)
             num_markers = [m for (w, m) in z_pgmks if self.is_valid(page, w, m)]
 
+            if len(num_markers) < self.min_marker:
+                page.num_markers = []
+                self.lgr.info(f'> Page {page.page_idx} [] *ignoring {len(num_markers)}')
+                continue
+                
             num_markers.sort(key=lambda m: m.ymin)
             [ m.set_idx(idx) for idx, m in enumerate(num_markers)]
             page.num_markers = num_markers
             self.lgr.info(f'> Page {page.page_idx} {[str(m) for m in num_markers]}')
+            
+        errors = list(chain(*[ self.test(doc, num_type) for num_type in NumType ]))
+        total_markers = sum(len(page.num_markers) for page in doc.pages)
+        self.lgr.info(f'=={doc.pdf_name}.num_marker {total_markers} {DataError.error_counts(errors)}')
+        [self.lgr.info(str(e)) for e in errors]
 
-        #self.remove_log_handler(doc)            
+        
+        self.write_fixes(doc, errors)
+
+        self.x_range = old_x_range        
+        self.remove_log_handler(doc)        
         return doc

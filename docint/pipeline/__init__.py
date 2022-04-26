@@ -17,3 +17,9 @@ from .pdforder_builder import InferHeaders
 from .pdforder_builder import PDFOrderBuilder
 from .pdfpost_parser import PostParser
 from .table_order_builder import TableOrderBuidler
+#from .table_builder import TableBuilder
+from .table_edge_finder import TableEdgeFinder
+from .table_builder_edges import TableBuilderOnEdges
+from .hindi_order_builder import HindiOrderBuilder
+from .body_marker import FindBodyMarker
+from .id_assigner import IDAssigner

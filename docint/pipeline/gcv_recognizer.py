@@ -2,9 +2,9 @@ import io
 import json
 import pathlib
 
-#from google.protobuf.json_format import MessageToDict
-#from google.cloud import vision_v1
-#from google.cloud import storage
+from google.protobuf.json_format import MessageToDict
+from google.cloud import vision_v1
+from google.cloud import storage
 
 from ..vision import Vision
 from ..doc import Doc
@@ -38,7 +38,7 @@ class CloudVisionRecognizer:
     ):
 
         self.bucket_name = bucket
-        self.cloud_dir_path = cloud_dir_path
+        self.cloud_dir_path = pathlib.Path(cloud_dir_path)
         self.output_dir_path = pathlib.Path(output_dir_path)
         self.output_stub = output_stub
         self.overwrite_cloud = overwrite_cloud
@@ -142,13 +142,15 @@ class CloudVisionRecognizer:
         storage_client = storage.Client()
         bucket = storage_client.get_bucket(self.bucket_name)
 
-        cloud_input_path = self.cloud_dir_path / "input" / doc.pdf_name
+        cloud_input_path = self.cloud_dir_path / "input" / pathlib.Path(doc.pdf_name)
         input_blob = bucket.blob(str(cloud_input_path))
         if not input_blob.exists():
             input_blob.upload_from_filename(doc.pdf_path, content_type=mime_type)
 
-        gcs_source_uri = "gs://{bucket_name}{cloud_input_path}"
-        gcs_destination_uri = "gs://{bucket_name}{cloud_output_path}"
+        gcs_source_uri = f"gs://{self.bucket_name}/{str(cloud_input_path)}"
+
+        cloud_output_path = self.cloud_dir_path / output_path
+        gcs_destination_uri = f"gs://{self.bucket_name}/{str(cloud_output_path)}"
         batch_size = min(doc.num_pages, 100)
 
         image_client = vision_v1.ImageAnnotatorClient()
@@ -173,13 +175,17 @@ class CloudVisionRecognizer:
         # written to GCS, we can list all the output files.
         # List objects with the given prefix.
 
-        outputPrefix = str(self.output_dir_path)
+        outputPrefix = str(cloud_output_path)
         blob_list = list(bucket.list_blobs(prefix=outputPrefix))
         json_blobs = [b for b in blob_list if b.name.endswith("json")]
 
+        if len(json_blobs) != 1:
+            blob_names = ", ".join(b.name for b in json_blobs)
+            print(f'Blobs found: {len(json_blobs)} >{blob_names}< {outputPrefix}')
+
+        
         for blob in json_blobs:
-            with open(output_path, "w") as outputFile:
-                outputFile.write(blob.download_as_string)
+            output_path.write_bytes(blob.download_as_string())
 
     def run_gcv(self, doc, output_path):
         storage_client = storage.Client()
@@ -195,12 +201,14 @@ class CloudVisionRecognizer:
             if len(output_jsons) != 1:
                 raise ValueError("Multiple files found, expecting on")
 
-            output_path.write_text(output_jsons[0].download_as_string())
+            output_path.write_bytes(output_jsons[0].download_as_string())
         else:
             if doc.num_pages < 5:
+                print('Running in sync') 
                 self.run_sync_gcv(doc, output_path)
             else:
-                self.run_batch_gcv(doc, output_path)
+                print('Running in async')                 
+                self.run_async_gcv(doc, output_path)
 
     def read_gcv(self, doc, output_path):
         return self.build_pages(doc, output_path)

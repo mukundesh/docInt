@@ -30,6 +30,7 @@ class OfficerMultipleError(DataError):
 @Vision.factory(
     "words_fixer",
     default_config={
+        "item_name": "list_items",
         "conf_dir": "conf",
         "conf_stub": "wordfix",
         "pre_edit": True,
@@ -37,10 +38,11 @@ class OfficerMultipleError(DataError):
         "lv_dist_cutoff": 1,
         "ignore_paren_len": 7,
         "unicode_file": "conf/unicode.txt",
+        "officer_at_start": True
     },
 )
 class WordsFixer:
-    def __init__(self, conf_dir, conf_stub, pre_edit, dict_file, lv_dist_cutoff, ignore_paren_len, unicode_file):
+    def __init__(self, item_name, conf_dir, conf_stub, pre_edit, dict_file, lv_dist_cutoff, ignore_paren_len, unicode_file, officer_at_start):
         from transformers import AutoTokenizer, AutoModelForTokenClassification
         from transformers import pipeline
 
@@ -48,6 +50,7 @@ class WordsFixer:
         self.punct_tbl = str.maketrans(
             ignore_puncts, " " * len(ignore_puncts)
         )
+        self.item_name = item_name
         self.conf_dir = conf_dir
         self.conf_stub = conf_stub
         self.pre_edit = pre_edit
@@ -55,6 +58,7 @@ class WordsFixer:
         self.lv_dist_cutoff = lv_dist_cutoff
         self.ignore_paren_len = ignore_paren_len
         self.unicode_file = unicode_file
+        self.officer_at_start = officer_at_start
 
         
         self.ignore_parent_strs = ['harg', 'depart', 'defence', 'banking', 'indep',
@@ -361,8 +365,6 @@ class WordsFixer:
         merge_count = self.merge_words(list_item)
         
         #self.lgr.debug(f'B>{list_item.line_text_no_nl()}')
-
-        #self.lgr.debug(f'A>{list_item.line_text_no_nl()}')        
         
         correct_count = self.correct_words(list_item)
 
@@ -378,7 +380,7 @@ class WordsFixer:
         
         errors = []
 
-        if non_zero_spans:
+        if self.officer_at_start and non_zero_spans:
             msg = f'incorrect span: {",".join(str(s) for s in non_zero_spans)}'
             errors.append(OfficerMisalignedError(path=path, msg=msg))
         
@@ -415,8 +417,9 @@ class WordsFixer:
         NL = "\n"
         for page_idx, page in enumerate(doc.pages):
             # access what to fix through path
-            for (list_idx, list_item) in enumerate(page.list_items):
-                indent_str = '{doc.pdf_name}:{page_idx}>{list_idx}'
+            items = getattr(page, self.item_name, [])
+            for (list_idx, list_item) in enumerate(items):
+                indent_str = f'{doc.pdf_name}:{page_idx}>{list_idx}'
                 
                 self.lgr.debug(f'\n{list_item.line_text().replace(NL, " ")}<')
                 self.fix_list(list_item)
@@ -426,7 +429,7 @@ class WordsFixer:
                 if err_str:
                     self.lgr.debug(f'error: {err_str}')
                 
-                #self.lgr.debug(f'A>{list_item.line_text().replace(NL, " ")}<\n')
+                self.lgr.debug(f'A>{list_item.line_text().replace(NL, " ")}<\n')
 
         self.revert_config(old_config)
         self.remove_log_handler(doc)        

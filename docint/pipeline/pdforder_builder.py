@@ -152,6 +152,23 @@ class PDFOrderBuilder:
         return d, o_errors + p_errors
 
     def build_officer(self, row, header_info, row_idx):
+        def extract_in_name(name):
+            if name.endswith('(ADHOC)'):
+                name = name.replace('(ADHOC)', '').strip()
+                
+            if name.endswith('(SCRB)'):
+                name = name.replace('(SCRB)', '').strip()
+            
+            if name.endswith(" IPS"):
+                name, cadre = name[:-3].strip(), "I.P.S"
+            else:
+                name, cadre = name, "R.P.S"
+
+            return name, cadre
+
+        def clean_text(v):
+            return v if not v else v.replace("\n", " ").replace("\xa0", " ")            
+        
         o_fields = [
             "salut",
             "name",
@@ -161,9 +178,13 @@ class PDFOrderBuilder:
             "posting_date",
         ]
         o_vals = [row.cells[header_info.index(f)].raw_text() for f in o_fields]
-
+        o_vals = [clean_text(v) for v in o_vals]
+        
         officer_dict = dict(zip(o_fields, o_vals))
-        officer_dict["full_name"] = officer_dict["name"]
+
+        name, cadre = extract_in_name(officer_dict["name"])
+        
+        officer_dict["full_name"] = officer_dict["name"] = name
         officer_dict["words"] = row.words
 
         #print(officer_dict)

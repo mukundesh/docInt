@@ -280,7 +280,9 @@ class PostParserOnSentence:
         doc.add_extra_page_field("post_infos", ("list", __name__, "PostInfo"))
         for page in doc.pages:
             page.post_infos = []
-            for postinfo_idx, list_item in enumerate(page.list_items):
+            list_items = getattr(page, 'list_items', [])
+            
+            for postinfo_idx, list_item in enumerate(list_items):
 
                 # TODO Should we remove excess space and normalize it ? worthwhile...
                 post_str = list_item.line_text(self.text_config)

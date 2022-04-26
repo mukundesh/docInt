@@ -104,6 +104,12 @@ class PDFTableFinder:
         return errors
 
     def __call__(self, doc):
+        def build_box(pdf_bbox, pdf_size):
+            [x0, y0, x1, y1] = bbox
+            (w, h) = pdf_size
+            top, bot = Coord(x=x0/w, y=y0/h), Coord(x=x1/w, y=y1/h)
+            return Box(top=top, bot=bot)
+        
         self.add_log_handler(doc)
         
         pdf = pdfplumber.open(doc.pdf_path)
@@ -118,11 +124,11 @@ class PDFTableFinder:
             tables = []
             pdf_size = (pdf_page.width, pdf_page.height)
             for (table_idx, pdf_table) in enumerate(table_finder.tables):
-                table_box = Box.build_box_inpage(pdf_table.bbox, pdf_size)
+                table_box = build_box(pdf_table.bbox, pdf_size)
                 table_words = self.words_inxyrange2(page.words, table_box)
                 body_rows, header_rows, row_idx = [], [], 0
                 for pdf_row in pdf_table.rows:
-                    row_box = Box.build_box_inpage(pdf_row.bbox, pdf_size)
+                    row_box = build_box(pdf_row.bbox, pdf_size)
                     row_words = self.words_inxyrange2(page.words, row_box)
 
                     cells, cell_texts = [], []
@@ -130,7 +136,7 @@ class PDFTableFinder:
                         if pdf_cell is None:
                             continue
                             
-                        cell_box = Box.build_box_inpage(pdf_cell, pdf_size)
+                        cell_box = build_box(pdf_cell, pdf_size)
                         cell_words = self.words_inxyrange2(row_words, cell_box)
                         cells.append(Cell(words=cell_words))
                         cell_texts.append(' '.join(w.text for w in cell_words))
@@ -156,10 +162,11 @@ class PDFTableFinder:
                 offset = self.heading_offset/page.height
                 page.heading = page.words_to('above', tables[0], offset)
                 heading_str = ' '.join([w.text for w in page.heading.words])
+                #regSearchInText 'addl[\. ]*s[\.]?p[\.]?' 'dy[\. ]*s[\.]?p[\.]?'
                 self.lgr.debug(f'Heading {offset}: {heading_str}')
                 #print(f'Heading {offset}: {heading_str}')
-
         errors = self.test(doc)
+        
         self.lgr.info(f'==Total:{len(errors)} {DataError.error_counts(errors)}')
         
         self.remove_log_handler(doc)
