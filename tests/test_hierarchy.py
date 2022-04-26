@@ -74,7 +74,7 @@ if __name__ == "__main__":
     ignore_case = MatchOptions(ignore_case=True)
 
     hierarchy_logger = logging.getLogger('docint.hierarchy')
-    hierarchy_logger.setLevel(logging.INFO)
+    hierarchy_logger.setLevel(logging.DEBUG)
     
     hierarchy_logger.addHandler(logging.StreamHandler())
 
@@ -91,12 +91,13 @@ if __name__ == "__main__":
         eval_role_text(sys.argv[1])
 
     dept_hierarchy = Hierarchy("cabsec_dept.yml")
+    print(l3)
 
-    print('\nD: Testing dept with new level added')
+    print('\n- Testing dept with new level added')
     match_paths = dept_hierarchy.find_match(l3, ignore_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
-    assert m3 == match_paths_str, f'Unmatched >{m3}< != >{match_paths_str}<'    
+    assert m3 == match_paths_str, f'\nExp:{m3}\nAct:{match_paths_str}'    
     
 
     print('\nD: Testing dept with two levels same parent')
@@ -138,7 +139,6 @@ if __name__ == "__main__":
     print(match_paths_str)
     assert m2 == match_paths_str, f'Unmatched >{m2}< != >{match_paths_str}<'
 
-
     print('blank out span groups')
     dept_match_paths = dept_hierarchy.find_match(l8, ignore_case)
     dept_match_paths_str = ", ".join(str(m) for m in dept_match_paths)
@@ -158,5 +158,19 @@ if __name__ == "__main__":
 
     print(f'Blanked: {unmatched_str}')
     assert unmatched_str == u8, f'\nAct:{unmatched_str}\nExp:{u8}'
+
+
+    print('\n- Testing merge strategy=child_span')            
+    child_span_option = MatchOptions(merge_strategy='child_span')
+    rp_juri_hierarchy = Hierarchy("rajpol_juri.yml")
+    
+    comm_post_str = 'ACP ADRASH NAGAR JAIPUR POLICE (EAST)'
+    match_paths = rp_juri_hierarchy.find_match(comm_post_str, child_span_option)
+    match_paths_str = ", ".join(str(m) for m in match_paths)
+    print(match_paths_str)
+
+    assert match_paths_str == 'D:3 JAIPUR COMMISSIONERATE->JAIPUR EAST->ADARSH NAGAR [4:36]'
+    
+    
 
 
