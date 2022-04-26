@@ -77,6 +77,10 @@ class Word(BaseModel):
         return self.shape_.xmax
 
     @property
+    def xmid(self):
+        return self.shape_.xmid
+
+    @property
     def ymin(self):
         return self.shape_.ymin
 
@@ -85,8 +89,16 @@ class Word(BaseModel):
         return self.shape_.ymax
 
     @property
+    def ymid(self):
+        return self.shape_.ymid        
+
+    @property
     def page(self):
         return self.doc.pages[self.page_idx]
+
+    @property
+    def alt_text(self):
+        return self.text
     
 
     def update_coords(self, coords):

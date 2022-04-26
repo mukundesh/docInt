@@ -17,12 +17,13 @@ from .word import Word
 from .shape import Shape, Box, Coord
 from .span import Span, SpanGroup
 
+
 class DataError(BaseModel):
     path: str
     msg: str
 
     def __str__(self):
-        return f'{self.name}: {self.msg}'
+        return f'{self.name}: {self.path} {self.msg}'
 
     @property
     def name(self):
@@ -31,7 +32,8 @@ class DataError(BaseModel):
     @classmethod
     def error_counts(cls, errors):
         ctr = Counter(e.name for e in errors)
-        return ' '.join(f'{n}:{ct}' for n, ct in ctr.most_common(None))
+        type_str = ' '.join(f'{n} {ct}' for n, ct in ctr.most_common(None))
+        return f'Errors {sum(ctr.values())} {type_str}'
 
 class UnmatchedTextsError(DataError):
     texts: List[str]
@@ -188,7 +190,7 @@ class Region(BaseModel):
         for word, _, _, pos_idx in self.iter_word_text_idxs(text_config):
             yield pos_idx, word
 
-    ## Temporary
+    ## Temporary, Why ? it is very convenient
     def iter_word_text(self, text_config=None):
         for word, word_text, _, _ in self.iter_word_text_idxs(text_config):
             yield word_text, word
@@ -246,6 +248,54 @@ class Region(BaseModel):
         word_texts = [w.text for w in self.words if w]
         return " ".join(word_texts)
 
+    def arrange_words(self, words, num_slots=1000):
+        def get_line_num(word):
+            min_sidx, max_sidx = int(word.xmin * num_slots), int(word.xmax * num_slots)
+            max_sidx = min(max_sidx, num_slots - 1)
+
+            if min_sidx != max_sidx:
+                line_num = max(slots[min_sidx:max_sidx]) + 1
+            else:
+                line_num = slots[min_sidx] + 1
+            slots[min_sidx:max_sidx] = [line_num] * (max_sidx - min_sidx)
+            return line_num
+    
+        slots = [0] * num_slots
+        words = sorted(words, key=lambda w: w.ymin)
+        line_nums = [get_line_num(w) for w in words]
+
+        words_line_nums = list(zip(words, line_nums))
+        words_line_nums.sort(key=lambda tup: (tup[1], tup[0].xmin))
+        return [tup[0] for tup in words_line_nums]
+
+    def group_words(self, words, cutoff_thous=5):
+        def centroid(line):
+            return line[-1].ymid
+
+        if not words:
+            return []
+        
+        word_lines = [[]]
+        words = sorted(words, key=lambda w: w.ymid)
+        word_lines[0].append(words.pop(0))
+
+        for word in words:
+            last_centroid = centroid(word_lines[-1])
+
+            if (word.ymid - last_centroid)*1000 > cutoff_thous:
+                word_lines.append([word])
+            else:
+                word_lines[-1].append(word)
+
+        [ line.sort(key=lambda w: w.xmin) for line in word_lines]
+        return list(chain(*word_lines))
+
+    def arranged_text(self, cutoff_thous=5):
+        #arranged_words = self.arrange_words(self.words)
+        arranged_words = self.group_words(self.words, cutoff_thous)        
+        word_texts = [w.text for w in arranged_words if w]
+        return " ".join(word_texts)        
+
     def orig_text(self):
         word_texts = [w.orig_text for wl in self.word_lines for w in wl if w.orig_text]
         return " ".join(word_texts)
@@ -300,16 +350,19 @@ class Region(BaseModel):
         return line_text.replace("|", "")
 
 
-    def make_ascii(self,  unicode_dict={}, text_config=None):
+    def make_ascii(self,  unicode_dict={}):
+        assert not self.label_spans
         not_found = []
-        for text, word in self.iter_word_text(text_config):
+        for text, word in self.iter_word_text():
             if not word.text.isascii():
                 u_text = word.text
                 if u_text in unicode_dict:
                     a_text = unicode_dict[u_text]
                     #self.lgr.debug(f'UnicodeFixed: {u_text}->{a_text}')
+                    assert a_text is not None, f'incorrect text >{u_text}<'
                     self.replace_word_text(word, '<all>',  a_text)
                 else:
+                    sys.stderr.write(f'Unicode: >{u_text}<\n')                    
                     not_found.append(word.text)
                     pass
                     #self.lgr.info(f'unicode text not found: {u_text}\n')
@@ -368,9 +421,13 @@ class Region(BaseModel):
 
         last_merged_word, merge_words = None, [] # don't alter spans while iterating
         for word, next_word in self.iter_word_pairs(text_config):
-            text = self._fix_text(word.text)
             
-            if (not word) or (not next_word) or (not text) or (id(word) == id(last_merged_word)):
+            if (not word) or (not next_word) or (id(word) == id(last_merged_word)):
+                continue
+
+            text = self._fix_text(word.text)
+
+            if not text:
                 continue
 
             if self.is_mergeable(text, next_word, dictionary):
@@ -509,6 +566,11 @@ class Region(BaseModel):
         return self.shape.xmax
 
     @property
+    def xmid(self):
+        return self.shape.xmid
+    
+
+    @property
     def ymin(self):
         return self.shape.ymin
 
@@ -516,19 +578,33 @@ class Region(BaseModel):
     def ymax(self):
         return self.shape.ymax
 
+    @property
+    def ymid(self):
+        return self.shape.ymid
+    
+
 
     def reduce_width_at(self, direction, ov_shape):
         # reduce with only of the box
         assert direction in ("left", "right")
         box = self.shape.box
 
-        #print(f'Reducing width words[0] {self.words[0].text} self:{box} ov:{ov_shape}')
+        assert len(self.words) == 1
+
+        #print(f'\tReducing width >{self.words[0].text}< self:{box} ov:{ov_shape} {direction}')
+        inc = 0.000001
+        inc = 0.001
 
         if direction == "left":
             assert self.xmin <= ov_shape.xmax
-            new_top = Coord(x=ov_shape.xmax + 0.000001, y=box.top.y)
-            self.shape.box.update_coords([new_top, self.shape.box.bot])
+            new_top = Coord(x=ov_shape.xmax + inc , y=box.top.y)
+            self.words[0].shape.box.update_coords([new_top, self.shape.box.bot])
+            self.shape_ = None
         else:
             assert self.xmax >= ov_shape.xmin
-            new_bot = Coord(x=ov_shape.xmin - 0.000001, y=box.bot.y)
-            self.shape.box.update_coords([self.shape.box.top, new_bot])
+            new_bot = Coord(x=ov_shape.xmin - inc, y=box.bot.y)
+            self.words[0].shape.box.update_coords([self.shape.box.top, new_bot])
+            self.shape_ = None
+            
+        box = self.shape.box            
+        #print(f'\tReduced  width >{self.words[0].text}< self:{box} ov:{ov_shape} xmin:{self.xmin} xmax: {self.xmax}')            

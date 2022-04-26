@@ -1,6 +1,10 @@
 import datetime
+from pathlib import Path
+import json
 
-from typing import List
+from pydantic import BaseModel
+
+from typing import List, Dict
 from ..region import Region, Span
 
 class Officer(Region):
@@ -14,15 +18,19 @@ class Officer(Region):
     cadre: str = ''
     
     officer_idx: int = -1
-    officer_ID: str = ''
-    lang: str = 'en'
+    officer_id: str = ''
+    
+    orig_lang: str = 'en'
+    orig_salut: str = ''    
+    orig_name: str = ''
+    orig_full_name: str = ''
 
     @classmethod
-    def build(cls, words, salut, name):
+    def build(cls, words, salut, name, cadre=''):
         salut, name = salut.strip(), name.strip()
         full_name = salut + ' ' + name if salut else name
         return Officer(words=words, word_line=[words], salut=salut, name=name,
-                       full_name=full_name)
+                       full_name=full_name, cadre=cadre)
 
 
 class Post(Region):
@@ -38,15 +46,31 @@ class Post(Region):
     role_spans: List[Span]
     juri_spans: List[Span]
     loca_spans: List[Span]
-    stat_spans: List[Span]            
+    stat_spans: List[Span]
+
+    post_id: str= ''
+    post_idx: int=-1
+    
 
     @property
     def dept(self):
-        return self.dept_hpath[-1]
+        return self.dept_hpath[-1] if self.dept_hpath else None
 
     @property
     def role(self):
-        return self.role_hpath[-1]
+        return self.role_hpath[-1] if self.role_hpath else None
+
+    @property
+    def juri(self):
+        return self.juri_hpath[-1] if self.juri_hpath else None
+    
+    @property
+    def loca(self):
+        return self.loca_hpath[-1] if self.loca_hpath else None
+
+    @property
+    def stat(self):
+        return self.stat_hpath[-1] if self.stat_hpath else None
 
     @property
     def spans(self):
@@ -118,7 +142,15 @@ class Post(Region):
                     stat_hpath=stat_hpath, dept_spans=dept_spans,
                     role_spans=role_spans, juri_spans=juri_spans,
                     loca_spans=loca_spans, stat_spans=stat_spans)
-                    
+
+    @classmethod
+    def build_no_spans(cls, words, post_str, dept=[], role=[], juri=[], loca=[], stat=[]):
+        return Post(words=words, word_line=[words], post_str=post_str,
+                    dept_hpath=dept, role_hpath=role,
+                    juri_hpath=juri, loca_hpath=loca,
+                    stat_hpath=stat, dept_spans=[], 
+                    role_spans=[], juri_spans=[],
+                    loca_spans=[], stat_spans=[])
     
         
 class OrderDetail(Region):
@@ -145,7 +177,7 @@ class OrderDetail(Region):
     def to_str(self, print_color=False):
         d_lines = [self.raw_text()]
         
-        d_lines.append(self.officer.full_name)
+        d_lines.append(f'O: {self.officer.salut}|{self.officer.name}')
         for verb in ['continues', 'relinquishes', 'assumes']:
             posts = getattr(self, verb)
             if  posts:
@@ -156,3 +188,69 @@ class OrderDetail(Region):
             d_lines += ['Errors:']
             d_lines += [f'  {str(e)}' for e in self.errors ]
         return '\n'.join(d_lines)
+
+# If it is not extending Region should it still be there, yes as it will be moved to Orgpeida
+
+class TenureID(BaseModel):
+    tenure_idx: int = -1
+    officer_idx: int = -1
+    post_idx: int = -1
+
+    start_date: datetime.date = None
+    end_date: datetime.date = None
+
+    start_order_idx: int = -1
+    start_detail_idx: int = -1
+    
+    end_order_idx: int = -1
+    end_detail_idx: int = -1
+
+
+
+class OfficerID(BaseModel):
+    officer_idx: int = -1
+    officer_id: str = ''
+    id_code: str = ''
+
+    salut: str = ''
+    name: str
+    full_name: str = ''
+    cadre: str = ''
+    
+    aliases: List[Dict[str, str]] = []
+
+    tenures: List[TenureID] = []
+    
+    # currently not keeping language as that should be a separate process    
+
+    @classmethod
+    def from_disk(self, json_file):
+        json_file = Path(json_file)
+        if json_file.suffix.lower() in ('.json', '.jsn'):
+            officer_jsons = json.loads(json_file.read_text())
+
+        officers = [OfficerID(**d) for d in officer_jsons['officers']]
+        return officers
+
+
+
+class PostID(BaseModel):
+    post_idx: int = -1
+    post_id: str = ''
+    dept_path: List[str] = []
+    role_path: List[str] = []
+    juri_path: List[str] = []
+    stat_path: List[str] = []
+    loca_path: List[str] = []
+
+    tenures: List[TenureID] = []    
+    
+
+
+
+    
+
+    
+    
+    
+    

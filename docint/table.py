@@ -25,9 +25,20 @@ class TableEmptyBodyCellError(DataError):
 class TableEmptyHeaderCellError(DataError):
     is_none: bool
 
+class TableIncorectSeqError(DataError):
+    exp_val: int
+    act_val: str
+    
+    
+
     
 class Cell(Region):
-    pass
+
+    @classmethod
+    def build(cls, words):
+        return Cell(words=words, word_lines=[words])
+
+
 
 class Row(Region):
     cells: List[Cell]
@@ -75,6 +86,11 @@ class Table(Region):
         all_rows = self.body_rows + self.header_rows
         cells = [c for b in all_rows for c in b.cells]
         return [ self ] + all_rows + cells
+
+    def iter_body_cells(self):
+        for row_idx, row in enumerate(self.body_rows):
+            for col_idx, cell in enumerate(row.cells):
+                yield row_idx, col_idx, cell
     
 
     def test(self, path, ignore=[]):

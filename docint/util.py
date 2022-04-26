@@ -134,6 +134,7 @@ def is_readable_dir(path):
 
 
 def read_config_from_disk(path):
+    path = Path(path)
     config = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.FullLoader)
     config = {} if not config else config
     return config
@@ -146,6 +147,33 @@ def load_config(config_dir, doc_name, stub):
         return {}
     else:
         raise ValueError(f'Config file is not readable: {config_file_path}')
+
+
+def load_file_config(config, doc_name, stub):
+    config_file_path = Path(config_dir) / f'{doc_name}.{stub}.yml'
+    single_config_path = Path(config_dir) / f'{doc_name}.yml'
+    
+    
+    if is_readable(config_file_path):
+        return read_config_from_disk(config_file_path)
+    elif is_readable(single_config_path):
+        single_dict = read_config_from_disk(single_config_path)
+        result_dict = {}
+        for k, v in single_dict.items():
+            if k.startswith(stub):
+                if k == stub:
+                    assert instance(v, dict)
+                    result_dict.update(v)
+                else:
+                    (stub, field) = k.split('.')
+                    assert '.' not in field
+                    result_dict[field] = v
+        return result_dict
+    else:
+        raise ValueError(f'Config file is not readable: {config_file_path}')
+    
+
+    
 
 def find_date(date_line):
     try:

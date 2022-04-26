@@ -4,6 +4,7 @@ import operator as op
 from itertools import chain
 
 from pydantic import BaseModel
+from more_itertools import pairwise
 
 
 
@@ -22,6 +23,7 @@ class Span(BaseModel):
             span_texts.append(text[pre_span_start:span.start])
             span_texts.append(' ' * len(span))
             pre_span_start = span.end
+        span_texts.append(text[pre_span_start:len(text)])
         return ''.join(span_texts)
 
     @classmethod
@@ -35,7 +37,33 @@ class Span(BaseModel):
             if u_text:
                 unmatched_texts.append(u_text)
             pre_span_start = span.end
+
+        u_text = text[pre_span_start:len(text)]
+        if u_text:
+            unmatched_texts.append(u_text)
         return unmatched_texts
+
+    @classmethod
+    def unmatched_texts_spans(cls, spans, text):
+        if not spans:
+            return [text], [Span(start=0, end=len(text))]
+
+        spans.sort(key=op.attrgetter('start'))
+        assert cls.is_non_overlapping(spans)
+        
+        unmatched_texts, unmatched_spans, pre_span_start = [], [], 0
+        for span in spans:
+            u_text = text[pre_span_start:span.start]
+            if u_text:
+                unmatched_texts.append(u_text)
+                unmatched_spans.append(Span(start=pre_span_start, end=span.start))
+            pre_span_start = span.end
+
+        u_text = text[pre_span_start:len(text)]
+        if u_text:
+            unmatched_texts.append(u_text)
+            unmatched_spans.append(Span(start=pre_span_start, end=span.start))            
+        return unmatched_texts, unmatched_spans
 
     @classmethod
     def is_non_overlapping(cls, spans):
@@ -84,6 +112,11 @@ class Span(BaseModel):
         new_spans = functools.reduce(merge_spans, spans, [])
         return new_spans
 
+    @classmethod
+    def find_first(self, text, span_str):
+        idx = text.find(span_str)
+        return None if idx == -1 else Span(start=idx, end=idx+len(span_str))
+
     def clone(self):
         return Span(start=self.start, end=self.end)
 
@@ -95,6 +128,8 @@ class Span(BaseModel):
 
     def __lt__(self, other):
         return (self.start, self.end) < (other.start, other.end)
+
+
 
 
     def __contains__(self, pos):
@@ -127,6 +162,10 @@ class Span(BaseModel):
 
     def overlaps_any(self, spans):
         return any(span for span in spans if self.overlaps(span))
+
+    def overlaps_all(self, spans):
+        return all(span for span in spans if self.overlaps(span))
+    
 
     def adjoins(self, span, text=None, ignore_chars=' '):
         min_end, max_start = min(span.end, self.end), max(span.start, self.start)
@@ -174,7 +213,16 @@ class Span(BaseModel):
     @classmethod
     def to_str(self, span_str, spans):
         return ','.join([span_str[s.slice()] for s in spans])
-    
+
+    def on_word_boundary(self, text, boundary_chars=' '):
+        lt_word_boundary, rt_word_boundary = False, False
+        if self.start == 0 or text[self.start-1] in boundary_chars:
+            lt_word_boundary = True
+
+        if self.end == len(text) or text[self.end] in boundary_chars:
+            rt_word_boundary = True
+
+        return lt_word_boundary and rt_word_boundary
         
         
 class SpanGroup(BaseModel):
@@ -188,9 +236,14 @@ class SpanGroup(BaseModel):
         for span in self.spans:
             yield span
 
+    def __str__(self):
+        spans_str = ", ".join(f'>{s.span_str(self.text)}<' for s in self.spans)
+        ob, cb = '{', '}'
+        return f'[{len(self.spans)}]: {ob}{spans_str}{cb}'
 
+    # TODO should text be first ? to be consistent with find_first
     @classmethod
-    def blank_text(cls, span_groups, text):
+    def blank_text(cls, span_groups, text): 
         spans = list(chain(*[sg.spans for sg in span_groups]))
         return Span.blank_text(spans, text)
 
@@ -215,7 +268,20 @@ class SpanGroup(BaseModel):
     @property
     def sum_span_len(self):
         return sum([len(s) for s in self.spans])
+    
+    @property
+    def sum_span_len_start(self):
+        return (self.sum_span_len, -1*self.min_start)
 
+    @property
+    def sum_match_len(self):
+        plain_spans = [Span(start=s.start, end=s.end) for s in self.spans]
+        non_overlapping_spans = Span.accumulate(plain_spans)
+        return sum(len(s) for s in non_overlapping_spans)
+
+    @property
+    def sum_inv_span_gap(self):
+        return -1 * sum(s2.start - s1.end for (s1, s2) in pairwise(self.spans))
 
     def overlaps(self, span_group):
         return self.full_span.overlaps(span_group.full_span)

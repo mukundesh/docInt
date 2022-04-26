@@ -53,6 +53,10 @@ class LineWord(Region):
     def idx_str(self):
         return '-'.join([f'[{w.word_idx}]' for w in self.words])
 
+    def to_str(self):
+        words_text = ' '.join(w.text for w in self.words)        
+        return f'[{self.words[0].word_idx}]#{len(self.words)} >{words_text}<'
+
     @property
     def char_width(self):
         if self.char_width_ is None:
@@ -104,40 +108,53 @@ class LineWord(Region):
 
     def remove_side_overlap(self):
         sbox = self.shape.box
-        lt_ov_words = [lw for lw in self.lt_lwords if sbox.overlaps(lw.shape.box)]
-        rt_ov_words = [lw for lw in self.rt_lwords if sbox.overlaps(lw.shape.box)]
+        #if self.words[0].word_idx == 130 and self.words[0].page_idx == 1:
+        #    print('Found It')
 
-        #print(f'{self.words[0].text} lt: {len(lt_ov_words)} rt: {len(rt_ov_words)}')        
+        
+        lt_ov_words = [lw for lw in self.lt_lwords if sbox.overlaps(lw.shape.box, 0.5)]
+        rt_ov_words = [lw for lw in self.rt_lwords if sbox.overlaps(lw.shape.box, 0.5)]
 
+        #print(f'Remove {self.words[0].text} lt: {len(lt_ov_words)} rt: {len(rt_ov_words)}')
+        
         scw = self.char_width
         if lt_ov_words:
             lt_ov_long_words = [lw for lw in lt_ov_words if lw.char_width > scw]
             [lw.reduce_width_at("right", self.shape) for lw in lt_ov_long_words]
-        else:
+
+            #l_strs = [f'Reducing {lw.to_str()} at right' for lw in lt_ov_long_words]
+            #print('\n'.join(l_strs))
+        elif rt_ov_words:
             rt_ov_long_words = [lw for lw in rt_ov_words if lw.char_width > scw]
             [lw.reduce_width_at("left", self.shape) for lw in rt_ov_long_words]
+            #r_strs = [f'Reducing {lw.to_str()} at left' for lw in rt_ov_long_words]
+            #print('\n'.join(r_strs))
 
     def merge_side_words(self, conf):
         if self.text_len() > conf.merge_word_len:
             return
                     
         if self.text_len() == 0:
-            print('Empty String')
+            #print('Empty String')
             return 
 
         # self is short word and needs to be merged
+        close_lt_lwords = self.lt_lwords; # [ lw for lw in self.lt_lwords if lw.xmax < self.xmin - 0.05  ]
+        close_rt_lwords = self.rt_lwords; # [ lw for lw in self.rt_lwords if lw.xmin > self.xmax + 0.05  ]        
         
-        if self.lt_lwords:
-            rt_most_lword = max(self.lt_lwords, key=lambda lw: lw.xmax)
-            if not rt_most_lword.is_merged and rt_most_lword.is_selected:
-                #print(f'Merging {len(rt_most_lword.words)} [{rt_most_lword.words[0].word_idx}]{rt_most_lword.words[0].text} -> {self.words[0].text} [{self.words[0].word_idx}]')
+        if close_lt_lwords:
+            rt_most_lword = max(close_lt_lwords, key=lambda lw: lw.xmax)
+            gap = self.xmin - rt_most_lword.xmax
+            if not rt_most_lword.is_merged and rt_most_lword.is_selected and gap < 0.05:
+                #print(f'Merging {len(rt_most_lword.words)} [{rt_most_lword.words[0].word_idx}]{rt_most_lword.words[0].text} -> {self.words[0].text} [{self.words[0].word_idx}] {gap}')
                 rt_most_lword.add_at("right", self)
                 return True
 
-        if self.rt_lwords:
-            lt_most_lword = min(self.rt_lwords, key=lambda lw: lw.xmin)
-            if not lt_most_lword.is_merged and lt_most_lword.is_selected:
-                #print(f'MergingL {len(lt_most_lword.words)} [{lt_most_lword.words[0].word_idx}]{lt_most_lword.words[0].text} -> {self.words[0].text} [{self.words[0].word_idx}]')
+        if close_rt_lwords:
+            lt_most_lword = min(close_rt_lwords, key=lambda lw: lw.xmin)
+            gap = lt_most_lword.xmin - self.xmax
+            if not lt_most_lword.is_merged and lt_most_lword.is_selected and gap < 0.05:
+                #print(f'MergingL {len(lt_most_lword.words)} [{lt_most_lword.words[0].word_idx}]{lt_most_lword.words[0].text} -> {self.words[0].text} [{self.words[0].word_idx}] {gap}')
                 lt_most_lword.add_at("left", self)
                 return True
         return False
@@ -145,25 +162,36 @@ class LineWord(Region):
     def set_linenum(self, slots, conf):
         nslots = len(slots)
 
+        if self.words[0].word_idx == 50:
+            print('Found It')
+            
+
         y_change = self.ymin - conf.prev_ymin
         y_max = conf.avg_height * conf.newline_height_multiple
 
         words_text = ' '.join(w.text for w in self.words)
-        #print(f'[{self.words[0].word_idx}]#{len(self.words)}  chg:{y_change:3f} {y_max:3f} {conf.newline_height_multiple} {words_text}')
+
+        blanked_line= ' '
         if conf.prev_ymin != -1.0 and y_change > y_max:
             blank_linenum = max(slots) + 1
             slots[:nslots] = [blank_linenum] * nslots
+            blanked_line = '*'
+
 
         conf.prev_ymin = self.ymin
         min_sidx, max_sidx = int(abs(self.xmin * nslots)), int(self.xmax * nslots)
 
-        if min_sidx != max_sidx:
+        if not words_text:
+            self.linenum = max(slots[min_sidx:max_sidx])
+        elif min_sidx != max_sidx:
             self.linenum = max(slots[min_sidx:max_sidx]) + 1
         else:
             self.linenum = slots[min_sidx] + 1
 
         min_sidx = 0 if self.position in ("first", "singleton") else min_sidx
         max_sidx = nslots if self.position in ("last", "singleton") else max_sidx
+
+        ##print(f'[{self.words[0].word_idx}]#{len(self.words)}  chg:{y_change:3f} {y_max:3f}{blanked_line}[{self.xmin}:{self.xmax}]=>[{min_sidx}:{max_sidx}] LN: {self.linenum} {conf.newline_height_multiple} >{words_text}<')
 
         slots[min_sidx:max_sidx] = [self.linenum] * (max_sidx - min_sidx)
         return self.linenum
@@ -234,3 +262,17 @@ def words_in_lines(
 
     #print_word_lines(word_lines)
     return word_lines
+
+### Simple words_in_lines, this big one should be moved to Page as it tries to find
+### left and right words which make sense only in a page, where all words need to be
+### processed. For smaller words they shoudl go to page and their ordering.
+###
+### Till we implement that logic as that is going to be disruptive, implementing a
+### hopefully smaller and simpler method.
+
+
+
+def words_in_lines_short(words, num_slots=1000):
+    # moved to region.py to avoid circular dependency
+    pass
+
