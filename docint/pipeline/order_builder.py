@@ -12,7 +12,8 @@ from ..vision import Vision
 from ..word_line import words_in_lines
 
 
-from ..extracts.orgpedia import Officer, OrderDetail
+from ..extracts.orgpedia import Officer, OrderDetail, Order
+from ..extracts.orgpedia import IncorrectOrderDateError, OrderDateNotFoundErrror
 from ..util import find_date, load_config
 from ..region import DataError, UnmatchedTextsError
 
@@ -126,9 +127,8 @@ class OrderBuilder:
             name = full_name[len(salut):]
 
             if ',' in name:
-                print(f'Replacing comma {officer_text}')
+                print(f'Replacing comma {name}')
                 name = name.replace(',', '')
-
             
             officer = Officer.build(officer_words, salut, name, cadre='goi_minister')
             order_detail = OrderDetail.build(
@@ -139,20 +139,45 @@ class OrderBuilder:
             return order_detail
         else:
             return None
-
-
+        
     def get_order_date(self, doc):
-        # TODO STOP this word merging outside region !!
-
         order_date = doc.pages[0].layoutlm.get('ORDERDATEPLACE', [])
         word_lines = words_in_lines(order_date, para_indent=False)
 
+        result_dt, errors, date_text = None, [], ''
+
+        err_details = []
         for word_line in word_lines:
-            date_line = ' '.join(w.text for w in word_line)
+            date_line = ' '.join(f'{w.text}' for w in word_line)
+            err_line = ' '.join(f'{w.word_idx}->{w.text}' for w in word_line)
+            err_details.append(f'DL: {doc.pdf_name} {date_line} {err_line}')
+            if len(date_line) < 10:
+                date_text += date_line + '\n'                
+                continue
+            
             dt, err_msg = find_date(date_line)
             if dt and (not err_msg):
-                return dt
-        return ""
+                result_dt = dt
+                date_text = date_line # overwrite it
+                break
+            date_text += date_line + '\n'
+
+            
+        if result_dt and (result_dt.year < 1947 or result_dt.year > 2021):
+            path = 'pa0.layoutlm.ORDERDATEPLACE'
+            msg = f'{doc.pdf_name} Incorrect date: {result_dt} in {date_text}'
+            errors.append(IncorrectOrderDateError(path=path, msg=msg))
+        elif result_dt is None:
+            path = 'pa0.layoutlm.ORDERDATEPLACE'
+            msg = f"{doc.pdf_name} text: >{date_text}<" 
+            errors.append(OrderDateNotFoundErrror(path=path, msg=msg))
+
+        if errors:
+            print('\n'.join(err_details))
+
+        print(f'Order Date: {result_dt}')
+        return result_dt, errors
+        
 
     def get_order_number(self, doc):
         order_number = doc.pages[0].layoutlm.get('HEADER', [])
@@ -205,7 +230,7 @@ class OrderBuilder:
         #u_texts = [ t.lower() for t in list_item.get_unlabeled_texts() if t.lower() not in self.ignore_unmatched ]
         u_texts = self.process_unmatched(list_item.get_unlabeled_texts())
         if u_texts:
-            errors.append(UnmatchedTextsError.build('{detail_idx}', u_texts))
+            errors.append(UnmatchedTextsError.build(f'{detail_idx}', u_texts))
 
         # u_texts_str = ' '.join(u_texts)
         # if not ('minis' in u_texts_str or 'depa' in u_texts_str):
@@ -227,7 +252,7 @@ class OrderBuilder:
     def __call__(self, doc):
         self.add_log_handler(doc)        
         self.lgr.info(f"order_builder: {doc.pdf_name}")
-        doc.add_extra_field('order_details', ('list', 'docint.extracts.orgpedia', 'OrderDetail'))        
+        #doc.add_extra_field('order_details', ('list', 'docint.extracts.orgpedia', 'OrderDetail'))        
         doc.add_extra_field("order", ("obj", 'docint.extracts.orgpedia', 'Order'))        
 
         if self.pre_edit:
@@ -238,13 +263,15 @@ class OrderBuilder:
                 doc.edit(edits)
 
         # TODO these need to be regions so that lineage exists
-        doc.order_date = self.get_order_date(doc)
-        doc.order_number = self.get_order_number(doc)
+        order_details, detail_idx, errors = [], 1, []
+        
+        order_date, date_errors = self.get_order_date(doc)
+        #order_number = self.get_order_number(doc)
+        errors.extend(date_errors)
 
-        self.lgr.debug(f'*** order_date:{doc.order_date}')
-        self.lgr.debug(f'*** order_number:{doc.order_number}')
+        self.lgr.debug(f'*** order_date:{order_date}')
+        #self.lgr.debug(f'*** order_number:{doc.order_number}')
 
-        doc.order_details, detail_idx, errors = [], 1, []
         for page in doc.pages:
             list_items = getattr(page, 'list_items', [])            
             assert len(list_items) == len(page.post_infos)
@@ -254,13 +281,15 @@ class OrderBuilder:
                     order_detail = self.build_detail(list_item, post_info, detail_idx)
                     if order_detail:
                         print(order_detail.to_str())
-                        doc.order_details.append(order_detail)
+                        order_details.append(order_detail)
                         detail_idx += 1
                     errors += self.test(list_item, order_detail, post_info, idx)
                 else:
                     errors += self.test(list_item, None, post_info, idx)
 
+        doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, order_details)
         
-        self.lgr.info(f"=={doc.pdf_name}.order_builder {len(doc.order_details)} {DataError.error_counts(errors)}")        
+        self.lgr.info(f"=={doc.pdf_name}.order_builder {len(doc.order.details)} {DataError.error_counts(errors)}")
+        [self.lgr.info(str(e)) for e in errors]        
         self.remove_log_handler(doc)        
         return doc

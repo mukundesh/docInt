@@ -135,7 +135,7 @@ class TableEdgeFinder:
             img = cv2.imdecode(img_buffer, cv2.IMREAD_GRAYSCALE)
             #img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        save_image(img, 'orig')
+        #save_image(img, 'orig')
 
         # thresholding the image to a binary image
         thresh, img_bin = cv2.threshold(
@@ -158,7 +158,7 @@ class TableEdgeFinder:
         image_v = cv2.erode(img_bin, ver_kernel, iterations=conf.col_erode_iterations)
         vertical_lines = cv2.dilate(image_v, ver_kernel, iterations=3)
 
-        save_image(vertical_lines, 'after_morph')
+        #save_image(vertical_lines, 'after_morph')
 
         # Eroding and thesholding the image
         img_vh = vertical_lines

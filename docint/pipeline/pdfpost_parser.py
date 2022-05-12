@@ -181,11 +181,12 @@ class PostParser:
             sel_sgs =  HierarchySpanGroup.select_sum_matching_len(sel_sgs)                        
 
             if len(sel_sgs) > 1:
-                sel_sgs = HierarchySpanGroup.select_level_match(sel_sgs, role_level)                            
+                sel_sgs = HierarchySpanGroup.select_level_match(sel_sgs, role_level)
+                sel_sgs = HierarchySpanGroup.select_unique(sel_sgs)                
                 if len(sel_sgs) > 1:
                     print(f'== Multiple {post_str} {len(sel_sgs)}')
                     for sg in sel_sgs:
-                        print(f'\t{sg.new_str()} {sg.sum_match_len} {sg.sum_span_len} {sg.sum_span_len_start}')
+                        print(f'\t{sg.new_str()} {sg.sum_match_len} {sg.sum_span_len} {sg.sum_span_len_start} {sg.hierarchy_path}')
 
                     sel_sgs = sel_sgs[:1]
                 
@@ -207,12 +208,13 @@ class PostParser:
         awaitingPosting = post.stat == 'Awaiting Posting Order'
         underTraining = isUnderTraining(post)
         underTrainSusDep =  underTraining or isSuspendedOrDeputed(post)
+        promoted = post.stat == 'on Promotion'
         
         if not post.role and not underTraining:
             msg = f'Empty role >{post.post_str}<'
             errors.append(PostEmptyRoleError(msg=msg, path=post_path))
         
-        if emptyDeptAndJuri and (not awaitingPosting) and (not underTrainSusDep):
+        if emptyDeptAndJuri and (not awaitingPosting) and (not underTrainSusDep) and(not promoted):
             msg = f'Both department and jurisdiction fields are empty >{post.post_str}<'
             errors.append(PostEmptyDeptAndJuriError(msg=msg, path=post_path))
 
@@ -236,7 +238,8 @@ class PostParser:
         post_str = post_str.replace('‐', '-')
         select_strategy_dict = {
             "dept": "connected_sum_span_len",
-            "role": "at_start",
+            #"role": "at_start",
+            "role": "left_most",            
             "juri": "none",
             "loca": "sum_span_len",
             "stat": "first",
@@ -337,7 +340,8 @@ class PostParser:
 
                 post = self.parse(post_words, post_str, post_path, rank)
                 page.posts.append(post)
-                errors.extend(self.test(post, post_path))
+                post.errors = self.test(post, post_path)
+                errors.extend(post.errors)
             total_posts += len(page.posts)
             
         self.lgr.info(f'==Total:{total_posts} {DataError.error_counts(errors)}')

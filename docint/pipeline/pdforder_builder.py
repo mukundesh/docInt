@@ -6,7 +6,7 @@ from ..vision import Vision
 from ..region import DataError
 
 
-from ..extracts.orgpedia import Officer, OrderDetail
+from ..extracts.orgpedia import Officer, OrderDetail, Order
 from ..util import find_date, load_config
 
 
@@ -160,9 +160,9 @@ class PDFOrderBuilder:
                 name = name.replace('(SCRB)', '').strip()
             
             if name.endswith(" IPS"):
-                name, cadre = name[:-3].strip(), "I.P.S"
+                name, cadre = name[:-3].strip(), "I.P.S."
             else:
-                name, cadre = name, "R.P.S"
+                name, cadre = name, "R.P.S."
 
             return name, cadre
 
@@ -186,6 +186,7 @@ class PDFOrderBuilder:
         
         officer_dict["full_name"] = officer_dict["name"] = name
         officer_dict["words"] = row.words
+        officer_dict["cadre"] = cadre
 
         #print(officer_dict)
 
@@ -199,6 +200,20 @@ class PDFOrderBuilder:
                 else:
                     officer_dict[date_field] = dt
         return Officer(**officer_dict)
+
+    def get_order_date(self, doc):
+        first_page = doc.pages[0]
+        
+        if not hasattr(first_page, 'heading'):
+            return None
+
+        heading_str = ' '.join([w.text for w in first_page.heading.words])
+        order_date, err = find_date(heading_str)
+        if err:
+            print(f'OrderDateError: {doc.pdf_name} {err} >{heading_str}<')
+            
+        print(f'OrderDate: {doc.pdf_name} {order_date} >{heading_str}<')        
+        return order_date
 
     def iter_rows(self, doc):
         for page_idx, page in enumerate(doc.pages):
@@ -214,18 +229,23 @@ class PDFOrderBuilder:
         doc.add_extra_field("order_details", ("list", __name__, "OrderDetails"))
         doc.add_extra_field("order", ("obj", __name__, "Order"))
 
-        details, errors = [], []
+        order_date = self.get_order_date(doc)
+        details, errors, detail_idx = [], [], 0
         for page, row, row_idx in self.iter_rows(doc):
             officer = self.build_officer(row, doc.header_info, row_idx)
 
             path = f"p{page.page_idx}.t0.r{row_idx}"
             post = page.posts[row_idx]
 
-            detail, d_errors = self.build_detail(row, officer, post, path, row_idx)
+            detail, d_errors = self.build_detail(row, officer, post, path, detail_idx)
             detail.errors = d_errors
             details.append(detail)
             errors.extend(d_errors)
-        doc.details = details
+            detail_idx += 1
+
+            
+        doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, details)
+        doc.order.category = 'civil_list'        
         self.lgr.info(f"==Total:{len(errors)} {DataError.error_counts(errors)}")
         self.remove_log_handler(doc)
         return doc

@@ -30,9 +30,13 @@ class OrientPage:
             
             (3, 0, 2, 1): 90,
             (0, 3, 1, 2): 90,
-            (0, 3, 2, 1): 90,                        
+            (0, 3, 2, 1): 90,
+            (3, 0, 1, 2): 90,            
             
             (2, 3, 1, 0): 180,
+            (3, 2, 1, 0): 180,
+            (3, 2, 0, 1): 180,
+            (2, 3, 0, 1): 180,                                    
             
             (1, 2, 0, 3): 270,
             (1, 2, 3, 0): 270,            
@@ -88,7 +92,9 @@ class OrientPage:
         print(f'Processing {doc.pdf_name}')
         doc.add_extra_page_field('reoriented_angle', ('noparse', '', ''))
         for page in doc.pages:
-            if self.needs_reorientation(page):
+            angle = self.get_reorient_angle(page)
+            print(f'page_idx: {page.page_idx} Angle: {angle}')            
+            if angle != 0:
                 print(f'Orienting page_idx: {page.page_idx}')
                 angle = self.get_reorient_angle(page)
                 self.orient_page(page, angle)

@@ -200,4 +200,72 @@ class Page(BaseModel):
     def page(self):
         return self
 
+
+    def get_base64_image(self, shape):
+        image_box = shape.box
+        return self.page_image.get_base64_image(image_box.top, image_box.bot, 'png')
+    
+
+    def arrange_words(self, *, rotation_threshold=2, merge_word_len=3, newline_height_multiple=1.0, para_indent=True):
+        h_skew_angle = self.page_image.get_skew_angle("h")
+
+        page_words, page_image = self.words, self.page_image
+        if abs(h_skew_angle) > rotation_threshold:
+            page_image.clear_transforms()
+            page_image.rotate(h_skew_angle)
+
+            rota_size = self.page_image.curr_size
+            rota_words_coords = [[page_image.get_image_coord(c) for c in w.coords] for w in self.words]
+            page_words = [ build_rota_word(w, rc) for (w, rc) in zip(self.words, rota_words_coords)]
+        #end
+        
+        word_lines = words_in_lines(page_words, merge_word_len, newline_height_multiple, para_indent)
+
+        word_idxs = [w.word_idx for wl in word_lines for w in wl]        
+        word_idx_lns = [(w.word_idx, ln) for (ln, wl) in enumerate(word_lines) for w in wl]
+
+        ordered_pos_word_idxs = sorted(enumerate(word_idxs), key=lambda tup: tup[1])
+        self.word_idx_pos = [pos for (pos, idx) in ordered_word_idxs]
+
+        self.word_idx_lns = [ln for (w_idx, ln) in sorted(word_idx_lns, key=lambda tup: tup[1])]
+        
+    def reorder_words(self, words):
+        def word_pos(word):
+            return self.pos_word_idxs[word.word_idx]
+
+        return sorted(words, key=word_pos)
+
+    def reorder_in_word_lines(self, words):
+        def line_num(word):
+            return self.word_idx_lns[word.word_idx]
+        
+        r_words = self.reorder_words(words)
+        word_lines = []
+        for (ln, words) in groupby(r_words, key=line_num):
+            word_lines.append(list(words))
+        return word_lines
+
+        
+        
+        
+        
+            
+
+
+            
+            
+
+
+            
+            
+            
+
+            
+            
+            
+        
+        
+
+
+
         

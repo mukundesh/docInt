@@ -23,3 +23,7 @@ from .table_builder_edges import TableBuilderOnEdges
 from .hindi_order_builder import HindiOrderBuilder
 from .body_marker import FindBodyMarker
 from .id_assigner import IDAssigner
+from .tenure_builder import TenureBuilder
+from .region_differ import RegionDiffer
+from .id_assigner_fields import IDAssignerMultipleFields
+from .details_merger import DetailsMerger

@@ -212,12 +212,13 @@ class FindNumMarker:
             return False
 
         if not ( word.box.in_xrange(self.x_range) and word.box.in_yrange(self.y_range) ):
-            self.lgr.debug(f'\t{word.text} outside {self.x_range} {self.y_range}')
+            self.lgr.debug(f'\t{word.text} {word.xmin}:{word.xmax} outside {self.x_range} {self.y_range}')
             return False
 
         lt_words = page.words_to("left", word)
         if not self.is_empty(lt_words, ignorePunct=True):
-            self.lgr.debug(f'\t{word.text} lt_words.text_len() {lt_words.text_len()}')
+            lt_text = ' '.join(w.text for w in lt_words.words)
+            self.lgr.debug(f'\t{word.text} lt_words.text_len() {lt_words.text_len()} {lt_text}')
             return False
 
         self.lgr.debug(f'\t{word.text} True')        

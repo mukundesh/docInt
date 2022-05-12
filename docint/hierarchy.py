@@ -59,6 +59,7 @@ class HierarchyNode:
             child.parent = self
 
         self._debug = lgr.isEnabledFor(logging.DEBUG)
+        self._debug = True
         self._names = None
 
     @property
@@ -241,6 +242,12 @@ class HierarchySpanGroup(SpanGroup):
         return [sg for sg in span_groups if sg.full_span.start == 0]
 
     @classmethod
+    def select_left_most(cls, span_groups):
+        sgs = sorted(span_groups, key=lambda sg: sg.full_span.start )
+        k, first_group = first(groupby(sgs, key=lambda sg: sg.full_span.start), (None, []))
+        return list(first_group)
+
+    @classmethod
     def select_first(cls, span_groups):
         return span_groups[:1]
 
@@ -268,7 +275,11 @@ class HierarchySpanGroup(SpanGroup):
 
     @classmethod
     def select_unique(cls, span_groups):
-        text_sgs = [(sg.span_str(), sg) for sg in span_groups]
+        def uniq_str(sg):
+            names = [s.node.name for s in reversed(sg.spans)]            
+            return f'{sg.span_str()}-{sg.hierarchy_path}'
+        
+        text_sgs = [(uniq_str(sg), sg) for sg in span_groups]
         text_sgs.sort(key=lambda tup: tup[0])
         unique_sgs = []
         for k, g in groupby(text_sgs, key=lambda tup: tup[0]):
@@ -282,6 +293,8 @@ class HierarchySpanGroup(SpanGroup):
             return cls.select_non_overlapping(span_groups)
         elif strategy == 'at_start':
             return cls.select_at_start(span_groups)
+        elif strategy == 'left_most':
+            return cls.select_left_most(span_groups)
         elif strategy == 'sum_span_len':
             return cls.select_sum_span_len(span_groups)
         elif strategy == 'first':

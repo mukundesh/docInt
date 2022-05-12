@@ -61,15 +61,20 @@ class FindBodyMarker:
         self.add_log_handler(doc)        
         self.lgr.info(f'num_marker: {doc.pdf_name}')
 
-        doc_config = load_config(self.conf_dir, doc.pdf_name, "bodymarker")        
-
         doc.add_extra_page_field('list_items', ('list', "docint.region", "Region"))
+
+        doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
+        edits = doc_config.get("edits", [])
+        if edits:
+            print(f'Edited document: {doc.pdf_name}')
+            doc.edit(edits)        
+        
 
         first_page = doc.pages[0]
         body_marker = first_page.layoutlm.get('ORDERBODY', [])
 
         nl_ht_multiple = doc_config.get('newline_height_multiple', 1.0)        
-        word_lines = words_in_lines(first_page, newline_height_multiple=nl_ht_multiple)
+        word_lines = words_in_lines(first_page, newline_height_multiple=nl_ht_multiple, para_indent=True)
 
         bm_idxs = set(w.word_idx for w in body_marker.words)
         bm_lines = [[w for w in line if w.word_idx in bm_idxs] for line in word_lines]

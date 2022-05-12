@@ -59,6 +59,8 @@ class OrientPage:
 
     def __call__(self, doc):
         for page in doc.pages:
+            angle = self.get_reorient_angle(page)
+            print(f'> page {page.page_idx} Angle: {angle}')
             if self.needs_reorientation(page):
                 angle = self.get_reorient_angle(page)
                 self.orient_page(page, angle)

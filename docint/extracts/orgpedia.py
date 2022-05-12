@@ -4,8 +4,18 @@ import json
 
 from pydantic import BaseModel
 
-from typing import List, Dict
-from ..region import Region, Span
+from typing import List, Dict, Union
+from ..region import Region, Span, DataError
+from more_itertools import flatten
+
+class IncorrectOfficerNameError(DataError):
+    pass
+
+class EnglishWordsInNameError(DataError):
+    pass
+
+class OfficerIDNotFoundError(DataError):
+    pass
 
 class Officer(Region):
     salut: str
@@ -81,6 +91,10 @@ class Post(Region):
         s_dict = {'dept': self.dept_spans, 'role': self.role_spans, 'juri': self.juri_spans,
                      'loca': self.loca_spans, 'stat': self.stat_spans}
         return dict((field, spans) for field, spans in s_dict.items() if spans)
+
+    @property
+    def fields(self):
+        return ['dept', 'role', 'juri', 'loca', 'stat']
 
     def __str__(self):
         def p_s(hpath):
@@ -159,7 +173,9 @@ class OrderDetail(Region):
     relinquishes: List[Post] = []            
     assumes: List[Post] = []
     detail_idx: int
+    
     is_valid: bool = True
+    path: str = ''
 
     @property
     def page_idx(self):
@@ -189,24 +205,62 @@ class OrderDetail(Region):
             d_lines += [f'  {str(e)}' for e in self.errors ]
         return '\n'.join(d_lines)
 
+    def get_posts(self, verb='all'):
+        if verb == 'all':
+            return self.continues + self.relinquishes + self.assumes
+        else:
+            return getattr(self, verb)
+
+    def get_after_posts(self):
+        return self.continues + self.assumes
+
+    def get_before_posts(self):
+        return self.continues + self.relinquishes
+
+    def get_regions(self):
+        return [ self.officer ] + self.get_posts()
+            
+
+class IncorrectOrderDateError(DataError):
+    pass
+
+class OrderDateNotFoundErrror(DataError):
+    pass
+
+class Order(Region):
+    order_id: str    
+    date: Union[datetime.date, None]
+    order_idx: int = -1
+    number: str = ''
+    path: Path
+    details: List[OrderDetail]
+    category: str = ''
+
+    def get_regions(self):
+        return [self] + self.details + list(flatten(d.get_regions() for d in self.details))
+
+    @classmethod
+    def build(cls, order_id, order_date, path, details):
+        return Order(words=[], word_lines=[], order_id=order_id, date=order_date, path=path, details=details)
+    
+
 # If it is not extending Region should it still be there, yes as it will be moved to Orgpeida
 
-class TenureID(BaseModel):
-    tenure_idx: int = -1
-    officer_idx: int = -1
-    post_idx: int = -1
+class Tenure(BaseModel):
+    tenure_idx: int
+    officer_id: str
+    post_id: str
 
-    start_date: datetime.date = None
-    end_date: datetime.date = None
+    start_date: datetime.date
+    end_date: datetime.date
 
-    start_order_idx: int = -1
-    start_detail_idx: int = -1
+    start_order_id: str
+    start_detail_idx: int
     
-    end_order_idx: int = -1
+    end_order_id: str
     end_detail_idx: int = -1
 
-
-
+    
 class OfficerID(BaseModel):
     officer_idx: int = -1
     officer_id: str = ''
@@ -218,8 +272,13 @@ class OfficerID(BaseModel):
     cadre: str = ''
     
     aliases: List[Dict[str, str]] = []
+    tenures: List[Tenure] = []
 
-    tenures: List[TenureID] = []
+
+    birth_date: datetime.date = None
+    batch_year: int = -1
+    home_location: str = ''
+    education: str = ''
     
     # currently not keeping language as that should be a separate process    
 
@@ -243,7 +302,7 @@ class PostID(BaseModel):
     stat_path: List[str] = []
     loca_path: List[str] = []
 
-    tenures: List[TenureID] = []    
+    tenures: List[Tenure] = []    
     
 
 

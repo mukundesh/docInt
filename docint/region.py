@@ -1,4 +1,4 @@
-from typing import List, Dict, Iterable
+from typing import List, Dict, Iterable, Any
 from itertools import zip_longest, groupby, chain
 from collections import Counter
 from textwrap import wrap
@@ -21,9 +21,16 @@ from .span import Span, SpanGroup
 class DataError(BaseModel):
     path: str
     msg: str
+    doc: Any
+
+    class Config:
+        fields = {'doc': {'exclude': True}}
 
     def __str__(self):
-        return f'{self.name}: {self.path} {self.msg}'
+        if self.doc:
+            return f'{self.name}: {self.doc.pdf_name} {self.path} {self.msg}'
+        else:
+            return f'{self.name}: {self.path} {self.msg}'            
 
     @property
     def name(self):
@@ -248,7 +255,7 @@ class Region(BaseModel):
         word_texts = [w.text for w in self.words if w]
         return " ".join(word_texts)
 
-    def arrange_words(self, words, num_slots=1000):
+    def arranged_words_old(self, words, num_slots=1000):
         def get_line_num(word):
             min_sidx, max_sidx = int(word.xmin * num_slots), int(word.xmax * num_slots)
             max_sidx = min(max_sidx, num_slots - 1)
@@ -268,7 +275,7 @@ class Region(BaseModel):
         words_line_nums.sort(key=lambda tup: (tup[1], tup[0].xmin))
         return [tup[0] for tup in words_line_nums]
 
-    def group_words(self, words, cutoff_thous=5):
+    def arranged_words(self, words, cutoff_thous=5):
         def centroid(line):
             return line[-1].ymid
 
@@ -291,8 +298,7 @@ class Region(BaseModel):
         return list(chain(*word_lines))
 
     def arranged_text(self, cutoff_thous=5):
-        #arranged_words = self.arrange_words(self.words)
-        arranged_words = self.group_words(self.words, cutoff_thous)        
+        arranged_words = self.arranged_words(self.words, cutoff_thous)        
         word_texts = [w.text for w in arranged_words if w]
         return " ".join(word_texts)        
 

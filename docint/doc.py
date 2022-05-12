@@ -3,6 +3,7 @@ from importlib import import_module
 import subprocess
 from typing import List, Tuple, Dict, Any
 import math
+from base64 import b64encode
 
 from pydantic import BaseModel, Field, parse_obj_as
 
@@ -159,6 +160,21 @@ class PageImage(BaseModel):
         self.transformations.append(('crop', img_top, img_bot))
         
         # todo rotate
+
+    def get_base64_image(self, top, bot, format='png', height=50):
+        if not self.wimage:
+            self._init_image()
+            
+        img_top, img_bot = self.get_image_coord(top), self.get_image_coord(bot)
+        with self.wimage[int(img_top.x):int(img_bot.x), int(img_top.y):int(img_bot.y)] as cropped:
+            if height:
+                cw, ch = cropped.size
+                width = int((cw * height)/ch)
+                cropped.resize(width=width, height=height)
+
+            img_bin = cropped.make_blob(format)
+            img_str = f"data:image/{format};base64," + b64encode(img_bin).decode()
+        return img_str
 
     def clear_transforms(self):
         if self.wimage:
@@ -443,9 +459,40 @@ class Doc(BaseModel):
         page_idx, word_idx = self._splitPath(jpath)
         return self.pages[page_idx].words[word_idx]
 
+    def get_words(self, jpath):
+        def split_path(idx):
+            idx = idx[2:]
+            print(idx)
+            s, e = idx.split(':') if ':' in idx else (int(idx), int(idx) + 1)
+            return (int(s), int(e))
+
+        if ':' not in jpath:
+            return [self.get_word(jpath)]
+
+        words = []
+        page_path, word_path = jpath.split(".", 1)
+        for p_idx in range(*split_path(page_path)):
+            for w_idx in range(*split_path(word_path)):
+                words.append(self.pages[p_idx].words[w_idx])
+        return words
+        
     def get_page(self, jpath):
         page_idx, word_idx = self._splitPath(jpath)
         return self.pages[page_idx]
+
+    def get_region(self, region_path):
+        item = self
+        name_dict = {'pa': 'pages', 'wo': 'words', 'ta': 'tables', 'ro': 'body_rows', 'ce': 'cells' }
+        for item_path in region_path.split('.'):
+            if item_path[-1].isdigit():
+                name = item_path.strip('0123456789')
+                idx = int(item_path[len(name):])
+                name = name_dict.get(name, name)
+                item = getattr(item, name)[idx]
+            else:
+                name = name_dict.get(item_path, item_path)
+                item = item.get(name) if isinstance(item, dict) else getattr(item, name)
+        return item
 
     def get_edge(self, jpath):
         (page_idx, table_idx, edge_idx) = [int(e[2:]) for e in jpath.split(".")]
@@ -525,6 +572,15 @@ class Doc(BaseModel):
         def moveEdges(doc, path, coord, direction, num_thou=5):
             edge_paths = doc.get_edge_paths(path)
             return [moveEdge(doc, p, coord, direction, num_thou) for p in edge_paths]
+
+        def addWords(doc, region_path, *word_paths):
+            region = doc.get_region(region_path)
+            add_words = [ doc.get_word(p) for p in word_paths ]
+            region.words += add_words
+            region.text_ = None
+            region.shape_ = None
+            return region
+            
 
         def deletePage(doc, path):
             del_idx = int(path[2:])

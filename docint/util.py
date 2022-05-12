@@ -135,6 +135,9 @@ def is_readable_dir(path):
 
 def read_config_from_disk(path):
     path = Path(path)
+    if not path.exists():
+        return {}
+    
     config = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.FullLoader)
     config = {} if not config else config
     return config
@@ -177,8 +180,10 @@ def load_file_config(config, doc_name, stub):
 
 def find_date(date_line):
     try:
+        date_line = date_line.strip('()')
         dt = parser.parse(date_line, fuzzy=True, dayfirst=True)
-        return str(dt.date()), ''
+        #return str(dt.date()), ''
+        return dt.date(), ''
     except ValueError as e:
         return None, str(e)
 

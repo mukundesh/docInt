@@ -208,7 +208,9 @@ def words_in_lines(
     merge_word_len=3,
     num_slots=1000,
     newline_height_multiple=1.0,
-    para_indent=True
+    para_indent=True,
+    is_page=False
+        
 ):
     if not region or not region.words:
         return []
@@ -217,7 +219,9 @@ def words_in_lines(
     avg_height = statistics.mean([w.box.height for w in region.words])
     conf = Config(merge_word_len, newline_height_multiple, avg_height)
 
-    page_lWords = [LineWord.build(word) for word in first_word.page.words ]
+    page_words = first_word.page.words if not is_page else region.words
+
+    page_lWords = [LineWord.build(word) for word in page_words ]
     lWords = [page_lWords[w.word_idx] for w in region.words ]
 
     [lw.set_selected() for lw in lWords]

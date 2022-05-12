@@ -15,16 +15,15 @@ from ..vision import Vision
 from ..table import TableEmptyBodyCellError, TableMismatchColsError
 from ..hierarchy import Hierarchy, MatchOptions
 from ..region import DataError, UnmatchedTextsError, TextConfig
-from ..extracts.orgpedia import OrderDetail, Post, Officer
+from ..extracts.orgpedia import OrderDetail, Post, Officer, Order
+from ..extracts.orgpedia import IncorrectOfficerNameError, EnglishWordsInNameError
+from ..extracts.orgpedia import IncorrectOrderDateError, OrderDateNotFoundErrror
+
+
 from ..span import Span, SpanGroup
-from ..util import read_config_from_disk
+from ..util import read_config_from_disk, find_date
 
-class IncorrectOfficerNameError(DataError):
-    pass
-
-class EnglishWordsInNameError(DataError):
-    pass
-
+from ..word_line import words_in_lines
 
 
 @Vision.factory(
@@ -283,6 +282,45 @@ class TableOrderBuidler:
         all_errors = officer_errors + post_errors
         return d, all_errors
 
+    def get_order_date(self, doc):
+        result_dt, errors, date_text = None, [], ''
+        if not getattr(doc.pages[0], 'layoutlm', None):
+            path = 'pa0.layoutlm'
+            msg = f"layoutlm not found !"
+            errors.append(OrderDateNotFoundErrror(path=path, msg=msg))
+            return None, errors
+        
+        order_date = doc.pages[0].layoutlm.get('ORDERDATEPLACE', [])
+        word_lines = words_in_lines(order_date, para_indent=False)
+
+        for word_line in word_lines:
+            date_line = ' '.join(w.text for w in word_line)
+            print(f'DL: {date_line}')            
+            if len(date_line) < 10:
+                date_text += ' '.join(f'{w.word_idx}:{w.text}' for w in word_line)
+                continue
+            
+            dt, err_msg = find_date(date_line)
+            if dt and (not err_msg):
+                result_dt = dt
+                date_text += ' '.join(f'{w.word_idx}:{w.text}' for w in word_line)
+                break
+            date_text += ' '.join(f'{w.word_idx}:{w.text}' for w in word_line)
+            
+        if result_dt and (result_dt.year < 1947 or result_dt.year > 2021):
+            path = 'pa0.layoutlm.ORDERDATEPLACE'
+            msg = f'Incorrect date: {result_dt} in {date_text}'
+            errors.append(IncorrectOrderDateError(path=path, msg=msg))
+        elif result_dt is None:
+            path = 'pa0.layoutlm.ORDERDATEPLACE'
+            msg = f"text: >{date_text}<" 
+            errors.append(OrderDateNotFoundErrror(path=path, msg=msg))
+
+        print(f'Order Date: {result_dt}')
+        return result_dt, errors
+        
+    
+
     def iter_rows(self, doc):
         for (page_idx, page) in enumerate(doc.pages):
             for (table_idx, table) in enumerate(page.tables):
@@ -292,22 +330,30 @@ class TableOrderBuidler:
     def __call__(self, doc):
         self.add_log_handler(doc)
         self.lgr.info(f"table_order_builder: {doc.pdf_name}")
-        doc.add_extra_field("order_details", ("list", "docint.extracts.orgpedia", "OrderDetail"))
-        #doc.add_extra_field("order", ("obj", __name__, "Order"))
+        #doc.add_extra_field("order_details", ("list", "docint.extracts.orgpedia", "OrderDetail"))
+        
+        doc.add_extra_field("order", ("obj", "docint.extracts.orgpedia", "Order"))
 
-        #doc.order_date = self.get_order_date(doc)
         #doc.order_number = self.get_order_number(doc)
-
-        doc.order_details, errors = [], []
+        order_details, errors = [], []
+        
+        order_date, date_errors = self.get_order_date(doc)
+        errors.extend(date_errors)
+        
         self.verb = "continues"  # self.get_verb(doc)
         for page_idx, table_idx, row_idx, row in self.iter_rows(doc):
             path = f"p{page_idx}.t{table_idx}.r{row_idx}"
             detail, d_errors = self.build_detail(row, path, 'continues', row_idx)
             detail.errors = d_errors
-            doc.order_details.append(detail)
+            order_details.append(detail)
             errors.extend(d_errors)
+
+        doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, order_details)
+        doc.order.category = 'Council'
         
-        self.lgr.info(f"=={doc.pdf_name}.table_order_builder {len(doc.order_details)} {DataError.error_counts(errors)}")
+        self.lgr.info(f"=={doc.pdf_name}.table_order_builder {len(doc.order.details)} {DataError.error_counts(errors)}")
+        [self.lgr.info(str(e)) for e in errors]        
+        
         self.remove_log_handler(doc)
         return doc
 

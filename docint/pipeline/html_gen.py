@@ -58,6 +58,7 @@ class HtmlGenerator:
 
     def get_svg_str(self, object, color, page, path_abbr="", alt_text=""):
         color_str = f'stroke="{color}" fill="transparent" stroke-width="1"'
+        alt_text = html.escape(alt_text)        
         if isinstance(object, Table):
             table = object
             word_strs = []
@@ -92,8 +93,9 @@ class HtmlGenerator:
             img_w, img_h = img_size_coord.x, img_size_coord.y
                 
             shape_str = f'x="{img_top.x}" y="{img_top.y}" width="{img_w}" height="{img_h}"'
-            svg_str = f'<rect class="item_shape" {shape_str} {color_str}/>'
-            svg_str = f'<a xlink:href="http://{path_abbr}/">{svg_str}</a>'
+            rect_str = f'<rect class="item_shape" {shape_str} {color_str}>'
+            rect_str += f'<title>{alt_text}</title></rect>'
+            svg_str = f'<a xlink:href="http://{path_abbr}/">{rect_str}</a>'
             return svg_str
         else:
             raise NotImplementedError(f'not implemented {type(object)}')
@@ -155,7 +157,7 @@ class HtmlGenerator:
             for (item_name, color) in self.color_dict.items():
                 items = get_items(page, item_name)
                 svg_strs = [self.get_svg_str(i, color, page) for i in items]
-                svg_file.write("\t" + "\n\t".join(svg_strs))
+                svg_file.write("\t" + "\n\t".join(svg_strs)+ "\n")
             svg_file.write("</svg>")
 
     def check_color(self, color_dict, doc):

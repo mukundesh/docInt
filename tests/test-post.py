@@ -38,7 +38,12 @@ def eval_pdfpost(text):
     post_info = dict((f, list(reversed(getattr(post, f'{f}_hpath')))) for f in Fields if getattr(post, f'{f}_hpath'))
     print(post_info)
 
+    errors = post_parser.test(post, 'nothing.nothing')
+    print(errors)
+
     return post
+
+
 
 NoparseFile = "/Users/mukund/Software/goiConf/Datasets/rajapoli/post.noparse.yml"
 NoparseFile = "/Users/mukund/orgpedia/rajpol/flow/R.P.S/text/readPDF_/conf/post.noparse.short.yml"
@@ -88,6 +93,34 @@ def eval_prev_version(jsonlFilePath):
             err_idx += 1
     #end for
 
+def eval_all(jsonlFilePath):
+    jsonlFilePath = Path(jsonlFilePath)
+    jsonLines = jsonlFilePath.read_text().split('\n')
+    post_parser = get_parser()
+    post_parser.lgr.setLevel(logging.ERROR)
+    
+    noparse_dict = read_config_from_disk(NoparseFile)
+    ignore_posts = ['ADDL SP L/R CIVIL RIGHTS CID CB JAIPUR']
+    wrong_posts = ['ADDL SP APO JAIPUR RANGE JAIPUR', 'ADDL SP L/R JAIPUR RANGE JAIPUR', 'ADDL.SP.AJMER RURAL AJMER', 'ADDL.SP.AJMER-CITY AJMER', 'ADDL.SP.AJMER-RURAL AJMER', 'ADDL.SP.APO IGP JAIPUR RANGE JAIPUR', 'ADDL.SP.KOTA CITY KOTA', 'CIRCLE AJMER RURAL AJMER', 'CIRCLE JHUNJHUNU-RURAL JHUNJHUNU']
+    noparse_posts = set([p['post'] for p in noparse_dict['posts']] + ignore_posts + wrong_posts) 
+
+    err_idx = 1
+    for idx, line in enumerate(jsonLines):
+        if not line:
+            continue
+        
+        post_info = json.loads(line)
+        post_str = post_info['postStr']
+
+        dept_path_str = '.'.join(post_info['deptPath']).lower()
+        if  (post_str in noparse_posts) or ('hq' in post_str.lower()):# or ('terrorist' in dept_path_str):
+            if post_str in noparse_posts:
+                print(f'==noparse {post_str}')
+            continue
+        
+        post = post_parser.parse([], post_str, idx)
+        post_info = dict((f, list(reversed(getattr(post, f'{f}_hpath')))) for f in Fields if getattr(post, f'{f}_hpath'))
+        print(f'{post_str}: {post_info}')
         
 
 
@@ -103,12 +136,14 @@ if __name__ == "__main__":
 
     #eval_field(sys.argv[1], sys.argv[2])
 
-    if len(sys.argv) != 3 or sys.argv[1] not in ('-f', '-p'):
+    if len(sys.argv) != 3 or sys.argv[1] not in ('-f', '-p', '-a'):
         print(f'Usage: {sys.argv[0]} [-p|-f] <post_arg>')
         sys.exit(1)
 
     if sys.argv[1] == '-f':
         eval_prev_version(sys.argv[2])
+    elif sys.argv[1] == '-a':
+        eval_all(sys.argv[2])
     else:
         eval_pdfpost(sys.argv[2])
 

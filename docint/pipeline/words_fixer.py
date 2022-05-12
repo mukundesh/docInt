@@ -7,9 +7,6 @@ import itertools as it
 
 from enchant import request_pwl_dict
 from enchant.utils import levenshtein
-
-
-
 from ..vision import Vision
 from ..region import TextConfig, DataError
 from ..util import load_config
@@ -274,6 +271,10 @@ class WordsFixer:
         person_spans = list_item.get_spans('person')
         if not person_spans:
             return
+
+        ### TODO THIS IS ONLY FOR SENTENCES THAT START WITH NAME
+        ### 1_Upload_2791 has the name in the middle !!!
+        ### Mohd. Taslimuddin has two spans >Mohd.< and >d. Taslimuddin<
         
         merged_spans = Span.accumulate(person_spans)
         # move to word boundary
@@ -406,7 +407,7 @@ class WordsFixer:
         self.lgr.info(f"word_fixer: {doc.pdf_name}")
 
         doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
-        old_config = self.set_config(doc_config)
+        #old_config = self.set_config(doc_config)
         
         if self.pre_edit:
             edits = doc_config.get("edits", [])
@@ -431,7 +432,7 @@ class WordsFixer:
                 
                 self.lgr.debug(f'A>{list_item.line_text().replace(NL, " ")}<\n')
 
-        self.revert_config(old_config)
+        #self.revert_config(old_config)
         self.remove_log_handler(doc)        
         return doc
         
