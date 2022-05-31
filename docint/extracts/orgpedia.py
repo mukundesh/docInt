@@ -96,6 +96,9 @@ class Post(Region):
     def fields(self):
         return ['dept', 'role', 'juri', 'loca', 'stat']
 
+    def has_error(self):
+        return True if self.errors else False
+
     def __str__(self):
         def p_s(hpath):
             return '->'.join(hpath) if hpath else ''

@@ -78,13 +78,15 @@ class InferHeaders:
 
         header_info = []
         for cell in cells:
-            cell_text = cell.raw_text()
+            cell_text = cell.arranged_text()
             header_text = (
                 cell_text.lower()
                 .replace(".", "")
                 .replace(" ", "_")
                 .replace(",", "")
                 .replace("'", "")
+                .replace("`", "")
+                .replace("*", "")                                
             )
             if header_text not in self.header_dict:
                 self.lgr.info(f"\tNot Found: {doc.pdf_name} {cell_text}->{header_text}")
@@ -167,7 +169,7 @@ class PDFOrderBuilder:
             return name, cadre
 
         def clean_text(v):
-            return v if not v else v.replace("\n", " ").replace("\xa0", " ")            
+            return v if not v else v.replace("\n", " ").replace("\xa0", " ").replace('*','').replace('`','')
         
         o_fields = [
             "salut",
@@ -177,7 +179,7 @@ class PDFOrderBuilder:
             "home_district",
             "posting_date",
         ]
-        o_vals = [row.cells[header_info.index(f)].raw_text() for f in o_fields]
+        o_vals = [row.cells[header_info.index(f)].arranged_text() for f in o_fields]
         o_vals = [clean_text(v) for v in o_vals]
         
         officer_dict = dict(zip(o_fields, o_vals))

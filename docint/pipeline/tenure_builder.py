@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from operator import attrgetter
 from itertools import groupby
 from more_itertools import flatten
+import json
+from pathlib import Path
 
 from ..vision import Vision
 from ..extracts.orgpedia import Tenure
@@ -128,8 +130,18 @@ class TenureBuilder:
             officer_tenures += handle_order_infos(list(order_infos))
         return officer_tenures
 
+    def write_tenures(self, tenures):
+        tenure_dicts = []
+        for t in tenures:
+            td = t.dict()
+            td['start_date'] = str(td['start_date'])
+            td['end_date'] = str(td['end_date'])
+            tenure_dicts.append(td)
+        tenure_output_path = Path('output/tenures.json')
+        tenure_output_path.write_text(json.dumps({'tenures': tenure_dicts}, indent=2))
+
     def pipe(self, docs, **kwargs):
-        self.lgr.info("Entering infer_layoutlm.pipe")
+        self.lgr.info("Entering tenure builder")
 
         orders = [doc.order for doc in docs]
         detail_infos = list(flatten(self.build_detail_infos(o) for o in orders))
@@ -141,5 +153,8 @@ class TenureBuilder:
         for officer_id, officer_infos in officer_groupby:
             tenures += self.build_officer_tenures(officer_id, officer_infos)
 
-        self.lgr.info("Leaving infer_layoutlm.pipe")
+
+        self.write_tenures(tenures)
+
+        self.lgr.info("Leaving tenure_builder")
         return docs

@@ -129,7 +129,9 @@ class HindiOrderBuilder:
         return []
 
     def get_salut(self, name, merged_saluts=True):
-        short = "mr-mrs-dr-smt-shri-sh-ms-श्रीमती-श्री-सुश्री-डॉ"
+        short = "mr-mrs-dr-smt-shrimati-shri-sh-ms-श्रीमती-श्री-सुश्री-डॉ"
+
+        print(f'SALUT >{name}<')
 
         saluts = []
         for s in short.split("-"):
@@ -373,12 +375,15 @@ class HindiOrderBuilder:
         if not officer:
             return None, officer_errors + fr_post_errors + to_post_errors
 
+        relinquishes = [] if fr_post_errors else [fr_post]
+        assumes = [] if to_post_errors else [to_post]
+
         d = OrderDetail(
             words=row.words,
             word_line=[row.words],
             officer=officer,
-            relinquishes=[], #
-            assumes=[],#
+            relinquishes=relinquishes,
+            assumes=assumes,
             detail_idx=detail_idx,
         )
         errors = officer_errors + fr_post_errors + to_post_errors
