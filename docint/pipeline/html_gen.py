@@ -6,6 +6,7 @@ from ..util import is_writeable_dir
 from ..shape import Coord, Edge, Box, Poly
 from ..table import Table
 from ..word import Word
+from ..region import Region
 from .table_edge_finder import TableEdges
 
 
@@ -97,6 +98,9 @@ class HtmlGenerator:
             rect_str += f'<title>{alt_text}</title></rect>'
             svg_str = f'<a xlink:href="http://{path_abbr}/">{rect_str}</a>'
             return svg_str
+        elif isinstance(object, Region):
+            region = object
+            return self.get_svg_str(region.shape, color, page, "region", "region")
         else:
             raise NotImplementedError(f'not implemented {type(object)}')
 

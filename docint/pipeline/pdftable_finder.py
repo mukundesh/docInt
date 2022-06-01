@@ -105,7 +105,7 @@ class PDFTableFinder:
 
     def __call__(self, doc):
         def build_box(pdf_bbox, pdf_size):
-            [x0, y0, x1, y1] = bbox
+            [x0, y0, x1, y1] = pdf_bbox
             (w, h) = pdf_size
             top, bot = Coord(x=x0/w, y=y0/h), Coord(x=x1/w, y=y1/h)
             return Box(top=top, bot=bot)

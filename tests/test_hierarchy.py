@@ -33,7 +33,7 @@ md8='D:2 Ministry of Personnel Public Grievances and Pensions [374:426], D:2 Min
 
 mr8 = 'D:4 Minister of State [300:317], D:4 Minister of State [349:366], D:4 Minister of State [428:445], D:4 Minister of State [486:503], D:3 Minister of State (Independent Charge) [64:102], D:3 Minister of State (Independent Charge) [205:243]'
 
-u8 = 'Dr. Jitendra Singh relinquished the charge of the office of the - of the -. He will continue to hold the charge of the office of the - of the -; - in the -; - in the -; - in the -; and - in the '
+u8 = 'Dr. Jitendra Singh relinquished the charge of the office of the - of the -. He will continue to hold the charge of the office of the - of the -; - in the -; - in the -; - in the -; and - in the -.'
 
 
 def eval_text(text):

@@ -1,4 +1,4 @@
-image_root: ../.img        
+image_root: .img
 pipeline:
   - name: gcv_recognizer
     config:
@@ -6,7 +6,7 @@ pipeline:
 
   - name: html_generator
     config:
-      image_root: ../.img      
+      image_root: ../.img
       html_root: html
       color_dict:
         word: blue
