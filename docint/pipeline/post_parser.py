@@ -30,9 +30,16 @@ class PostInfo(Region):
 
     @classmethod
     def build(cls, words, word_lines, post_str, detail_idx, continues, relinquishes, assumes):
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx if words else None
+        word_lines_idxs = [[w.word_idx for w in wl] for wl in word_lines]
+        
         return PostInfo(
             words=words,
             word_lines=word_lines,
+            word_idxs=word_idxs,
+            word_lines_idxs=word_lines_idxs,
+            page_idx_=page_idx,
             post_str=post_str,
             continues=continues,
             relinquishes=relinquishes,

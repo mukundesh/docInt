@@ -33,7 +33,7 @@ class Word(BaseModel):
     orig_text_: str = None
 
     class Config:
-        fields = {'doc': {'exclude': True}}
+        fields = {'doc': {'exclude': True},}
         use_enum_values = True
     
     @property

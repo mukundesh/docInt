@@ -6,7 +6,7 @@ from string import punctuation
 import sys
 import re
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Extra
 
 from rich.text import Text
 from rich import print as rprint
@@ -92,13 +92,29 @@ class TextConfig(BaseModel):
 
 
 class Region(BaseModel):
-    words: List[Word]
-    text_: str = None
+    word_idxs: List[int]
+    word_lines_idxs: List[List[int]] = None
+    page_idx_: int = None
+
+    
+    words: List[Word] = None
+    #text_: str = None
     shape_: Box = None
     word_lines: List[List[Word]] = None
     label_spans: Dict[str, List[Span]] = {}
     errors: List[DataError] = []
     edits: List[DataEdit] = []
+
+    class Config:
+        fields = {'words': {'exclude': True},
+                  'shape_': {'exclude': True},
+                  'word_lines': {'exclude': True},
+                  }
+
+    @classmethod
+    def build(cls, words, page_idx):
+        word_idxs = [w.word_idx for w in words]
+        return Region(words=words, word_idxs=word_idxs, page_idx_=page_idx)
 
 
     def __len__(self):
@@ -115,7 +131,7 @@ class Region(BaseModel):
 
     @property
     def page_idx(self):
-        return self.words[0].page_idx
+        return self.page_idx_
 
     @property
     def page(self):

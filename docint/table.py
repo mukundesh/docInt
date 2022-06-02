@@ -33,10 +33,11 @@ class TableIncorectSeqError(DataError):
 
     
 class Cell(Region):
-
     @classmethod
     def build(cls, words):
-        return Cell(words=words, word_lines=[words])
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx if words else None
+        return Cell(words=words, word_lines=[words], word_idxs=word_idxs, page_idx_=page_idx)
 
 
 
@@ -47,7 +48,9 @@ class Row(Region):
     @classmethod
     def build(cls, cells):
         words = [w for cell in cells for w in cell.words]
-        return Row(words=words, cells=cells)
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx if words else None
+        return Row(words=words, cells=cells, word_idxs=word_idxs, page_idx_=page_idx)
 
     def get_regions(self):
         cells = [c for b in self.body_rows for c in b.cells]
@@ -74,13 +77,15 @@ class Row(Region):
 class Table(Region):
     header_rows: List[Row]
     body_rows: List[Row]
-    _ALL_TESTS: List[str] = ['TableEmptyError', 'TableEmptyBodyError', 'TableEmptyHeaderError']
+
 
     @classmethod    
     def build(cls, body_rows, header_rows=[]):
         words = [w for row in body_rows for w in row.words]
-        words += [w for row in header_rows for w in row.words] 
-        return Table(words=words, body_rows=body_rows, header_rows=header_rows)
+        words += [w for row in header_rows for w in row.words]
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx if words else None
+        return Table(words=words, body_rows=body_rows, header_rows=header_rows, word_idxs=word_idxs, page_idx_=page_idx)
 
     def get_regions(self):
         all_rows = self.body_rows + self.header_rows
@@ -95,7 +100,8 @@ class Table(Region):
 
     def test(self, path, ignore=[]):
         errors = []
-        do_tests = [t for t in self._ALL_TESTS if t not in ignore]
+        all_tests = ['TableEmptyError', 'TableEmptyBodyError', 'TableEmptyHeaderError']        
+        do_tests = [t for t in all_tests if t not in ignore]
         
         if 'TableEmptyError' in do_tests and not self.header_rows and not self.body_rows:
             msg=f'{path}: Both header and body rows are empty'

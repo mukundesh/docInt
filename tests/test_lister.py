@@ -8,12 +8,8 @@ if __name__ == '__main__':
     viz = docint.load('listfinder.yml')
     doc = viz('hello.pdf')
 
-    docFilePath = pathlib.Path('docFile.json')
-    docFilePath.write_text(doc.to_json())
+    doc.to_disk('docFile_lister.json')
 
-    
-    newDoc = Doc.from_disk('docFile.json')
-    newDoc.to_disk('docFile2.json')
 
 
 

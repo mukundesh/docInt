@@ -39,8 +39,11 @@ class Officer(Region):
     def build(cls, words, salut, name, cadre=''):
         salut, name = salut.strip(), name.strip()
         full_name = salut + ' ' + name if salut else name
-        return Officer(words=words, word_line=[words], salut=salut, name=name,
-                       full_name=full_name, cadre=cadre)
+
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx if words else None        
+        return Officer(words=words, word_lines=[words], salut=salut, name=name,
+                       full_name=full_name, cadre=cadre, word_idxs=word_idxs, page_idx_=page_idx, word_lines_idxs=[word_idxs])
 
 
 class Post(Region):
@@ -151,9 +154,13 @@ class Post(Region):
         role_hpath = role.hierarchy_path if role else []
         juri_hpath = juri.hierarchy_path if juri else []
         loca_hpath = loca.hierarchy_path if loca else []
-        stat_hpath = stat.hierarchy_path if stat else [] 
-        
-        return Post(words=words, word_line=[words], post_str=post_str,
+        stat_hpath = stat.hierarchy_path if stat else []
+
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx if words else None
+
+        return Post(words=words, word_lines=[words], post_str=post_str,
+                    word_idxs=word_idxs, page_idx_=page_idx, word_lines_idxs=[word_idxs],
                     dept_hpath=dept_hpath, role_hpath=role_hpath,
                     juri_hpath=juri_hpath, loca_hpath=loca_hpath,
                     stat_hpath=stat_hpath, dept_spans=dept_spans,
@@ -162,7 +169,11 @@ class Post(Region):
 
     @classmethod
     def build_no_spans(cls, words, post_str, dept=[], role=[], juri=[], loca=[], stat=[]):
-        return Post(words=words, word_line=[words], post_str=post_str,
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx if words else None
+        
+        return Post(words=words, word_lines=[words], post_str=post_str,
+                    word_idxs=word_idxs, page_idx_=page_idx, word_lines_idxs=[word_idxs],
                     dept_hpath=dept, role_hpath=role,
                     juri_hpath=juri, loca_hpath=loca,
                     stat_hpath=stat, dept_spans=[], 
@@ -186,7 +197,10 @@ class OrderDetail(Region):
 
     @classmethod
     def build(cls, words, officer, post_info, detail_idx):
-        return OrderDetail(words=words, word_line=[words], officer=officer,
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx if words else None
+        return OrderDetail(words=words, word_lines=[words], officer=officer,
+                           word_idxs=word_idxs, page_idx_=page_idx, word_lines_idxs=[word_idxs],
                            continues=post_info.continues,
                            relinquishes=post_info.relinquishes,
                            assumes=post_info.assumes,
@@ -244,7 +258,7 @@ class Order(Region):
 
     @classmethod
     def build(cls, order_id, order_date, path, details):
-        return Order(words=[], word_lines=[], order_id=order_id, date=order_date, path=path, details=details)
+        return Order(words=[], word_lines=[], word_idxs=[], page_idx_=None, order_id=order_id, date=order_date, path=path, details=details)
     
 
 # If it is not extending Region should it still be there, yes as it will be moved to Orgpeida

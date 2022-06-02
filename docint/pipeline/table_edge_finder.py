@@ -81,6 +81,7 @@ class TableEdgeFinder:
         self.xgutter = 0
         self.ygutter = 0
         self.crop_gutter = 0.05
+        self.prev_row_ht = None
 
         self.lgr = logging.getLogger(f"docint.pipeline.{self.conf_stub}")
         self.lgr.setLevel(logging.DEBUG)
@@ -310,7 +311,7 @@ class TableEdgeFinder:
 
         print(f"> Page: {page.page_idx}")
 
-        #b /Users/mukund/Software/docInt/docint/pipeline/table_edge_finder.py:302        
+        #b /Users/mukund/Software/docInt/docint/pipeline/table_edge_finder.py:302
         for row_markers in table_markers_list:
             row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))
             ymin = row_markers[0].ymin - self.ygutter
@@ -413,7 +414,10 @@ class TableEdgeFinder:
 
     def get_row_edges(self, page_image, row_markers, crop_coords, conf):
         page_image.clear_transforms()
-        row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))        
+        if len(row_markers) > 1:
+            row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))
+        else:
+            row_ht = self.prev_row_ht
 
         if crop_coords:
             top, bot = crop_coords
@@ -443,6 +447,7 @@ class TableEdgeFinder:
 
         zip_row_coords = zip(row_lt_doc_coords, row_rt_doc_coords)
         row_edges = [Edge.build_h_oncoords(lt, rt) for lt, rt in zip_row_coords]
+        self.prev_row_ht = row_ht
         
         return row_edges
         
@@ -467,7 +472,10 @@ class TableEdgeFinder:
         page_image, table_edges_list = page.page_image, []
         table_markers_list = split_markers_in_tables(page.num_markers)
         for row_markers in table_markers_list:
-            row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))
+            if len(row_markers) > 1:
+                row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))
+            else:
+                row_ht = self.prev_row_ht
             ymin = row_markers[0].ymin - self.ygutter
             ymax = row_markers[-1].ymin + (row_ht * 1.1)
 
@@ -488,6 +496,7 @@ class TableEdgeFinder:
             
             table_edges = TableEdges(row_edges=row_edges, col_edges=col_edges, col_img_xs=col_img_xs)
             table_edges_list.append(table_edges)
+            self.prev_row_ht = row_ht
         return table_edges_list            
     
 

@@ -173,7 +173,7 @@ class Page(BaseModel):
 
             horz_box = Shape.build_box_ranges(xrange, yrange)
             horz_words = [ w for w in horz_words if w.box.overlaps(horz_box, overlap_percent)]
-            return Region(words=horz_words)
+            return Region.build(horz_words, self.page_idx)
         else:
             xrange = (word.xmin, word.xmax)
             if direction == 'above':
@@ -187,7 +187,7 @@ class Page(BaseModel):
 
             vert_box = Shape.build_box_ranges(xrange, yrange)
             vert_words = [ w for w in vert_words if w.box.overlaps(vert_box, overlap_percent)]
-            return Region(words=vert_words)
+            return Region.build(vert_words, self.page_idx)
 
     # edit methods
     def add_word(self, text, box):

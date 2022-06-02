@@ -7,9 +7,4 @@ if __name__ == '__main__':
     viz = docint.load('html.yml')
     doc = viz('hello2.pdf')
 
-    docFilePath = pathlib.Path('docFile.json')
-    docFilePath.write_text(doc.to_json())
-
-
-
 

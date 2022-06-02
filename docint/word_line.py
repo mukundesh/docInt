@@ -31,7 +31,7 @@ class LineWord(Region):
 
     @classmethod
     def build(cls, word):
-        return LineWord(words=[word])
+        return LineWord(words=[word], word_idxs=[word.word_idx], page_idx_=word.page_idx)
 
     def is_short(self, config):
         return self.text_len() < config.merge_word_len
@@ -102,7 +102,7 @@ class LineWord(Region):
             words = self.words + lword.words
         self.words = words
         lword.is_merged = True
-        self.text_ = None
+        #self.text_ = None
         self.shape_ = None
             
 

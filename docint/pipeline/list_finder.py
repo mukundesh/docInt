@@ -16,7 +16,11 @@ class ListItem(Region):
     @classmethod
     def build(cls, marker, item_word_lines):
         words = [w for wl in item_word_lines for w in wl]
-        list_item = ListItem(words=words, word_lines=item_word_lines, marker=marker)
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx
+        word_lines_idxs = [ [w.word_idx for w in wl] for wl in item_word_lines ]
+        
+        list_item = ListItem(words=words, word_lines=item_word_lines, marker=marker, word_idxs=word_idxs, page_idx_=page_idx, word_lines_idxs=word_lines_idxs)
         # print('----------')
         # print(f'{marker.text}')
         # print(list_item.line_text())

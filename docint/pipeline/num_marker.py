@@ -52,6 +52,13 @@ class NumMarker(Region):
     @property
     def alt_text(self):
         return self.num_text
+
+    @classmethod
+    def build(cls, num_type, num_text, num_val, word):
+        word_idxs = [ word.word_idx ]
+        page_idx = word.page_idx
+        return NumMarker(words=[word], word_idxs=word_idxs, page_idx_=page_idx,
+                         num_type=num_type, num_text=num_text, num_val=num_val, idx=word.word_idx)
     
 
 
@@ -188,7 +195,7 @@ class FindNumMarker:
 
     def build_marker(self, word):
         (num_type, num_text, num_val) = self.find_number(word.text, word.word_idx)
-        num_marker = NumMarker(num_type=num_type, num_text=num_text, num_val=num_val, words=[word], idx=word.word_idx)
+        num_marker = NumMarker.build(num_type, num_text, num_val, word)
         return num_marker
 
     def is_empty(self, region, ignorePunct=False):

@@ -137,7 +137,7 @@ class TableFinder:
 
             lt_words, rt_words = split_words(list_item.words, x_range)
             lt_cell, rt_cell = Cell.build(lt_words), Cell.build(rt_words)
-            marker_cell = Cell(words=list_item.marker.words)
+            marker_cell = Cell.build(list_item.marker.words)
             m_str = list_item.marker.raw_text()
             self.lgr.info(f"> {path} {m_str}|{lt_cell.raw_text()}|{rt_cell.raw_text()}")
 
@@ -154,7 +154,7 @@ class TableFinder:
 
         boundary_texts = ['Minister', 'Deputy', 'Prime', 'Mini', 'VMinister']
 
-        doc.add_extra_page_field('tables', ('list', 'docint.pipeline.table_finder', 'Table'))
+        doc.add_extra_page_field('tables', ('list', 'docint.table', 'Table'))
         doc.add_extra_page_field('heading', ('obj', 'docint.region', 'Region'))              
 
         for page in doc.pages:

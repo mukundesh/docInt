@@ -44,22 +44,20 @@ class PageImage(BaseModel):
 
         prev_width, prev_height = prev_size
         curr_width, curr_height = curr_size
-        
+
         image_x_centre, image_y_centre = prev_width/2.0, prev_height/2.0
         centre_x = image_coord.x - prev_width + image_x_centre
         centre_y = prev_height - image_coord.y - image_y_centre
-        
+
         rota_centre_x = (centre_x * math.cos(angle_rad)) - (centre_y * math.sin(angle_rad))
         rota_centre_y = (centre_y * math.cos(angle_rad)) + (centre_x * math.sin(angle_rad))
-        
+
         rota_image_x, rota_image_y = rota_centre_x + curr_width/2, curr_height/2 - rota_centre_y
-        
+
         rota_image_x = min(max(0, rota_image_x), curr_width)
         rota_image_y = min(max(0, rota_image_y), curr_height)
         image_coord = Coord(x=round(rota_image_x), y=round(rota_image_y))
         return image_coord
-        
-        
 
     def transform(self, image_coord):
         for trans_tuple in self.transformations:
@@ -76,7 +74,7 @@ class PageImage(BaseModel):
 
 
     def inverse_transform(self, image_coord):
-        #print(f'\t>inverse_transform image_coord: {image_coord}')        
+        #print(f'\t>inverse_transform image_coord: {image_coord}')
         for trans_tuple in reversed(self.transformations):
             if trans_tuple[0] == 'crop':
                 top, bot = trans_tuple[1], trans_tuple[2]
@@ -98,12 +96,12 @@ class PageImage(BaseModel):
 
         image_x_scale = self.image_width / (self.image_box.bot.x - self.image_box.top.x)
         image_y_scale = self.image_height / (self.image_box.bot.y - self.image_box.top.y)
-        
+
         image_x = round((page_x - self.image_box.top.x) * image_x_scale)
         image_y = round((page_y - self.image_box.top.y) * image_y_scale)
 
         image_x = min(max(0, image_x), self.image_width)
-        image_y = min(max(0, image_y), self.image_height)        
+        image_y = min(max(0, image_y), self.image_height)
 
         image_coord = self.transform(Coord(x=image_x, y=image_y))
         return image_coord
@@ -112,11 +110,11 @@ class PageImage(BaseModel):
     def get_doc_coord(self, image_coord):
         #print(f'>get_doc_coord image_coord: {image_coord}')
         image_coord = self.inverse_transform(image_coord)
-        #print(f'>after_inv_trans image_coord: {image_coord}')        
-        
+        #print(f'>after_inv_trans image_coord: {image_coord}')
+
         page_x_scale = (self.image_box.bot.x - self.image_box.top.x)/self.image_width
         page_y_scale = (self.image_box.bot.y - self.image_box.top.y)/self.image_height
-        
+
         page_x, page_y = image_coord.x * page_x_scale, image_coord.y * page_y_scale
         doc_coord = Coord(x=page_x/self.page.width, y=page_y/self.page.height)
         return doc_coord
@@ -135,7 +133,7 @@ class PageImage(BaseModel):
         else:
             ver_image = self.wimage.clone()
             ver_image.rotate(90)
-            ver_image.deskew(0.8 * ver_image.quantum_range)            
+            ver_image.deskew(0.8 * ver_image.quantum_range)
             angle = float(ver_image.artifacts['deskew:angle'])
         return angle
 
@@ -156,15 +154,15 @@ class PageImage(BaseModel):
         self.wimage.crop(left=round(img_top.x), top=round(img_top.y),
                          right=round(img_bot.x), bottom=round(img_bot.y))
 
-        #print(f'\tCrop top: {top} bot: {bot} img_top: {img_top} img_bot: {img_bot}')        
+        #print(f'\tCrop top: {top} bot: {bot} img_top: {img_top} img_bot: {img_bot}')
         self.transformations.append(('crop', img_top, img_bot))
-        
+
         # todo rotate
 
     def get_base64_image(self, top, bot, format='png', height=50):
         if not self.wimage:
             self._init_image()
-            
+
         img_top, img_bot = self.get_image_coord(top), self.get_image_coord(bot)
         with self.wimage[int(img_top.x):int(img_bot.x), int(img_top.y):int(img_bot.y)] as cropped:
             if height:
@@ -188,8 +186,8 @@ class PageImage(BaseModel):
             return self.wimage.width, self.wimage.height
         else:
             return self.image_width, self.image_height
-        
-    
+
+
 
 class PageInfo(BaseModel):
     width: float
@@ -208,7 +206,7 @@ class Doc(BaseModel):
 
     class Config:
         extra = 'allow'
-    
+
 
     def __getitem__(self, idx):
         if isinstance(idx, slice) or isinstance(idx, int):
@@ -279,7 +277,7 @@ class Doc(BaseModel):
                 ["pdfimages", "-f", str(page_num), "-l", str(page_num), "-p", "-png", pdf_path, image_root]
             )
             return output_path
-        
+
 
         pdf_path = Path(pdf_path)
         image_dir_name = pdf_path.name[:-4]
@@ -309,13 +307,13 @@ class Doc(BaseModel):
                 img = page.images[0]
                 width, height = tuple(map(int, img["srcsize"]))
                 x0, y0, x1, y1 = img["x0"], img["y0"], img["x1"], img["y1"]
-                
+
                 if img["top"] != y0 or img["bottom"] != y1:
                     print('Warning: misaligned image_box')
                     y0, y1 = img["top"], img["bottom"]
-                
+
                 top, bot = Coord(x=x0, y=y0), Coord(x=x1, y=y1)
-                
+
                 image_box = Box(top=top, bot=bot)
                 image_path = extract_image(pdf_path, image_dir_path, page_idx)
                 image_type = "original"
@@ -337,7 +335,7 @@ class Doc(BaseModel):
         return doc
 
     def to_json(self):
-        return self.json(models_as_dict=False, indent=2)
+        return self.json(exclude_defaults=True) # removed indent, models_as_dict=False
 
     def to_msgpack(self):
         import msgpack
@@ -355,7 +353,7 @@ class Doc(BaseModel):
 
     def add_extra_field(self, field_name, field_tuple):
         self.extra_fields[field_name] = field_tuple
-    
+
 
     @classmethod
     def from_disk(cls, json_file):
@@ -364,16 +362,18 @@ class Doc(BaseModel):
             def_fields = set(obj.__fields__.keys())
             return all_fields.difference(def_fields)
 
+        def update_region_links(doc, region):
+            region.words = [doc[region.page_idx_][idx] for idx in region.word_idxs]
+            if region.word_lines_idxs:
+                p_idx, wl_idxs = region.page_idx_, region.word_lines_idxs
+                region.word_lines = [[doc[p_idx][idx] for idx in wl] for wl in wl_idxs]
+
         def update_links(doc, regions):
             if regions and not isinstance(regions[0], Region):
-                return 
-
+                return
             inner_regions = [ ir for r in regions for ir in r.get_regions() ]
             for region in inner_regions:
-                region.words = [doc[w.page_idx][w.word_idx] for w in region.words]
-                if region.word_lines:
-                    region.word_lines = [[doc[w.page_idx][w.word_idx] for w in wl] for wl in region.word_lines]
-                    
+                    update_region_links(doc, region)
 
         json_file = Path(json_file)
         if json_file.suffix.lower() in ('.json', '.jsn'):
@@ -383,7 +383,7 @@ class Doc(BaseModel):
         new_doc = Doc(**doc_dict)
 
         # need to supply the field_set, page has 'doc' field excluded
-        #new_doc = Doc.construct(**doc_dict) 
+        #new_doc = Doc.construct(**doc_dict)
 
         # link doc to page and words
         for page in new_doc.pages:
@@ -397,7 +397,7 @@ class Doc(BaseModel):
                     continue
             (extra_type, module_name, class_name) = field_tuple
             if extra_type == 'obj':
-                cls = getattr(import_module(module_name), class_name)                
+                cls = getattr(import_module(module_name), class_name)
                 extra_attr_obj = parse_obj_as(cls, extra_attr_dict)
                 update_links(new_doc, [extra_attr_obj])
             elif extra_type == 'list':
@@ -406,7 +406,7 @@ class Doc(BaseModel):
                 update_links(new_doc, extra_attr_obj)
             elif extra_type == 'dict':
                 if extra_attr_dict:
-                    cls = getattr(import_module(module_name), class_name)                        
+                    cls = getattr(import_module(module_name), class_name)
                     keys = list(extra_attr_dict.keys())
                     key_type = type(keys[0])
                     extra_attr_obj = parse_obj_as(Dict[key_type, cls], extra_attr_dict)
@@ -415,6 +415,8 @@ class Doc(BaseModel):
                 continue
             else:
                 raise NotImplementedError(f'Unknown type: {extra_type}')
+
+            # overwrite the attribute with new object
             setattr(new_doc, extra_field, extra_attr_obj)
 
         for page in new_doc.pages:
@@ -424,7 +426,7 @@ class Doc(BaseModel):
                     continue
                 (extra_type, module_name, class_name) = field_tuple
                 if extra_type == 'obj':
-                    cls = getattr(import_module(module_name), class_name)                
+                    cls = getattr(import_module(module_name), class_name)
                     extra_attr_obj = parse_obj_as(cls, extra_attr_dict)
                     update_links(new_doc, [extra_attr_obj])
                 elif extra_type == 'list':
@@ -433,7 +435,7 @@ class Doc(BaseModel):
                     update_links(new_doc, extra_attr_obj)
                 elif extra_type == 'dict':
                     if extra_attr_dict:
-                        cls = getattr(import_module(module_name), class_name)                        
+                        cls = getattr(import_module(module_name), class_name)
                         keys = list(extra_attr_dict.keys())
                         key_type = type(keys[0])
                         extra_attr_obj = parse_obj_as(Dict[key_type, cls], extra_attr_dict)
@@ -443,6 +445,7 @@ class Doc(BaseModel):
                 else:
                     raise NotImplementedError(f'Unknown type: {extra_type}')
 
+                # overwrite the attribute with new object
                 setattr(page, extra_field, extra_attr_obj)
         return new_doc
 
@@ -475,7 +478,7 @@ class Doc(BaseModel):
             for w_idx in range(*split_path(word_path)):
                 words.append(self.pages[p_idx].words[w_idx])
         return words
-        
+
     def get_page(self, jpath):
         page_idx, word_idx = self._splitPath(jpath)
         return self.pages[page_idx]
@@ -520,7 +523,7 @@ class Doc(BaseModel):
 
         def clearWords(doc, *paths):
             return [clearWord(doc, path) for path in paths]
-        
+
 
         def clearChar(doc, path, clearChar):
             word = doc.get_word(path)
@@ -541,10 +544,10 @@ class Doc(BaseModel):
             assert len(paths) > 1
             to_merge_words = [doc.get_word(p) for p in paths[1:]]
             to_merge_text = ''.join(w.text for w in to_merge_words)
-            
+
             main_word = doc.get_word(paths[0])
             new_text = main_word.text + to_merge_text
-            
+
             main_word.replaceStr('<all>', new_text)
             [w.replaceStr('<all>', '') for w in to_merge_words]
 
@@ -577,15 +580,15 @@ class Doc(BaseModel):
             region = doc.get_region(region_path)
             add_words = [ doc.get_word(p) for p in word_paths ]
             region.words += add_words
-            region.text_ = None
+            #region.text_ = None
             region.shape_ = None
             return region
-            
+
 
         def deletePage(doc, path):
             del_idx = int(path[2:])
             assert del_idx < len(doc.pages)
-            
+
             doc.pages.pop(del_idx)
             doc.page_images.pop(del_idx)
             doc.page_infos.pop(del_idx)

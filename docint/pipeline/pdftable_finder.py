@@ -138,7 +138,7 @@ class PDFTableFinder:
                             
                         cell_box = build_box(pdf_cell, pdf_size)
                         cell_words = self.words_inxyrange2(row_words, cell_box)
-                        cells.append(Cell(words=cell_words))
+                        cells.append(Cell.build(cell_words))
                         cell_texts.append(' '.join(w.text for w in cell_words))
                         #print(', '.join(w.text for w in cell_words))
 

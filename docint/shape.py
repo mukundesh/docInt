@@ -156,6 +156,9 @@ class Box(Shape):
 class Poly(Shape):
     coords: List[Coord]
     box_: Box = None
+
+    class Config:
+        fields = {'box_': {'exclude': True},}
     
     def __post__init__(self):
         self.check_coords(coords)        

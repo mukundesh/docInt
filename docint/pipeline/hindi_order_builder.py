@@ -244,9 +244,15 @@ class HindiOrderBuilder:
             _, relative_name, rel_errors = self.translate_name2('', hi_relative, path)
         
         full_name = f"{salut} {name}"
+        
+        word_idxs = [w.word_idx for w in officer_cell.words]
+        page_idx = officer_cell.words[0].page_idx if officer_cell.words else None
         officer = Officer(
             words=officer_cell.words,
             word_line=[officer_cell.words],
+            word_idxs=word_idxs,
+            page_idx_=page_idx,
+            word_lines_idxs=[word_idxs],            
             salut=salut,
             name=name,
             relative_name=relative_name,
@@ -378,9 +384,15 @@ class HindiOrderBuilder:
         relinquishes = [] if fr_post_errors else [fr_post]
         assumes = [] if to_post_errors else [to_post]
 
+        word_idxs = [w.word_idx for w in row.words]
+        page_idx = row.words[0].page_idx if row.words else None
+
         d = OrderDetail(
             words=row.words,
             word_line=[row.words],
+            word_idxs=word_idxs,
+            page_idx_=page_idx,
+            word_lines_idxs=[word_idxs],                                       
             officer=officer,
             relinquishes=relinquishes,
             assumes=assumes,
@@ -511,7 +523,7 @@ class HindiOrderBuilder:
             detail, d_errors = self.build_detail(row, path, detail_idx)
             if detail:
                 detail.errors = d_errors
-            details.append(detail)
+                details.append(detail)
             errors.extend(d_errors)
             detail_idx += 1
 

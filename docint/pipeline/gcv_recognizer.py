@@ -220,9 +220,9 @@ class CloudVisionRecognizer:
             return self.read_gcv(doc, output_path)
         else:
             # imports are expensive
-            from google.protobuf.json_format import MessageToDict
-            from google.cloud import vision_v1
-            from google.cloud import storage
+            #from google.protobuf.json_format import MessageToDict
+            #from google.cloud import vision_v1
+            #from google.cloud import storage
 
             self.run_gcv(doc, output_path)
             return self.build_pages(doc, output_path)
