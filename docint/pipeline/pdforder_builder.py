@@ -140,21 +140,9 @@ class PDFOrderBuilder:
     def build_detail(self, row, officer, post, path, row_idx):
         o_errors = self.test_officer(officer)
         p_errors = self.test_post(post)
+
+        d = OrderDetail.build(row.words, [row.words], officer, row_idx, continues=[post])
         
-        word_idxs = [w.word_idx for w in row.words]
-        page_idx = row.words[0].page_idx if row.words else None
-        d = OrderDetail(
-            words=row.words,
-            word_line=[row.words],
-            word_idxs=word_idxs,
-            page_idx_=page_idx,
-            word_lines_idxs=[word_idxs],                                       
-            officer=officer,
-            continues=[post],
-            relinquishes=[],
-            assumes=[],
-            detail_idx=row_idx,
-        )
         print('--------')
         print(d.to_str())
         return d, o_errors + p_errors

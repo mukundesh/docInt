@@ -110,12 +110,6 @@ class Word(BaseModel):
         return bool(self.text_)
 
 
-    # def merge_word(self, next_word):
-    #     self.text_ += next_word.text_
-    #     next_word.text_ = ''
-    #     return self
-
-
     def correct_word(self, correct_text):
         self.text_ = correct_text
         

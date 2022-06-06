@@ -195,16 +195,35 @@ class OrderDetail(Region):
     def page_idx(self):
         return self.words[0].page_idx
 
+    # @classmethod
+    # def build(cls, words, officer, post_info, detail_idx):
+    #     word_idxs = [w.word_idx for w in words]
+    #     page_idx = words[0].page_idx if words else None
+    #     return OrderDetail(words=words, word_lines=[words], officer=officer,
+    #                        word_idxs=word_idxs, page_idx_=page_idx, word_lines_idxs=[word_idxs],
+    #                        continues=post_info.continues,
+    #                        relinquishes=post_info.relinquishes,
+    #                        assumes=post_info.assumes,
+    #                        detail_idx=detail_idx)
+
     @classmethod
-    def build(cls, words, officer, post_info, detail_idx):
+    def build(cls, words, word_lines, officer, detail_idx, continues=[], relinquishes=[], assumes=[]):
         word_idxs = [w.word_idx for w in words]
         page_idx = words[0].page_idx if words else None
-        return OrderDetail(words=words, word_lines=[words], officer=officer,
-                           word_idxs=word_idxs, page_idx_=page_idx, word_lines_idxs=[word_idxs],
-                           continues=post_info.continues,
-                           relinquishes=post_info.relinquishes,
-                           assumes=post_info.assumes,
-                           detail_idx=detail_idx)
+        word_lines_idxs = [ [w.word_idx for w in wl] for wl in word_lines]
+
+        return OrderDetail(words=words,
+                           word_lines=word_lines,
+                           word_idxs=word_idxs,
+                           page_idx_=page_idx,
+                           word_lines_idxs=word_lines_idxs,
+                           officer=officer,
+                           continues=continues,
+                           relinquishes=relinquishes,
+                           assumes=assumes,
+                           detail_idx=detail_idx,
+                           )
+
 
 
     def to_str(self, print_color=False):

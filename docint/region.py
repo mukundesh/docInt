@@ -95,7 +95,6 @@ class Region(BaseModel):
     word_idxs: List[int]
     word_lines_idxs: List[List[int]] = None
     page_idx_: int = None
-
     
     words: List[Word] = None
     #text_: str = None
@@ -115,6 +114,15 @@ class Region(BaseModel):
     def build(cls, words, page_idx):
         word_idxs = [w.word_idx for w in words]
         return Region(words=words, word_idxs=word_idxs, page_idx_=page_idx)
+
+    @classmethod
+    def build_with_lines(cls, words, word_lines):
+        word_idxs = [w.word_idx for w in words]
+        page_idx = words[0].page_idx if words else None
+        word_lines_idxs = [[w.word_idx for w in wl] for wl in word_lines]
+
+        return Region(words=words, word_lines=word_lines, word_idxs=word_idxs,
+                             page_idx_=page_idx, word_lines_idxs=word_lines_idxs)
 
 
     def __len__(self):

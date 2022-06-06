@@ -201,9 +201,9 @@ class Page(BaseModel):
         return self
 
 
-    def get_base64_image(self, shape):
+    def get_base64_image(self, shape, height=50):
         image_box = shape.box
-        return self.page_image.get_base64_image(image_box.top, image_box.bot, 'png')
+        return self.page_image.get_base64_image(image_box.top, image_box.bot, 'png', height=height)
     
 
     def arrange_words(self, *, rotation_threshold=2, merge_word_len=3, newline_height_multiple=1.0, para_indent=True):

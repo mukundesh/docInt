@@ -134,6 +134,15 @@ class OrderBuilder:
             order_detail = OrderDetail.build(
                 list_item.words, officer, post_info, detail_idx
             )
+
+            order_detail = OrderDetail.build(list_item.words,
+                                             list_item.word_lines,
+                                             officer,
+                                             detail_idx,
+                                             assumes=post_info.assumes,
+                                             continues=post_info.continues,
+                                             relinquishes=post_info.relinquishes)
+            
             #order_detail.extra_spans = person_spans[1:]
             order_detail.is_valid = is_valid
             return order_detail

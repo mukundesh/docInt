@@ -204,7 +204,6 @@ class ListFinder:
             
             num_markers = self.filter_markers(page.num_markers)
 
-            
             if len(num_markers) > self.min_markers_onpage:
                 page.list_items = self.find_inpage(word_lines, num_markers, page.page_idx)
             else:

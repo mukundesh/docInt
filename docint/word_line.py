@@ -161,11 +161,6 @@ class LineWord(Region):
 
     def set_linenum(self, slots, conf):
         nslots = len(slots)
-
-        if self.words[0].word_idx == 50:
-            print('Found It')
-            
-
         y_change = self.ymin - conf.prev_ymin
         y_max = conf.avg_height * conf.newline_height_multiple
 

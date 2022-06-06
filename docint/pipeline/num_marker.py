@@ -11,7 +11,6 @@ from ..vision import Vision
 from ..region import Region, DataError
 from ..util import load_config
 from ..word import Word
-from ..word_line import words_in_lines
 
 
 class NumType(IntEnum):

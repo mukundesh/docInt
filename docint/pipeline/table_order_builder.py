@@ -79,6 +79,8 @@ class TableOrderBuidler:
         self.lgr.addHandler(stream_handler)
         self.file_handler = None
 
+        self.fixes_dict = {}
+
     def add_log_handler(self, doc):
         handler_name = f"{doc.pdf_name}.{self.conf_stub}.log"
         log_path = Path("logs") / handler_name
@@ -261,28 +263,15 @@ class TableOrderBuidler:
             errors.append(TableMismatchColsError(path, msg))
 
         officer_cell = row.cells[1] if len(row.cells) > 1 else None
-        officer, officer_errors = self.get_officer(officer_cell, f"{path}.c1")
+        officer, officer_errors = self.get_officer(officer_cell, f"{path}.ce1")
 
         post_cell = row.cells[2] if len(row.cells) > 2 else ""
-        posts, post_errors = self.get_posts(post_cell, f"{path}.c2")
+        posts, post_errors = self.get_posts(post_cell, f"{path}.ce2")
 
         (c, r) = (posts, []) if doc_verb == 'continues' else ([], posts)
         
-        word_idxs = [w.word_idx for w in row.words]
-        page_idx = row.words[0].page_idx if row.words else None
-        
-        d = OrderDetail(
-            words=row.words,
-            word_line=[row.words],
-            word_idxs=word_idxs,
-            page_idx_=page_idx,
-            word_lines_idxs=[word_idxs],            
-            officer=officer,
-            continues=c,
-            relinquishes=r,
-            assumes=[],
-            detail_idx=detail_idx,
-        )
+        d = OrderDetail.build(row.words, [row.words], officer, detail_idx,
+                              continues=c, relinquishes=c, assumes=[])
         d.errors = officer_errors + post_errors
         print('--------')
         print(d.to_str())
@@ -325,8 +314,7 @@ class TableOrderBuidler:
 
         print(f'Order Date: {result_dt}')
         return result_dt, errors
-        
-    
+
 
     def iter_rows(self, doc):
         for (page_idx, page) in enumerate(doc.pages):
@@ -349,7 +337,7 @@ class TableOrderBuidler:
         
         self.verb = "continues"  # self.get_verb(doc)
         for page_idx, table_idx, row_idx, row in self.iter_rows(doc):
-            path = f"p{page_idx}.t{table_idx}.r{row_idx}"
+            path = f"pa{page_idx}.ta{table_idx}.ro{row_idx}"
             detail, d_errors = self.build_detail(row, path, 'continues', row_idx)
             detail.errors = d_errors
             order_details.append(detail)
@@ -357,6 +345,8 @@ class TableOrderBuidler:
 
         doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, order_details)
         doc.order.category = 'Council'
+
+        self.write_fixes(doc, errors)
         
         self.lgr.info(f"=={doc.pdf_name}.table_order_builder {len(doc.order.details)} {DataError.error_counts(errors)}")
         [self.lgr.info(str(e)) for e in errors]        
@@ -364,9 +354,64 @@ class TableOrderBuidler:
         self.remove_log_handler(doc)
         return doc
 
+    def write_fixes(self, doc, errors):
+        #b /Users/mukund/Software/docInt/docint/pipeline/table_order_builder.py:361
+        unmatched_errors = [e for e in errors if isinstance(e, UnmatchedTextsError)]
+
+        for u_error in unmatched_errors:
+            cell = doc.get_region(u_error.path)
+            cell_img_str = cell.page.get_base64_image(cell.shape, height=100)
+            cell_word_str = '|'.join(f'{w.text}-{w.word_idx}' for w in cell.words)
+            cell_unmat_str = ", ".join(u_error.texts)
+
+            page_idx = cell.page.page_idx
+            unmatched_idxs = [ w.word_idx for t in u_error.texts for w in cell.words if t in w.text ]
+            unmatched_paths = [ f'pa{page_idx}.wo{idx}' for idx in unmatched_idxs]
+            row = [ u_error.path, cell_word_str, cell_unmat_str, cell_img_str, u_error.texts, unmatched_paths]
+            self.fixes_dict.setdefault(doc.pdf_name, []).append(row)
+    
+
     def __del__(self):
-        u_word_counts = self.unmatched_ctr.most_common(None)
-        self.lgr.info(f'++{"|".join(f"{u} {c}" for (u,c) in u_word_counts)}')
+        #u_word_counts = self.unmatched_ctr.most_common(None)
+        #self.lgr.info(f'++{"|".join(f"{u} {c}" for (u,c) in u_word_counts)}')
         #Path('/tmp/missing.yml').write_text(yaml.dump(self.missing_unicode_dict), encoding="utf-8")
+
+        def get_html_row(row):
+            row[-1] = f'<img src="{row[-1]}">'
+            return '<tr><td>' + '</td><td>'.join(row) + '</td></tr>'
+
+        def get_html_rows(pdf_name, rows):
+            html_hdr = f'<tr><td colspan="{len(rows[0])}" style="text-align:center;">'
+            html =  html_hdr + pdf_name + '</td></tr>'
+            html += '\n'.join(get_html_row(r[0:4]) for r in rows)
+            return html
+
+        def get_yml_row(row):
+            unmatched_texts, unmatched_paths = row[4], row[5]
+            yml_str = f'\n# unmatched {",".join(unmatched_texts)}\n'
+            for idx, u_text in enumerate(unmatched_texts):
+                u_path = unmatched_paths[idx] if idx < len(unmatched_paths) else row[0]
+                yml_str += f'  - replaceStr {u_path} <all> {u_text}\n'
+            return yml_str
+
+        def get_yml_rows(pdf_name, rows):
+            yml_str = f'#F conf/{pdf_name}.order_builder.yml\n'
+            yml_str += f'edits:\n'
+            yml_str += '\n'.join(get_yml_row(r) for r in rows)
+            return yml_str + '\n'
+
+
+        headers = 'Path-Sentence-Unmatched-Image'.split('-')
+        html_fixes_path = Path('output') / 'fixes.html'
+        html_str = '<html>\n<body>\n<table border=1>\n'
+        html_str += '<tr><th>' + '</th><th>'.join(headers) + '</th></tr>'
+        html_str += '\n'.join(get_html_rows(k, v) for k, v in self.fixes_dict.items())
+        html_str += '\n</table>'
+        html_fixes_path.write_text(html_str, encoding="utf-8")
+
+        yml_fixes_path = Path('output') / 'fixes.yml'
+        yml_str = '\n'.join(get_yml_rows(k, v) for k, v in self.fixes_dict.items())
+        yml_fixes_path.write_text(yml_str, encoding="utf-8")
+
 
 

@@ -6,18 +6,11 @@ import sys
 from pathlib import Path
 from itertools import chain
 
-
 from ..vision import Vision
 from ..region import Region, DataError
 from ..util import load_config
 from ..word import Word
 from ..word_line import words_in_lines
-
-
-
-
-
-    
 
 @Vision.factory(
     "body_marker",
@@ -82,18 +75,7 @@ class FindBodyMarker:
         lines_with_words = [idx for (idx, line) in enumerate(bm_lines) if line]
         bm_lines = bm_lines[lines_with_words[0]:lines_with_words[-1] + 1]
 
-        word_idxs = [w.word_idx for w in body_marker.words]
-        page_idx = body_marker.words[0].page_idx if body_marker.words else None
-        word_lines_idxs = [[w.word_idx for w in wl] for wl in bm_lines]
-        
-
-
-        body_marker = Region(words=body_marker.words, word_lines=bm_lines, word_idxs=word_idxs,
-                             page_idx_=page_idx, word_lines_idxs=word_lines_idxs)
-
-        # self.lgr.info('BodyText:')
-        # for line in bm_lines:
-        #     self.lgr.info(' '.join(w.text for w in line))
+        body_marker = Region.build_with_lines(body_marker.words, bm_lines)
 
         first_page.list_items = [body_marker]
         self.remove_log_handler(doc)        

@@ -114,7 +114,7 @@ class PDFTableFinder:
         
         pdf = pdfplumber.open(doc.pdf_path)
         
-        doc.add_extra_page_field('tables', ('list', 'docint.pipeline.table_finder', 'Table'))
+        doc.add_extra_page_field('tables', ('list', 'docint.table', 'Table'))
         doc.add_extra_page_field('heading', ('obj', 'docint.region', 'Region'))        
 
         for (page_idx, (page, pdf_page)) in enumerate(zip(doc.pages, pdf.pages)):

@@ -27,3 +27,5 @@ from .tenure_builder import TenureBuilder
 from .region_differ import RegionDiffer
 from .id_assigner_fields import IDAssignerMultipleFields
 from .details_merger import DetailsMerger
+from .rotation_detector import RotationDetector
+from .words_arranger import WordsArranger
