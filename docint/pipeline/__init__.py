@@ -29,3 +29,4 @@ from .id_assigner_fields import IDAssignerMultipleFields
 from .details_merger import DetailsMerger
 from .rotation_detector import RotationDetector
 from .words_arranger import WordsArranger
+from .website_gen import WebsiteGenerator

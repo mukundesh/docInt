@@ -82,7 +82,8 @@ class OrderBuilder:
         stream_handler = logging.StreamHandler(sys.stdout)
         stream_handler.setLevel(logging.DEBUG)
         self.lgr.addHandler(stream_handler)
-        self.file_handler = None        
+        self.file_handler = None
+        self.fixes_dict = {}
 
     def add_log_handler(self, doc):
         handler_name = f'{doc.pdf_name}.{self.conf_stub}.log'
@@ -132,7 +133,9 @@ class OrderBuilder:
             
             officer = Officer.build(officer_words, salut, name, cadre='goi_minister')
             order_detail = OrderDetail.build(
-                list_item.words, officer, post_info, detail_idx
+                list_item.words, list_item.word_lines, officer, detail_idx,
+                continues=post_info.continues, relinquishes=post_info.relinquishes,
+                assumes=post_info.assumes,
             )
 
             order_detail = OrderDetail.build(list_item.words,
@@ -223,10 +226,10 @@ class OrderBuilder:
         u_texts = [t for t in u_texts if not is_all_punct(t) ]
         return u_texts
 
-    def test(self, list_item, order_detail, post_info, detail_idx):
+    def test(self, list_item, order_detail, post_info, path, ignore_dict):
         list_item_text = list_item.line_text()
         
-        #ident_str = f'{list_item.doc.pdf_name}:{list_item.page.page_idx}>{detail_idx}'
+        #ident_str = f'{list_item.doc.pdf_name}:{path}'
         edit_str = '|'.join([f'{e}' for e in list_item.edits])
 
         person_spans = list_item.get_spans('person')
@@ -238,8 +241,8 @@ class OrderBuilder:
 
         #u_texts = [ t.lower() for t in list_item.get_unlabeled_texts() if t.lower() not in self.ignore_unmatched ]
         u_texts = self.process_unmatched(list_item.get_unlabeled_texts())
-        if u_texts:
-            errors.append(UnmatchedTextsError.build(f'{detail_idx}', u_texts))
+        if u_texts and (path not in ignore_dict.get('UnmatchedTextsError',[])):
+            errors.append(UnmatchedTextsError.build(path, u_texts))
 
         # u_texts_str = ' '.join(u_texts)
         # if not ('minis' in u_texts_str or 'depa' in u_texts_str):
@@ -264,15 +267,19 @@ class OrderBuilder:
         #doc.add_extra_field('order_details', ('list', 'docint.extracts.orgpedia', 'OrderDetail'))        
         doc.add_extra_field("order", ("obj", 'docint.extracts.orgpedia', 'Order'))        
 
-        if self.pre_edit:
-            doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
-            edits = doc_config.get("edits", [])
-            if edits:
-                print(f'Edited document: {doc.pdf_name}')
-                doc.edit(edits)
+        doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
+        edits = doc_config.get("edits", [])
+        if edits:
+            print(f'Edited document: {doc.pdf_name}')
+            doc.edit(edits)
+
+        ignore_dict = doc_config.get("ignores", {})
+        if ignore_dict:
+            print(f'Ignoring {ignore_dict.keys()}')
+
 
         # TODO these need to be regions so that lineage exists
-        order_details, detail_idx, errors = [], 1, []
+        order_details, detail_idx, errors = [], 0, []
         
         order_date, date_errors = self.get_order_date(doc)
         #order_number = self.get_order_number(doc)
@@ -286,19 +293,92 @@ class OrderBuilder:
             assert len(list_items) == len(page.post_infos)
             en_list_post = enumerate(zip(list_items, page.post_infos))            
             for (idx, (list_item, post_info)) in en_list_post:
+                list_item_path = f'pa{page.page_idx}.li{idx}'
                 if post_info.is_valid:
                     order_detail = self.build_detail(list_item, post_info, detail_idx)
                     if order_detail:
-                        print(order_detail.to_str())
+                        self.lgr.debug(order_detail.to_str())
+                        print(order_detail.to_str())                        
                         order_details.append(order_detail)
                         detail_idx += 1
-                    errors += self.test(list_item, order_detail, post_info, idx)
+                    
+                    errors += self.test(list_item, order_detail, post_info, list_item_path, ignore_dict)
                 else:
-                    errors += self.test(list_item, None, post_info, idx)
+                    errors += self.test(list_item, None, post_info, list_item_path, ignore_dict)
 
         doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, order_details)
+
+        self.write_fixes(doc, errors)        
         
         self.lgr.info(f"=={doc.pdf_name}.order_builder {len(doc.order.details)} {DataError.error_counts(errors)}")
         [self.lgr.info(str(e)) for e in errors]        
         self.remove_log_handler(doc)        
         return doc
+
+    def write_fixes(self, doc, errors):
+        #b /Users/mukund/Software/docInt/docint/pipeline/table_order_builder.py:361
+        unmatched_errors = [e for e in errors if isinstance(e, UnmatchedTextsError)]
+
+        for u_error in unmatched_errors:
+            cell = doc.get_region(u_error.path)
+            cell_img_str = cell.page.get_base64_image(cell.shape, height=200)
+            cell_word_str = ' '.join(f'{w.text}-{w.word_idx}' for w in cell.words)
+            cell_unmat_str = ", ".join(u_error.texts)
+
+            page_idx = cell.page.page_idx
+            unmatched_idxs = [ w.word_idx for t in u_error.texts for w in cell.words if t.lower() in w.text.lower() ]
+            unmatched_paths = [ f'pa{page_idx}.wo{idx}' for idx in unmatched_idxs]
+            row = [ u_error.path, cell_word_str, cell_unmat_str, cell_img_str, u_error.texts, unmatched_paths]
+            self.fixes_dict.setdefault(doc.pdf_name, []).append(row)
+    
+    
+    
+
+    def __del__(self):
+        #u_word_counts = self.unmatched_ctr.most_common(None)
+        #self.lgr.info(f'++{"|".join(f"{u} {c}" for (u,c) in u_word_counts)}')
+        #Path('/tmp/missing.yml').write_text(yaml.dump(self.missing_unicode_dict), encoding="utf-8")
+
+        def get_html_row(row):
+            row[-1] = f'<img src="{row[-1]}">'
+            return '<tr><td>' + '</td><td>'.join(row) + '</td></tr>'
+
+        def get_html_rows(pdf_name, rows):
+            pdf_url = f"file:///Users/mukund/orgpedia/govcabsec/pipeline/doOCR_/output/.html/{pdf_name}.html"
+            pdf_html_name = f'<a href="{pdf_url}">{pdf_name}</a>'
+            html_hdr = f'<tr><td colspan="{len(rows[0])}" style="text-align:left;">'
+            html =  html_hdr + pdf_html_name + '</td></tr>'
+            html += '\n'.join(get_html_row(r[0:4]) for r in rows)
+            return html
+
+        def get_yml_row(row):
+            unmatched_texts, unmatched_paths = row[4], row[5]
+            yml_str = f'\n# unmatched {",".join(unmatched_texts)}\n'
+            for idx, u_text in enumerate(unmatched_texts):
+                u_path = unmatched_paths[idx] if idx < len(unmatched_paths) else row[0]
+                yml_str += f'  - replaceStr {u_path} <all> {u_text}\n'
+            return yml_str
+
+        def get_yml_rows(pdf_name, rows):
+            yml_str = f'#F conf/{pdf_name}.order_builder.yml\n'
+            yml_str += f'edits:\n'
+            yml_str += '\n'.join(get_yml_row(r) for r in rows)
+            return yml_str + '\n'
+
+
+        headers = 'Path-Sentence-Unmatched-Image'.split('-')
+        html_fixes_path = Path('output') / 'fixes.html'
+        html_str = '<html>\n<body>\n<table border=1>\n'
+        html_str += '<tr><th>' + '</th><th>'.join(headers) + '</th></tr>'
+
+        fixes_items = sorted(self.fixes_dict.items(), key=lambda tup: -len(tup[1])) 
+        
+        html_str += '\n'.join(get_html_rows(k, v) for k, v in fixes_items)
+        html_str += '\n</table>'
+        html_fixes_path.write_text(html_str, encoding="utf-8")
+
+        yml_fixes_path = Path('output') / 'fixes.yml'
+
+        yml_str = '\n'.join(get_yml_rows(k, v) for k, v in fixes_items)
+        yml_fixes_path.write_text(yml_str, encoding="utf-8")
+    

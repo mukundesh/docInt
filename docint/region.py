@@ -39,8 +39,8 @@ class DataError(BaseModel):
     @classmethod
     def error_counts(cls, errors):
         ctr = Counter(e.name for e in errors)
-        type_str = ' '.join(f'{n} {ct}' for n, ct in ctr.most_common(None))
-        return f'Errors {sum(ctr.values())} {type_str}'
+        type_str = ' '.join(f'{n}={ct}' for n, ct in ctr.most_common(None))
+        return f'Errors={sum(ctr.values())} {type_str}'
 
 class UnmatchedTextsError(DataError):
     texts: List[str]

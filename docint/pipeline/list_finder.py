@@ -59,6 +59,7 @@ class ListItem(Region):
         "has_footer": True,
         "footer_delim": ".,;",
         "footer_height_multiple": 2.0,
+        "conf_stub": "listfinder",
     },
 )
 class ListFinder:
@@ -73,6 +74,7 @@ class ListFinder:
         has_footer,
         footer_delim,
         footer_height_multiple,
+        conf_stub
     ):
         self.doc_confdir = doc_confdir
         self.pre_edit = pre_edit
@@ -83,7 +85,7 @@ class ListFinder:
         self.has_footer = has_footer
         self.footer_delim = footer_delim
         self.footer_height_multiple = footer_height_multiple
-        self.conf_stub = 'listfinder'
+        self.conf_stub = conf_stub
 
         self.lgr = logging.getLogger(f'docint.pipeline.{self.conf_stub}')
         self.lgr.setLevel(logging.DEBUG)
@@ -188,6 +190,10 @@ class ListFinder:
         print(f'Num: {len(filtered_markers)}')
         return filtered_markers
 
+    def get_word_lines(self, page):
+        wl_idxs = page.arranged_word_lines_idxs
+        return [[page.words[idx] for idx in wl] for wl in wl_idxs]
+
     def __call__(self, doc):
         self.add_log_handler(doc)
         self.lgr.info(f"list_finder: {doc.pdf_name}")
@@ -200,7 +206,11 @@ class ListFinder:
         doc.add_extra_page_field('list_items', ('list', __name__, 'ListItem'))
         for page in doc.pages:
             nl_ht_multiple = doc_config.get('newline_height_multiple', 1.0)
-            word_lines = words_in_lines(page, newline_height_multiple=nl_ht_multiple)
+
+            if hasattr(page, 'arranged_word_lines_idxs'):
+                word_lines = self.get_word_lines(page)
+            else:
+                word_lines = words_in_lines(page, newline_height_multiple=nl_ht_multiple)
             
             num_markers = self.filter_markers(page.num_markers)
 

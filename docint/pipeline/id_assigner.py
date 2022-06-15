@@ -153,6 +153,8 @@ class IDAssigner:
                 post.post_id = post_id if post_id else post.post_id
                 errors.extend(post_errors)
                 
+            self.lgr.debug(detail.to_id_str())
+                
 
         self.lgr.info(f"=={doc.pdf_name}.id_assigner {len(doc.order.details)} {DataError.error_counts(errors)}")
         [self.lgr.info(str(e)) for e in errors]        

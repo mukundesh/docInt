@@ -198,7 +198,9 @@ def _pipe(
     default_error_handler,
     kwargs: Mapping[str, Any],
 ):
+    print(f"INSIDE _PIPE {proc}")
     if hasattr(proc, "pipe"):
+        print(f"INSIDE _PIPE {proc}")        
         yield from proc.pipe(docs, **kwargs)
     else:
         # We added some args for pipe that __call__ doesn't expect.

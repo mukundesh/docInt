@@ -485,7 +485,7 @@ class Doc(BaseModel):
 
     def get_region(self, region_path):
         item = self
-        name_dict = {'pa': 'pages', 'wo': 'words', 'ta': 'tables', 'ro': 'body_rows', 'ce': 'cells' }
+        name_dict = {'pa': 'pages', 'wo': 'words', 'ta': 'tables', 'ro': 'body_rows', 'ce': 'cells', 'li': 'list_items' }
         for item_path in region_path.split('.'):
             if item_path[-1].isdigit():
                 name = item_path.strip('0123456789')

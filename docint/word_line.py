@@ -259,7 +259,7 @@ def words_in_lines(
     num_words = sum([len(wl) for wl in word_lines])
     assert len(region.words) == num_words
 
-    #print_word_lines(word_lines)
+    print_word_lines(word_lines)
     return word_lines
 
 ### Simple words_in_lines, this big one should be moved to Page as it tries to find

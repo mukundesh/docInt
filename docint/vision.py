@@ -209,6 +209,7 @@ class Vision:
         print(f'After {len(docs)}')        
         
         for pipe in pipes:
+            print(f'\tPipe: {pipe}')
             docs = pipe(docs)
         print("Leaving PIPE")            
         return docs

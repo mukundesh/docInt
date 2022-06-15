@@ -38,7 +38,7 @@ u8 = 'Dr. Jitendra Singh relinquished the charge of the office of the - of the -
 
 def eval_text(text):
     dept_hierarchy = Hierarchy("cabsec_dept.yml")
-    match_paths = dept_hierarchy.find_match_paths(text, ignore_case)
+    match_paths = dept_hierarchy.find_match(text, ignore_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
     sys.exit(1)
@@ -46,7 +46,7 @@ def eval_text(text):
 def eval_role_text(text):
     text = ' '.join(text.split())
     dept_hierarchy = Hierarchy("cabsec_role.yml")
-    match_paths = dept_hierarchy.find_match_paths(text, ignore_case)
+    match_paths = dept_hierarchy.find_match(text, ignore_case)
     match_paths_str = ", ".join(str(m) for m in match_paths)
     print(match_paths_str)
     sys.exit(1)

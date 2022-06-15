@@ -21,7 +21,7 @@ from ..extracts.orgpedia import IncorrectOrderDateError, OrderDateNotFoundErrror
 
 
 from ..span import Span, SpanGroup
-from ..util import read_config_from_disk, find_date
+from ..util import read_config_from_disk, find_date, load_config
 
 from ..word_line import words_in_lines
 
@@ -191,8 +191,6 @@ class TableOrderBuidler:
         if not post_cell:
             msg = "empty cell"
             errors.append(TableEmptyBodyCellError(path=path, msg=msg, is_none=True))
-
-        self.lgr.debug(f'Before: {post_cell.line_text()}')
         
         missing_unicodes = post_cell.make_ascii(self.unicode_dict)
         self.add_missing_unicodes(missing_unicodes) # save the missing unicodes
@@ -207,7 +205,7 @@ class TableOrderBuidler:
         allcaps_spans = self.get_allcaps_spans(post_str)
         [ post_cell.add_span(s.start, s.end, 'ignore', ignore_config) for s in allcaps_spans ]
         if allcaps_spans:
-            print(f'Removed Before >{post_str}<')
+            print(f'Removed ALL Caps Before >{post_str}<')
             print(f'Removed After  >{post_cell.line_text(ignore_config)}')
 
         
@@ -216,7 +214,6 @@ class TableOrderBuidler:
         post_cell.correct_words(self.dictionary, ignore_config)
         post_cell.mark_regex([r'[.,;\']', 'in the'], 'ignore', ignore_config)
 
-        self.lgr.debug(f'After: {post_cell.line_text(ignore_config)}')        
 
         post_str, hier_span_groups = post_cell.line_text(ignore_config), []
         ## replacing double space
@@ -271,10 +268,14 @@ class TableOrderBuidler:
         (c, r) = (posts, []) if doc_verb == 'continues' else ([], posts)
         
         d = OrderDetail.build(row.words, [row.words], officer, detail_idx,
-                              continues=c, relinquishes=c, assumes=[])
+                              continues=c, relinquishes=[], assumes=[])
         d.errors = officer_errors + post_errors
         print('--------')
         print(d.to_str())
+        
+        self.lgr.debug('--------')
+        self.lgr.debug(d.to_str())
+        
         all_errors = officer_errors + post_errors
         return d, all_errors
 
@@ -317,28 +318,34 @@ class TableOrderBuidler:
 
 
     def iter_rows(self, doc):
+        detail_idx = 0
         for (page_idx, page) in enumerate(doc.pages):
             for (table_idx, table) in enumerate(page.tables):
                 for (row_idx, row) in enumerate(table.body_rows):
-                    yield page_idx, table_idx, row_idx, row
+                    yield page_idx, table_idx, row_idx, row, detail_idx
+                    detail_idx += 1
 
     def __call__(self, doc):
         self.add_log_handler(doc)
         self.lgr.info(f"table_order_builder: {doc.pdf_name}")
-        #doc.add_extra_field("order_details", ("list", "docint.extracts.orgpedia", "OrderDetail"))
         
         doc.add_extra_field("order", ("obj", "docint.extracts.orgpedia", "Order"))
-
-        #doc.order_number = self.get_order_number(doc)
-        order_details, errors = [], []
         
+        doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
+        edits = doc_config.get("edits", [])
+        if edits:
+            print(f'Edited document: {doc.pdf_name}')
+            doc.edit(edits)
+        
+
+        order_details, errors = [], []
         order_date, date_errors = self.get_order_date(doc)
         errors.extend(date_errors)
         
         self.verb = "continues"  # self.get_verb(doc)
-        for page_idx, table_idx, row_idx, row in self.iter_rows(doc):
+        for page_idx, table_idx, row_idx, row, detail_idx in self.iter_rows(doc):
             path = f"pa{page_idx}.ta{table_idx}.ro{row_idx}"
-            detail, d_errors = self.build_detail(row, path, 'continues', row_idx)
+            detail, d_errors = self.build_detail(row, path, 'continues', detail_idx)
             detail.errors = d_errors
             order_details.append(detail)
             errors.extend(d_errors)
@@ -361,11 +368,11 @@ class TableOrderBuidler:
         for u_error in unmatched_errors:
             cell = doc.get_region(u_error.path)
             cell_img_str = cell.page.get_base64_image(cell.shape, height=100)
-            cell_word_str = '|'.join(f'{w.text}-{w.word_idx}' for w in cell.words)
+            cell_word_str = ' '.join(f'{w.text}-{w.word_idx}' for w in cell.words)
             cell_unmat_str = ", ".join(u_error.texts)
 
             page_idx = cell.page.page_idx
-            unmatched_idxs = [ w.word_idx for t in u_error.texts for w in cell.words if t in w.text ]
+            unmatched_idxs = [ w.word_idx for t in u_error.texts for w in cell.words if t.lower() in w.text.lower() ]
             unmatched_paths = [ f'pa{page_idx}.wo{idx}' for idx in unmatched_idxs]
             row = [ u_error.path, cell_word_str, cell_unmat_str, cell_img_str, u_error.texts, unmatched_paths]
             self.fixes_dict.setdefault(doc.pdf_name, []).append(row)

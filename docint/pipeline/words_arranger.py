@@ -6,7 +6,7 @@ import copy
 
 from ..word_line import words_in_lines
 from ..vision import Vision
-from ..shape import Coord, Poly
+from ..shape import Coord, Poly, Box
 
 
 @Vision.factory(
@@ -100,14 +100,15 @@ class WordsArranger:
         old_size = page.size
         new_size = rotate_xy(page.width, page.height, angle)
         for word in page.words:
-            if not isinstance(word.shape_, Poly):
-                continue
-            
+           
             new_coords = [rotate_coord2(c, old_size, new_size, angle) for c in word.shape_.coords]
             new_word = copy.copy(word)
-            new_word.shape_ = Poly(coords=new_coords)
+            if isinstance(word.shape_, Poly):
+                new_word.shape_ = Poly(coords=new_coords)
+            else:
+                new_word.shape_ = Box.build(new_coords)
             new_words.append(new_word)
-            print_details(word, new_word)
+            #print_details(word, new_word)
             
 
         new_page = copy.copy(page)
@@ -117,8 +118,7 @@ class WordsArranger:
     def __call__(self, doc):
         print(f"Detect Rotation {doc.pdf_name}")
 
-        doc.add_extra_page_field("arranged_word_idxs", ("noparse", "", ""))
-        doc.add_extra_page_field("arranged_new_line_pos", ("noparse", "", ""))
+        doc.add_extra_page_field("arranged_word_lines_idxs", ("noparse", "", ""))
 
         for page in doc.pages:
             page.arranged_word_idxs = []
@@ -129,9 +129,7 @@ class WordsArranger:
                 rota_page = page
 
             word_lines = words_in_lines(rota_page)
-
-            for word_line in word_lines:
-                for word in word_line:
-                    page.arranged_word_idxs.append(word.word_idx)
-                page.arranged_new_line_pos.append(len(page.arranged_word_idxs))
+            
+            lines_idxs = [[w.word_idx for w in wl] for wl in word_lines]
+            page.arranged_word_lines_idxs = lines_idxs
         return doc

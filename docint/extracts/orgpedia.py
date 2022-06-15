@@ -195,17 +195,6 @@ class OrderDetail(Region):
     def page_idx(self):
         return self.words[0].page_idx
 
-    # @classmethod
-    # def build(cls, words, officer, post_info, detail_idx):
-    #     word_idxs = [w.word_idx for w in words]
-    #     page_idx = words[0].page_idx if words else None
-    #     return OrderDetail(words=words, word_lines=[words], officer=officer,
-    #                        word_idxs=word_idxs, page_idx_=page_idx, word_lines_idxs=[word_idxs],
-    #                        continues=post_info.continues,
-    #                        relinquishes=post_info.relinquishes,
-    #                        assumes=post_info.assumes,
-    #                        detail_idx=detail_idx)
-
     @classmethod
     def build(cls, words, word_lines, officer, detail_idx, continues=[], relinquishes=[], assumes=[]):
         word_idxs = [w.word_idx for w in words]
@@ -240,6 +229,18 @@ class OrderDetail(Region):
             d_lines += ['Errors:']
             d_lines += [f'  {str(e)}' for e in self.errors ]
         return '\n'.join(d_lines)
+
+    def to_id_str(self):
+        o_id = self.officer.officer_id if self.officer else ""
+        d_lines = [f'[{self.path}] O: {self.officer.salut}|{self.officer.name} > {o_id}']
+        for verb in ['continues', 'relinquishes', 'assumes']:
+            posts = getattr(self, verb)
+            if  posts:
+                d_lines.append(f'{verb}:')
+                d_lines.extend([f'{p.post_id}' for p in posts])
+        #end
+        return '\n'.join(d_lines)        
+        
 
     def get_posts(self, verb='all'):
         if verb == 'all':
@@ -278,6 +279,9 @@ class Order(Region):
     @classmethod
     def build(cls, order_id, order_date, path, details):
         return Order(words=[], word_lines=[], word_idxs=[], page_idx_=None, order_id=order_id, date=order_date, path=path, details=details)
+
+    def get_posts(self):
+        return [p for d in self.details for p in d.get_posts()]
     
 
 # If it is not extending Region should it still be there, yes as it will be moved to Orgpeida
@@ -293,8 +297,23 @@ class Tenure(BaseModel):
     start_order_id: str
     start_detail_idx: int
     
-    end_order_id: str
+    end_order_id: str = ''
     end_detail_idx: int = -1
+
+    @property
+    def duration(self):
+        return self.end_date - self.start_date
+
+    @property
+    def duration_days(self):
+        return (self.end_date - self.start_date).days
+
+    def get_start_page_idx(self, start_order):
+        return start_order.details[self.start_detail_idx].page_idx
+    
+    def get_end_page_idx(self, end_order):
+        return end_order.details[self.end_detail_idx].page_idx
+    
 
     
 class OfficerID(BaseModel):
