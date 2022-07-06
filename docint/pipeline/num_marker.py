@@ -26,14 +26,6 @@ class NumMarker(Region):
     num_val: Union[int, None]
     idx: int
 
-    
-    # def __init__(self, num_type, num_text, num_val, word, idx):
-    #     super().__init__(words=[word])
-    #     self.num_type = num_type
-    #     self.num_text = num_text
-    #     self.num_val = num_val
-    #     self.idx = idx
-
     def set_idx(self, idx):
         self.idx = idx
 
@@ -127,6 +119,7 @@ class FindNumMarker:
         self.lgr.addHandler(stream_handler)
 
         self.file_handler = None
+        self.info_dict = {}
 
     def get_valid_types(self):
         num_types = []
@@ -291,14 +284,20 @@ class FindNumMarker:
         doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
         
         old_x_range = self.x_range
-        self.x_range = doc_config.get('x_range', self.x_range)
-
+        old_min_marker = self.min_marker
         
-        if self.pre_edit:
-            edits = doc_config.get("edits", [])
-            if edits:
-                print(f'Edited document: {doc.pdf_name}')
-                doc.edit(edits)
+        self.x_range = doc_config.get('x_range', self.x_range)
+        self.min_marker = doc_config.get('min_marker', self.min_marker)
+
+        edits = doc_config.get("edits", [])
+        if edits:
+            print(f'Edited document: {doc.pdf_name}')
+            doc.edit(edits)
+
+        ignore_dict = doc_config.get("ignores", {})
+        if ignore_dict:
+            print(f'Ignoring {ignore_dict.keys()}')
+            
             
         doc.add_extra_page_field('num_markers', ('list', __name__, 'NumMarker'))
         for page in doc.pages:
@@ -327,13 +326,22 @@ class FindNumMarker:
             self.lgr.info(f'> Page {page.page_idx} {[str(m) for m in num_markers]}')
             
         errors = list(chain(*[ self.test(doc, num_type) for num_type in NumType ]))
+
+        errors = [e for e in errors if not DataError.ignore_error(e, ignore_dict)]        
+
+        
         total_markers = sum(len(page.num_markers) for page in doc.pages)
-        self.lgr.info(f'=={doc.pdf_name}.num_marker {total_markers} {DataError.error_counts(errors)}')
+
+        doc_stub = f'{doc.pdf_name}.{self.conf_stub}'
+
+        #self.lgr.info(f'##{doc_stub} page doc.pages num_marker {total_markers} edits {len(edits)}'
+        self.lgr.info(f'=={doc_stub} {total_markers} {DataError.error_counts(errors)}')
         [self.lgr.info(str(e)) for e in errors]
 
         
         self.write_fixes(doc, errors)
-
-        self.x_range = old_x_range        
+        self.x_range = old_x_range
+        self.min_marker = old_min_marker
+        
         self.remove_log_handler(doc)        
         return doc

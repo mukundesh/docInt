@@ -20,7 +20,8 @@ class OfficerMisalignedError(DataError):
     pass
 
 class OfficerMultipleError(DataError):
-    pass
+    num_officers: int
+
 
 
 
@@ -386,8 +387,8 @@ class WordsFixer:
             errors.append(OfficerMisalignedError(path=path, msg=msg))
         
         if len(person_spans) > 2:
-            msg = f'incorrect span: {",".join(str(s) for s in person_spans)}'                          
-            errors.append(OfficerMultipleError(path=path, msg=msg))
+            msg = f'incorrect span: {",".join(str(s) for s in person_spans)}'
+            errors.append(OfficerMultipleError(path=path, msg=msg, num_officers=len(person_spans)))
         return errors
 
     def set_config(self, doc_config):
@@ -407,7 +408,9 @@ class WordsFixer:
         self.lgr.info(f"word_fixer: {doc.pdf_name}")
 
         doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
-        #old_config = self.set_config(doc_config)
+        old_officer_at_start = self.officer_at_start
+        self.officer_at_start = doc_config.get('officer_at_start', self.officer_at_start)
+
         
         if self.pre_edit:
             edits = doc_config.get("edits", [])
@@ -420,11 +423,16 @@ class WordsFixer:
             # access what to fix through path
             items = getattr(page, self.item_name, [])
             for (list_idx, list_item) in enumerate(items):
+                item_path = f'pa{page.page_idx}.{self.item_name[:2]}{list_idx}'
                 indent_str = f'{doc.pdf_name}:{page_idx}>{list_idx}'
                 
                 self.lgr.debug(f'\n{list_item.line_text().replace(NL, " ")}<')
                 self.fix_list(list_item)
-                list_item.errors += self.test(list_item, indent_str)
+                list_item_errors = self.test(list_item, item_path )
+                
+                list_item.errors += list_item_errors
+                list_item.list_errors += list_item_errors
+                
                 err_str = list_item.error_counts_str
                 self.lgr.debug(list_item.str_spans())
                 if err_str:
@@ -433,6 +441,7 @@ class WordsFixer:
                 self.lgr.debug(f'A>{list_item.line_text().replace(NL, " ")}<\n')
 
         #self.revert_config(old_config)
+        self.officer_at_start = old_officer_at_start
         self.remove_log_handler(doc)        
         return doc
         

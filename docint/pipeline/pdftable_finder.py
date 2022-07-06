@@ -11,6 +11,7 @@ from ..word import Word, BreakType
 from ..shape import Coord, Box
 from ..table import Table, Row, Cell
 from ..region import DataError
+from ..util import load_config
 
 @Vision.factory(
     "pdftable_finder",
@@ -36,6 +37,8 @@ class PDFTableFinder:
         self.log_level = logging.DEBUG if log_level == 'debug' else logging.INFO
         self.heading_offset = heading_offset
         self.num_columns = num_columns
+
+        self.conf_dir = Path("conf")
         
         self.lgr = logging.getLogger(f'docint.pipeline.{self.conf_stub}')
         self.lgr.setLevel(logging.DEBUG)
@@ -112,6 +115,10 @@ class PDFTableFinder:
         
         self.add_log_handler(doc)
         
+        doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
+        old_skip_row_with_merged_cells = self.skip_row_with_merged_cells
+        self.skip_row_with_merged_cells = doc_config.get("skip_row_with_merged_cells", self.skip_row_with_merged_cells)
+        
         pdf = pdfplumber.open(doc.pdf_path)
         
         doc.add_extra_page_field('tables', ('list', 'docint.table', 'Table'))
@@ -168,7 +175,8 @@ class PDFTableFinder:
         errors = self.test(doc)
         
         self.lgr.info(f'==Total:{len(errors)} {DataError.error_counts(errors)}')
-        
+
+        self.skip_row_with_merged_cells = old_skip_row_with_merged_cells
         self.remove_log_handler(doc)
         return doc
         

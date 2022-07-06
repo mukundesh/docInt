@@ -232,7 +232,7 @@ class OrderDetail(Region):
 
     def to_id_str(self):
         o_id = self.officer.officer_id if self.officer else ""
-        d_lines = [f'[{self.path}] O: {self.officer.salut}|{self.officer.name} > {o_id}']
+        d_lines = [f'[{self.detail_idx}] O: {self.officer.salut}|{self.officer.name} > {o_id}']
         for verb in ['continues', 'relinquishes', 'assumes']:
             posts = getattr(self, verb)
             if  posts:

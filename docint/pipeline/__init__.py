@@ -30,3 +30,5 @@ from .details_merger import DetailsMerger
 from .rotation_detector import RotationDetector
 from .words_arranger import WordsArranger
 from .website_gen import WebsiteGenerator
+from .order_tagger import OrderTagger
+from .hindi_order_tagger import HindiOrderTagger

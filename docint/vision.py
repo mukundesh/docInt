@@ -17,6 +17,7 @@ from .doc import Doc
 # from .pipeline import Pipe
 from dataclasses import dataclass
 
+#b  /Users/mukund/Software/docInt/docint/vision.py:208
 
 @dataclass
 class FactoryMeta:
@@ -185,8 +186,14 @@ class Vision:
         return doc
 
     def pipe_all(self, paths):
+        def get_pdf_name(path):
+            path = Path(path)
+            name = path.name
+            pdf_pos = name.lower().index('.pdf')
+            return name[:pdf_pos+4]
+            
         print("INSIDE PIPE")
-        paths = (Path(p) for p in paths)        
+
         pipes = []
         for name, proc in self.pipeline:
             kwargs = {}
@@ -199,15 +206,11 @@ class Vision:
             )
             pipes.append(f)
 
-
-        print(f'Building docs...')            
+        print(f'Building docs... #paths: {len(paths)}')
+        paths = (Path(p) for p in paths if get_pdf_name(p) not in self.ignore_docs)        
         docs = list(self.build_doc(p) if p.suffix == '.pdf' else Doc.from_disk(p) for p in paths)
-        print(f'Before {len(docs)}')
         
-        # filter based on ignore_files
-        docs = [ d for d in docs if d.pdf_name not in self.ignore_docs]
-        print(f'After {len(docs)}')        
-        
+        print(f'Read #docs: {len(docs)}')
         for pipe in pipes:
             print(f'\tPipe: {pipe}')
             docs = pipe(docs)

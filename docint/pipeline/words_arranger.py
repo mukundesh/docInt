@@ -72,12 +72,6 @@ class WordsArranger:
 
         def rotate_coord(c, old_size, new_size, angle):
             old_w, old_h = old_size
-            new_x, new_y = rotate_xy(c.x * old_w, c.y * old_h, angle)
-            new_w, new_h = new_size
-            return Coord(x=new_x / new_w, y=new_y / new_h)
-
-        def rotate_coord2(c, old_size, new_size, angle):
-            old_w, old_h = old_size
             page_coord = Coord(x=c.x * old_w, y=c.y * old_h)
 
             new_coord= page.page_image.transform_rotate(page_coord, angle, old_size, new_size)
@@ -101,8 +95,8 @@ class WordsArranger:
         new_size = rotate_xy(page.width, page.height, angle)
         for word in page.words:
            
-            new_coords = [rotate_coord2(c, old_size, new_size, angle) for c in word.shape_.coords]
-            new_word = copy.copy(word)
+            new_coords = [rotate_coord(c, old_size, new_size, angle) for c in word.shape_.coords]
+            new_word = copy.copy(word) # this doesn't copy coords
             if isinstance(word.shape_, Poly):
                 new_word.shape_ = Poly(coords=new_coords)
             else:

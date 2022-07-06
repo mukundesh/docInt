@@ -186,7 +186,7 @@ class TableOrderBuidler:
         return allcaps_spans
     
 
-    def get_posts(self, post_cell, path):
+    def get_posts(self, post_cell, path, ignore_dict):
         posts, errors = [], []
         if not post_cell:
             msg = "empty cell"
@@ -248,12 +248,12 @@ class TableOrderBuidler:
         u_texts = [t for t in u_texts if t not in self.ignore_unmatched]
         u_texts = [t for t in u_texts if not t.isdigit()]
         
-        if u_texts:
+        if u_texts and path not in ignore_dict.get('UnmatchedTextsError',[]):
             self.unmatched_ctr.update(u_texts)
             errors.append(UnmatchedTextsError.build(path, u_texts, post_str))
         return posts, errors
 
-    def build_detail(self, row, path, doc_verb, detail_idx):
+    def build_detail(self, row, path, doc_verb, detail_idx, ignore_dict):
         errors = []
         if len(row.cells) != 3:
             msg = "Expected: 3 columns Actual: {len(row.cells)}"
@@ -263,7 +263,7 @@ class TableOrderBuidler:
         officer, officer_errors = self.get_officer(officer_cell, f"{path}.ce1")
 
         post_cell = row.cells[2] if len(row.cells) > 2 else ""
-        posts, post_errors = self.get_posts(post_cell, f"{path}.ce2")
+        posts, post_errors = self.get_posts(post_cell, f"{path}.ce2", ignore_dict)
 
         (c, r) = (posts, []) if doc_verb == 'continues' else ([], posts)
         
@@ -336,7 +336,10 @@ class TableOrderBuidler:
         if edits:
             print(f'Edited document: {doc.pdf_name}')
             doc.edit(edits)
-        
+
+        ignore_dict = doc_config.get("ignores", {})
+        if ignore_dict:
+            print(f'Ignoring {ignore_dict.keys()}')
 
         order_details, errors = [], []
         order_date, date_errors = self.get_order_date(doc)
@@ -345,7 +348,7 @@ class TableOrderBuidler:
         self.verb = "continues"  # self.get_verb(doc)
         for page_idx, table_idx, row_idx, row, detail_idx in self.iter_rows(doc):
             path = f"pa{page_idx}.ta{table_idx}.ro{row_idx}"
-            detail, d_errors = self.build_detail(row, path, 'continues', detail_idx)
+            detail, d_errors = self.build_detail(row, path, 'continues', detail_idx, ignore_dict)
             detail.errors = d_errors
             order_details.append(detail)
             errors.extend(d_errors)
@@ -353,7 +356,7 @@ class TableOrderBuidler:
         doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, order_details)
         doc.order.category = 'Council'
 
-        self.write_fixes(doc, errors)
+        #self.write_fixes(doc, errors)
         
         self.lgr.info(f"=={doc.pdf_name}.table_order_builder {len(doc.order.details)} {DataError.error_counts(errors)}")
         [self.lgr.info(str(e)) for e in errors]        
@@ -406,6 +409,9 @@ class TableOrderBuidler:
             yml_str += f'edits:\n'
             yml_str += '\n'.join(get_yml_row(r) for r in rows)
             return yml_str + '\n'
+
+        if not self.fixes_dict:
+            return
 
 
         headers = 'Path-Sentence-Unmatched-Image'.split('-')

@@ -195,7 +195,8 @@ class PostParserOnSentence:
 
         post_info = PostInfo.build(post_region.words, post_region.word_lines, post_region_str, detail_idx, **posts_dict)
         ident_str = f'{post_region.doc.pdf_name}:{post_region.page.page_idx}>{detail_idx}'
-        post_info.errors += self.check_span_groups(dept_role_groups_dict, ident_str)
+        path = f'pa{post_region.page.page_idx}.or.de{detail_idx}'
+        post_info.errors += self.check_span_groups(dept_role_groups_dict, path)
 
         log_texts = wrap(post_region_str,  width=90)
         idx_texts, start_idx = [], 0
@@ -205,7 +206,7 @@ class PostParserOnSentence:
 
         err_str = post_info.error_counts_str
         log_str = '\n\n'.join(f'{t}\n{i}' for (t,i) in zip(log_texts, idx_texts))
-        #self.lgr.debug(post_info.to_str(post_region_str, log_str, err_str, ident_str))
+        #self.lgr.debug(post_info.to_str(post_region_str, log_str, err_str, path))
         return post_info
 
     def build_post_info2(self, post_region, hier_span_groups, detail_idx):
@@ -248,7 +249,9 @@ class PostParserOnSentence:
 
         post_info = PostInfo.build(post_region.words, post_region.word_lines, post_region_str, detail_idx, **posts_dict)
         ident_str = f'{post_region.doc.pdf_name}:{post_region.page.page_idx}>{detail_idx}'
-        post_info.errors += self.check_span_groups(dept_role_groups_dict, ident_str)
+        path = f'pa{post_region.page.page_idx}.or.de{detail_idx}'
+        
+        post_info.errors += self.check_span_groups(dept_role_groups_dict, path)
 
         log_texts = wrap(post_region_str,  width=90)
         idx_texts, start_idx = [], 0
@@ -258,7 +261,7 @@ class PostParserOnSentence:
 
         err_str = post_info.error_counts_str
         log_str = '\n\n'.join(f'{t}\n{i}' for (t,i) in zip(log_texts, idx_texts))
-        #self.lgr.debug(post_info.to_str(post_region_str, log_str, err_str, ident_str))
+        #self.lgr.debug(post_info.to_str(post_region_str, log_str, err_str, path))
         return post_info
 
     

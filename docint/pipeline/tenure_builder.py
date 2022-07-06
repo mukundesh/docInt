@@ -13,9 +13,20 @@ from dateutil import parser
 
 from ..vision import Vision
 from ..extracts.orgpedia import Tenure
+from ..region import DataError
 
 
 # b /Users/mukund/Software/docInt/docint/pipeline/id_assigner.py:34
+
+class TenureMissingAssumeError(DataError):
+    @classmethod
+    def build(cls, info):
+        path = f"order.details{info.detail_idx}"
+        order_str = f"{info.order_id}[{info.detail_idx}]"
+        post_str = f"Post: {info.post_id}"
+        officer_str = f"Officer: {info.officer_id}"
+        msg = f"Mssing assume for {info.verb}: {order_str} {post_str} {officer_str}"
+        return TenureMissingAssumeError(path=path, msg=msg)
 
 
 # This should be called DetailPostInfo
@@ -96,6 +107,9 @@ class TenureBuilder:
                 order.category,
             )
 
+        if order.order_id == "1_Upload_2830.pdf":
+            print('Found It')
+
         if not valid_date(order):
             return []
 
@@ -134,7 +148,7 @@ class TenureBuilder:
                 post_ids = list(infos)
             return f'[{len(post_ids)}]: {", ".join(post_ids)}'
 
-
+        errors = []
         def handle_order_infos(order_infos):
             first = order_infos[0]
             o_id, o_date, d_idx = first.order_id, first.order_date, first.detail_idx
@@ -149,20 +163,23 @@ class TenureBuilder:
                         ignored_info = postid_info_dict[post_id]
                         o_tenures.append(build_tenure(ignored_info, o_id, o_date, d_idx))
                         del postid_info_dict[post_id]
-                    self.lgr.info(f'\t\tClosing Actives*{get_postids(ignored_posts)}')                
+                    self.lgr.info(f'\t\tClosing Actives*{get_postids(ignored_posts)} {o_id} {d_idx}')                
 
 
             for info in order_infos:
                 if info.verb in ("assumes", "continues"):
                     if info.post_id not in postid_info_dict:
                         postid_info_dict.setdefault(info.post_id, info)
+                        # if info.verb == "continues":
+                        #     errors.append(TenureMissingAssumeError.build(info))                           
                 elif info.verb == "relinquishes":
                     start_info = postid_info_dict.get(info.post_id, None)
                     if not start_info:
-                        self.lgr.warning(f"***Incorrect relinquish post_id: {info.post_id} not found in {str(info)}")
+                        self.lgr.warning(f"***Missing Assume post_id: {info.post_id} not found in {str(info)}")
+                        errors.append(TenureMissingAssumeError.build(info))
                         continue
                     o_tenures.append(build_tenure(start_info, o_id, o_date, d_idx))
-                    self.lgr.info(f'\t\tClosing Active: {info.post_id}')
+                    self.lgr.info(f'\t\tClosing Active: {info.post_id} {o_id} {d_idx}')
                     del postid_info_dict[info.post_id]
                 else:
                     raise NotImplementedError(f"Unknown verb: {info.verb}")
@@ -184,7 +201,7 @@ class TenureBuilder:
                     end_date = self.ministry_end_date(info.order_date)
                     officer_tenures.append(build_tenure(info, "", end_date, -1))
             
-        return officer_tenures
+        return officer_tenures, errors
 
     def write_tenures(self, tenures):
         tenure_dicts = []
@@ -210,9 +227,11 @@ class TenureBuilder:
         detail_infos.sort(key=attrgetter("officer_id"))
         officer_groupby = groupby(detail_infos, key=attrgetter("officer_id"))
 
-        tenures = []
+        tenures, errors = [], []
         for officer_id, officer_infos in officer_groupby:
-            tenures += self.build_officer_tenures(officer_id, officer_infos)
+            o_tenures, o_errors = self.build_officer_tenures(officer_id, officer_infos)
+            tenures +=  o_tenures
+            errors += o_errors
 
         self.lgr.info(f"#Tenures: {len(tenures)}")
         order_id_doc_dict = {}
@@ -226,6 +245,6 @@ class TenureBuilder:
             doc.tenures.append(tenure)
 
         self.write_tenures(tenures)
-
+        self.lgr.info(f"=={doc.pdf_name}.tenure_builder {len(tenures)} {DataError.error_counts(errors)}")
         self.lgr.info("Leaving tenure_builder")
         return docs

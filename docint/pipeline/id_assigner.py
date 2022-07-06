@@ -56,7 +56,7 @@ class IDAssigner:
 
         tenure_name_path = self.conf_dir / tenure_name_file
         self.tenure_name_dict = self.load_tenure_name(tenure_name_path)
-        special_roles = ['Prime Minister', 'P. M.']
+        special_roles = ['Prime Minister', 'P. M.', 'P.M']
         self.special_roles = [n.replace(' ', '').strip().lower() for n in special_roles]
 
         self.lgr = logging.getLogger(__name__)

@@ -226,7 +226,7 @@ class OrderBuilder:
         u_texts = [t for t in u_texts if not is_all_punct(t) ]
         return u_texts
 
-    def test(self, list_item, order_detail, post_info, path, ignore_dict):
+    def test(self, list_item, order_detail, post_info, path):
         list_item_text = list_item.line_text()
         
         #ident_str = f'{list_item.doc.pdf_name}:{path}'
@@ -236,12 +236,12 @@ class OrderBuilder:
         person_str = person_spans[0].span_str(list_item_text) if person_spans else ''
 
         
-        errors = list_item.errors +  post_info.errors
+        errors = list_item.list_errors +  post_info.errors
         errors += order_detail.errors if order_detail is not None else []
 
         #u_texts = [ t.lower() for t in list_item.get_unlabeled_texts() if t.lower() not in self.ignore_unmatched ]
         u_texts = self.process_unmatched(list_item.get_unlabeled_texts())
-        if u_texts and (path not in ignore_dict.get('UnmatchedTextsError',[])):
+        if u_texts:
             errors.append(UnmatchedTextsError.build(path, u_texts))
 
         # u_texts_str = ' '.join(u_texts)
@@ -259,7 +259,7 @@ class OrderBuilder:
                 self.lgr.debug(f'\t{str(e)}')
         self.lgr.debug('------------------------')
         return errors
-                
+
 
     def __call__(self, doc):
         self.add_log_handler(doc)        
@@ -302,13 +302,16 @@ class OrderBuilder:
                         order_details.append(order_detail)
                         detail_idx += 1
                     
-                    errors += self.test(list_item, order_detail, post_info, list_item_path, ignore_dict)
+                    errors += self.test(list_item, order_detail, post_info, list_item_path)
                 else:
-                    errors += self.test(list_item, None, post_info, list_item_path, ignore_dict)
+                    errors += self.test(list_item, None, post_info, list_item_path)
 
         doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, order_details)
 
-        self.write_fixes(doc, errors)        
+        errors = [e for e in errors if not DataError.ignore_error(e, ignore_dict)]
+        
+
+        #self.write_fixes(doc, errors)        
         
         self.lgr.info(f"=={doc.pdf_name}.order_builder {len(doc.order.details)} {DataError.error_counts(errors)}")
         [self.lgr.info(str(e)) for e in errors]        
@@ -365,7 +368,9 @@ class OrderBuilder:
             yml_str += '\n'.join(get_yml_row(r) for r in rows)
             return yml_str + '\n'
 
-
+        if not self.fixes_dict:
+            return
+        
         headers = 'Path-Sentence-Unmatched-Image'.split('-')
         html_fixes_path = Path('output') / 'fixes.html'
         html_str = '<html>\n<body>\n<table border=1>\n'

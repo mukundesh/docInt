@@ -15,18 +15,20 @@ from ..region import DataError
 from ..word import Word
 from ..span import Span
 from . import PostParser
+from .pdfpost_parser import PostEmptyRoleError
 
 
 class BadCharsInNameError(DataError):
-    pass
+    bad_chars: List[str]
+    hi_name: str
 
 class IncorrectNameError(DataError):
     sub_str: str
     full_name: str
-    pass
 
 class UntranslatableTextsInPostError(DataError):
-    texts: List[str] = []
+    post_text: str
+    texts: List[str]
 
 
 PassthroughStr   = '.,()-/123456789:'
@@ -43,10 +45,11 @@ DotStr = '०0o..'
         "name_split_strs": ["/"],
         "posts_file": "posts.yml",
         "cadre": "R.P.S.",
+        "from_role_hpath": "",
     },
 )
 class HindiOrderBuilder:
-    def __init__(self, conf_dir, conf_stub, names_file, has_relative_name, name_split_strs, posts_file, cadre):
+    def __init__(self, conf_dir, conf_stub, names_file, has_relative_name, name_split_strs, posts_file, cadre, from_role_hpath):
         self.conf_dir = Path(conf_dir)
         self.conf_stub = conf_stub
         self.names_file = self.conf_dir / names_file
@@ -54,6 +57,7 @@ class HindiOrderBuilder:
         self.name_split_strs = name_split_strs
         self.posts_file = self.conf_dir / posts_file
         self.cadre = cadre
+        self.from_role_hpath = from_role_hpath
 
         self.names_dict = read_config_from_disk(self.names_file)["hindi_names"]
         self.salut_dict = {
@@ -80,6 +84,7 @@ class HindiOrderBuilder:
         self.file_handler = None
 
         self.fixes_dict = {}
+        #self.errors_dict = {}        
 
     def add_log_handler(self, doc):
         handler_name = f"{doc.pdf_name}.{self.conf_stub}.log"
@@ -125,7 +130,7 @@ class HindiOrderBuilder:
                     bad_word = first([w for w in name_words if bad_char in w.text])
                     bad_msgs.append(f'{bad_char}< >{bad_word.text}[{bad_word.word_idx}]')
                 msg = f'Has these bad chars: >{"< >".join(bad_msgs)}< in >{hi_name}<'
-                return [BadCharsInNameError(path=path, msg=msg)]
+                return [BadCharsInNameError(bad_chars=bad, hi_name=hi_name, path=path, msg=msg)]
         return []
 
     def get_salut(self, name, merged_saluts=True):
@@ -180,31 +185,6 @@ class HindiOrderBuilder:
                 errors.append(IncorrectNameError(path=path, msg=msg, sub_str=name_word, full_name=hi_name))
                 return ''
 
-        salut = self.salut_dict[hi_salut.strip(' .')]
-        
-        name_words, errors = [], []
-        hi_name = hi_name.strip('. ')
-        for hi_word in hi_name.split():
-            name_word = self.names_dict.get(hi_word, None)
-            if name_word:
-                name_words.append(hi_word)
-            else:
-                name_words.append(transliterate_name(hi_word))
-        return salut, ' '.join(name_words), errors
-
-    def translate_name2(self, hi_salut, hi_name, path):
-        def transliterate_name(name_word):
-            allowed_chars = '|/।(॥'
-            if name_word == '.':
-                return name_word
-            elif name_word in allowed_chars:
-                return ''
-            else:
-                msg = f'Missing >{name_word}< in >{hi_name}<'
-                print(f'= Officer Error: {msg} {path}')
-                errors.append(IncorrectNameError(path=path, msg=msg, sub_str=name_word, full_name=hi_name))
-                return ''
-
         if path == 'pa0.ta0.ro10.ce1':
             print('Found It')
             
@@ -238,10 +218,10 @@ class HindiOrderBuilder:
         hi_salut, hi_name, hi_relative = self.split_hi_name(hi_text)
 
         # translate salut, name and relative_name
-        salut, name, name_errors = self.translate_name2(hi_salut, hi_name, path)
+        salut, name, name_errors = self.translate_name(hi_salut, hi_name, path)
         relative_name, rel_errors = '', []        
         if hi_relative:
-            _, relative_name, rel_errors = self.translate_name2('', hi_relative, path)
+            _, relative_name, rel_errors = self.translate_name('', hi_relative, path)
         
         full_name = f"{salut} {name}"
         
@@ -354,7 +334,7 @@ class HindiOrderBuilder:
         if untrans_texts:
             print(f'hi:>{hi_text}< en:>UntranslatableTextsInPostError< {path}')            
             msg = f'Untranslatable texts: >{"<, >".join(untrans_texts)}< >{hi_text}<'
-            trans_err = UntranslatableTextsInPostError(msg=msg, path=path, texts=untrans_texts)
+            trans_err = UntranslatableTextsInPostError(msg=msg, path=path, texts=untrans_texts, post_text=hi_text)
             return None, [trans_err]
 
         print(f'hi:>{hi_text}< en:>{post_str}< {path}')
@@ -378,6 +358,11 @@ class HindiOrderBuilder:
         fr_post, fr_post_errors = self.get_post(fr_post_cell, f"{path}.ce2")
         to_post, to_post_errors = self.get_post(to_post_cell, f"{path}.ce3")
 
+        if fr_post and not fr_post.role_hpath and self.from_role_hpath:
+            fr_post.role_hpath = self.from_role_hpath
+            fr_post_errors = [ e for e in fr_post_errors if not isinstance(e, PostEmptyRoleError)]
+            
+
         if not officer:
             return None, officer_errors + fr_post_errors + to_post_errors
 
@@ -396,6 +381,7 @@ class HindiOrderBuilder:
 
     def write_fixes(self, doc, errors):
         name_errors = [ e for e in errors if isinstance(e, IncorrectNameError)]
+        post_errors = [ e for e in errors if isinstance(e, UntranslatableTextsInPostError)]        
 
         for name_error in name_errors:
             row = [name_error.path, name_error.sub_str, name_error.full_name]
@@ -408,6 +394,18 @@ class HindiOrderBuilder:
             row += [ str(sub_idx), cell_word_str, cell_img_str ]
             self.fixes_dict.setdefault(doc.pdf_name, []).append(row)
 
+
+        for post_error in post_errors:
+            untrans_texts = ",<br>".join(post_error.texts)
+            row = [post_error.path, untrans_texts, post_error.post_text]
+            cell = doc.get_region(post_error.path)
+            cell_words = cell.arranged_words(cell.words)
+            
+            cell_word_str = '|'.join(f'{w.text}-{w.word_idx}' for w in cell_words)
+            cell_img_str = cell.page.get_base64_image(cell.shape)            
+            row += [str(cell_words[0].word_idx), cell_word_str, cell_img_str]
+            self.fixes_dict.setdefault(doc.pdf_name, []).append(row)            
+            
     def write_fixes_read_oldyml(self, doc, errors):
         def abbr_path(doc_path):
             abbr_path_fields = []
@@ -496,6 +494,9 @@ class HindiOrderBuilder:
         old_name_split_strs = self.name_split_strs
         self.name_split_strs = doc_config.get('name_split_strs', self.name_split_strs)
 
+        old_from_role_hpath = self.from_role_hpath
+        self.from_role_hpath = doc_config.get('from_role_hpath', self.from_role_hpath)
+
         edits = doc_config.get("edits", [])
         if edits:
             print(f'Edited document: {doc.pdf_name}')
@@ -521,18 +522,95 @@ class HindiOrderBuilder:
 
         doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, details)
         doc.order.category = 'transfer'
+
+        ignore_dict = doc_config.get("ignores", {})
+        if ignore_dict:
+            new_errors = []
+            for error in errors:
+                error_type = type(error).__name__
+                if error.path not in ignore_dict.get(error_type, []):
+                    new_errors.append(error)
+            errors = new_errors
         
         self.lgr.info(f'=={doc.pdf_name}.hindi_order_builder {len(details)} {DataError.error_counts(errors)}')            
         [self.lgr.info(str(e)) for e in errors]
 
         self.write_fixes(doc, errors)
+        #self.errors_dict[doc.pdf_name] = [(e, doc.get_region(e.path)) for e in errors]
 
         self.name_split_strs = old_name_split_strs
+        self.from_role_hpath = old_from_role_hpath
         self.remove_log_handler(doc)
         return doc
 
 
-    def __del__(self):
+    def finalize(self):
+        self.write_all_fixes2()
+
+
+    def write_all_fixes2(self):
+        def get_error_details(error, cell_words):
+            if isinstance(error, IncorrectNameError):
+                sub_strs = [ error.sub_str]
+                error_text = error.full_name
+            elif isinstance(error, UntranslatableTextsInPostError):
+                sub_strs = error.texts
+                error_text = error.post_text
+            elif isinstance(error, BadCharsInNameError):
+                sub_strs = error.bad_chars
+                error_text = error.hi_name
+
+            sub_idxs = []
+            for s in sub_strs:
+                sub_idx = first((w.word_idx for w in cell_words if s == w.text), -1)
+            return sub_strs, sub_idxs, error_text
+        
+        def get_html_yml_lines(ec):
+            error, cell = ec
+            cell_words = cell.arranged_words(cell.words)
+            sub_strs, sub_idxs, error_text = get_error_details(error, cell_words)
+            cell_word_str = '|'.join(f'{w.text}-{w.word_idx}' for w in cell_words)
+            cell_img_str = cell.page.get_base64_image(cell.shape)
+
+            sub_idxs_str = ",".join(str(idx) for idx in sub_idxs)
+            html_row = [ error.path, ",".join(sub_strs), error_text]
+            html_row += [ sub_idxs_str, cell_word_str, cell_img_str]
+            
+            html_line = f"<tr><td>{'</td><td>'.join(html_row)}</td></tr>"
+
+            yml_lines = '# {error.path} >{",".join(sub_strs)}< {cell_word_str}'
+            for s_str, s_idx in zip(sub_strs, sub_idxs):
+                yml_lines += '  - replaceStr pa{cell.page_idx}.wo{s_idx} <all> {s_str}'
+            return html_line, yml_lines
+
+        
+        doc_errors = sorted(self.errors_dict.items(), key=lambda tup: -len(tup[1]))
+
+        headers = 'Path-Sub Str-Full Name-SubIdx-Words-Image'.split('-')        
+
+        html_str =  '<html>\n<body>\n<table border=1>\n'
+        html_str += '<tr><th>' + '</th><th>'.join(headers) + '</th></tr>\n'
+        for pdf_name, error_regions in doc_errors:
+            error_regions = sorted(error_regions, key=lambda er: str(type(er[0])))
+            
+            html_lines, yml_lines = zip(*(get_html_yml_lines(er) for er in error_regions))
+            
+            html_str += f'<tr><td colspan="{len(headers)}" style="text-align:left;">'
+            html_str += f'{pdf_name}</td></tr>\n'
+            html_str += "\n".join(html_lines)
+            
+            yml_str += f'#F conf/{pdf_name}.orderbuilder.yml\nedits:\n'
+            yml_str = "\n".join(yml_lines)
+        
+        #end
+        html_fixes_path = Path('output') / 'fixes.html'
+        html_fixes_path.write_text(html_str, encoding="utf-8")
+
+        yml_fixes_path  = Path('output') / 'fixes.yml'
+        yml_fixes_path.write_text(yml_str, encoding="utf-8")
+
+
+    def write_all_fixes(self):
         def get_html_row(row):
             row[-1] = f'<img src="{row[-1]}">'
             return '<tr><td>' + '</td><td>'.join(row) + '</td></tr>'
@@ -569,6 +647,16 @@ class HindiOrderBuilder:
         yml_fixes_path = Path('output') / 'fixes.yml'
         yml_str = '\n'.join(get_yml_rows(k, v) for k, v in self.fixes_dict.items())
         yml_fixes_path.write_text(yml_str, encoding="utf-8")
+        
+        
+        
+
+
+    def __del__(self):
+        self.write_all_fixes()
+
+        # can't invoke this here as the documents get deleted first, not sure why ?
+        #self.write_all_fixes2()
         
         
         

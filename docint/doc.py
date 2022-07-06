@@ -116,6 +116,8 @@ class PageImage(BaseModel):
         page_y_scale = (self.image_box.bot.y - self.image_box.top.y)/self.image_height
 
         page_x, page_y = image_coord.x * page_x_scale, image_coord.y * page_y_scale
+        ### ADDED THIS LATER <<< 
+        page_x, page_y = page_x + self.image_box.top.x, page_y + self.image_box.top.y
         doc_coord = Coord(x=page_x/self.page.width, y=page_y/self.page.height)
         return doc_coord
 
@@ -551,6 +553,29 @@ class Doc(BaseModel):
             main_word.replaceStr('<all>', new_text)
             [w.replaceStr('<all>', '') for w in to_merge_words]
 
+
+        def splitWord(doc, path, split_str):
+            word = doc.get_word(path)
+            box = word.box
+            
+            assert split_str in word.text
+            split_idx = word.text.index(split_str) + len(split_str)
+            
+            lt_str = word.text[:split_idx]
+            rt_str = word.text[split_idx:]
+
+            print(f'Left: {lt_str} Right: {rt_str}')
+
+            split_x = box.xmin + (box.width * len(lt_str)/len(word.text))
+            
+            word.replaceStr('<all>', lt_str)
+            lt_box = Shape.build_box([box.top.x, box.top.y, split_x, box.bot.y])
+            word.shape_ = lt_box
+            
+            rt_box = Shape.build_box([split_x, box.top.y, box.bot.x, box.bot.y])
+            rt_word = word.page.add_word(rt_str, rt_box)
+            return word
+        
         def replaceStr(doc, path, old, new):
             word = doc.get_word(path)
             word.replaceStr(old, new)
@@ -583,7 +608,24 @@ class Doc(BaseModel):
             #region.text_ = None
             region.shape_ = None
             return region
+        
+        # def newRegionToList(doc, parent_path, *word_paths):
+        #     parent = doc.get_region(parent_path)
+        #     assert word_paths
+        #     add_words = [ doc.get_word(p) for p in word_paths ]
+        #     new_region = Region.build(add_words, add_words[0].page_idx)
+        #     assert isinstance(parent, list)
+        #     parent.append(new_region)
+        #     return new_region
 
+        # def newRegion(doc, parent_path, region_name, *word_paths):
+        #     parent = doc.get_region(parent_path)
+        #     assert word_paths
+        #     add_words = [ doc.get_word(p) for p in word_paths ]
+        #     new_region = Region.build(add_words, add_words[0].page_idx)
+        #     assert isinstance(parent, list)
+        #     parent.append(new_region)
+        #     return new_region
 
         def deletePage(doc, path):
             del_idx = int(path[2:])
