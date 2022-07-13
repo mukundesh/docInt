@@ -1,0 +1,34 @@
+## doc.py
+1. Move PageImage to separate page_image.py
+2. Rename doc.build_doc to doc.build()
+3. Rename to_json, to_msgpack json(), msgpack()
+4. Cleanup from_disk and streamline the linking part
+    a) rename extra_attr_dict extra_attr
+    b) have only linking method and use it in both page and doc
+5. Consolidate all the get_path variants to get_path
+6. Move the edit_doc functionality outside of doc.py
+
+## page.py
+1. Remove text property
+2. Remove lot of unused code, check the following
+   a) reorder_words, reorder_in_word_lines, arrange_words ?
+3. Identify if page is going to hold actual word_lines or regions and the interplay
+   between identifying word_lines and not identifying word_lines.
+4. Create a new object Image, file_path and shape, could be an extension of page_image,
+   or other way around.
+
+## word.py
+1. Do we need break_type ? seetup a default to save space
+
+
+## region.py << LOT OF WORK, good tests needed, need clarity on lines as well >>
+1. Lots of coder around iterator needs to go
+2. Need heavy testing around spans/ around wordboundary and not on word boundary
+3. Need to figure out the interaction with dictionary and make dictionary a first class
+   object.
+4. Should all the text processing operations be part of sentence instead of region, which
+   is a child class of Region ? 
+
+    
+### Top Level
+1. Figure out the word_lines before fixing region/page

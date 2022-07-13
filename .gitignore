@@ -130,3 +130,5 @@ dmypy.json
 
 .bak
 *~
+.img
+.html
