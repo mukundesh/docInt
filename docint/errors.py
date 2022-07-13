@@ -22,6 +22,12 @@ class Errors:
             "doesn't exist in the pipeline anymore. If you want to remove "
             "components from the pipeline, you should do it before calling "
             "`viz.select_pipes` or after restoring the disabled components.")
+
+
+    E020 = ("{line_num}: No function {function} found in doc.")
+    
+
+    
     
     
     

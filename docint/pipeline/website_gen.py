@@ -10,7 +10,9 @@ import yaml
 import json
 from dateutil import parser
 from ..vision import Vision
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+
+#from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 # b /Users/mukund/Software/docInt/docint/pipeline/website_gen.py:164
 
@@ -22,7 +24,25 @@ class OfficerInfo:
         self.full_name = yml_dict["full_name"]
         self.key_tenures = []
         self.ministries = []
+        self.url = ''
+        self.officer_idx = -1
 
+    @property
+    def first_char(self):
+        return self.full_name[0]
+
+    def get_searchdoc_dict(self):
+        doc = {}
+        doc['idx'] = self.officer_idx        
+        doc['full_name'] = self.full_name
+        doc['officer_id'] = self.officer_id
+        doc['image_url'] = self.image_url
+        doc['url'] = self.url                
+        for (k_idx, key_tenure) in enumerate(self.key_tenures):
+            doc[f'key_dept{k_idx+1}'] = key_tenure.dept
+            doc[f'key_start{k_idx+1}'] = key_tenure.start_month_year
+            doc[f'key_end{k_idx+1}'] =  key_tenure.end_month_year
+        return doc
 
 class TenureInfo:
     def __init__(self, tenure, post, start_order_url, end_order_url):
@@ -65,12 +85,14 @@ class TenureInfo:
 
 PAGEURL = "/Users/mukund/orgpedia/cabsec/import/html/"
 class OrderInfo:
-    def __init__(self, order, details, num_pages):
+    def __init__(self, order, details, ministry, ministry_start_date, num_pages):
         def get_image_url(idx):
             idx += 1
             return f'{PAGEURL}{order.order_id.replace(".pdf","")}/svg-{idx:03d}.svg'
         
         self.order = order
+        self.ministry = ministry
+        self.ministry_start_date = ministry_start_date
         self.details = details
         self.pages = [ get_image_url(idx) for idx in range(num_pages)]
 
@@ -134,14 +156,16 @@ class DetailInfo:
         "conf_stub": "website_generator",
         "officer_info_files": ["conf/wiki_officer.yml"],
         "ministry_file": "conf/ministries.yml",
+        "output_dir": "output"
     },
 )
 class WebsiteGenerator:
-    def __init__(self, conf_dir, conf_stub, officer_info_files, ministry_file):
+    def __init__(self, conf_dir, conf_stub, officer_info_files, ministry_file, output_dir):
         self.conf_dir = Path(conf_dir)
         self.conf_stub = conf_stub
         self.officer_info_files = officer_info_files
         self.ministry_path = Path(ministry_file)
+        self.output_dir = Path(output_dir)
 
         self.officer_info_dict = self.get_officer_infos(self.officer_info_files)
         print(f'#Officer_info: {len(self.officer_info_dict)}')
@@ -151,7 +175,8 @@ class WebsiteGenerator:
         self.order_dict = {}
         
         self.order_idx_dict = {}
-        self.officer_idx_dict = {}        
+        self.officer_idx_dict = {}
+        self.order_info_dict = {}
 
         if self.ministry_path.exists():
             self.ministry_dict = yaml.load(
@@ -165,6 +190,9 @@ class WebsiteGenerator:
                 )
         else:
             self.ministry_dict = {}
+
+        from jinja2 import Environment, FileSystemLoader, select_autoescape
+        from lunr import lunr        
 
         self.env = Environment(
             loader=FileSystemLoader("conf/templates"), autoescape=select_autoescape()
@@ -211,14 +239,14 @@ class WebsiteGenerator:
 
         start_order = self.order_dict[tenure.start_order_id]
         start_page_idx = tenure.get_start_page_idx(start_order)
-        start_order_idx = self.order_idx_dict[tenure.start_order_id]
-        start_url = f"order-{start_order_idx}.html#Page{start_page_idx + 1}"
+        start_order_id = tenure.start_order_id
+        start_url = f"order-{start_order_id}.html#Page{start_page_idx + 1}"
 
         if tenure.end_order_id:
             end_order = self.order_dict[tenure.end_order_id]
             end_page_idx = tenure.get_end_page_idx(end_order)
-            end_order_idx = self.order_idx_dict[tenure.end_order_id]
-            end_url = f"order-{end_order_idx}.html#Page{end_page_idx + 1}"
+            end_order_id = tenure.end_order_id
+            end_url = f"order-{end_order_id}.html#Page{end_page_idx + 1}"
         else:
             end_url = ""
         
@@ -235,16 +263,25 @@ class WebsiteGenerator:
             details.append(DetailInfo(d, officer_idx, officer_name))
 
         num_pages = order.details[-1].page_idx + 1
-        order_info = OrderInfo(order, details, num_pages)            
+        ministry, ministry_start_date = self.get_ministry(order.date)
+        
+        order_info = OrderInfo(order, details, ministry, ministry_start_date, num_pages)
         return order_info
 
     def get_html_path(self, entity, idx):
-        return Path(f"output/{entity}-{idx}.html")
+        if idx:
+            return self.output_dir / f"{entity}-{idx}.html"
+        else:
+            return self.output_dir / f"{entity}.html"
 
     def render_html(self, entity, obj):
         template = self.env.get_template(f"{entity}.html.jinja")
         if entity == "officer":
             return template.render(officer=obj)
+        elif entity == "officers":
+            return template.render(officer_groups=obj)
+        elif entity == "orders":
+            return template.render(order_groups=obj)            
         else:
             return template.render(order=obj)
 
@@ -255,8 +292,19 @@ class WebsiteGenerator:
         print(f'> {order.order_id} {str(order.date)}')
 
         order_info = self.build_orderinfo(order)
+        self.order_info_dict[order.order_id] = order_info
+        
         html_path = self.get_html_path("order", order.order_id)
         html_path.write_text(self.render_html("order", order_info))
+
+    def get_ministry(self, date):
+        if not self.ministry_dict:
+            return "No Ministry", None
+        
+        for m in self.ministry_dict["ministries"]:
+            if m["start_date"] <= date < m["end_date"]:
+                return m["name"], m["start_date"]
+        return None, None
 
     def gen_officer_page(self, officer_idx, officer_id, tenures):
         def seniority(tenure):
@@ -289,9 +337,41 @@ class WebsiteGenerator:
         officer_info = self.officer_info_dict[officer_id]
         officer_info.ministries = ministries
         officer_info.key_tenures = key_tenures
+        officer_info.url = f"officer-{officer_idx}.html"
 
         html_path = self.get_html_path("officer", officer_idx)
         html_path.write_text(self.render_html("officer", officer_info))
+
+    def gen_officers_page(self):
+        officer_infos = sorted(self.officer_info_dict.values(), key=attrgetter('first_char'))
+        officer_groups = [ list(g) for k, g in groupby(officer_infos, key=attrgetter('first_char'))]
+        
+        print(f'Officer groups: {len(officer_groups)}')
+        html_path = self.get_html_path("officers", '')
+        html_path.write_text(self.render_html("officers", officer_groups))
+
+
+    def gen_orders_page(self):
+        order_infos = sorted(self.order_info_dict.values(), key=attrgetter('ministry_start_date', 'date'))
+        order_groups = [ list(g) for k, g in groupby(order_infos, key=attrgetter('ministry_start_date'))]
+        
+        print(f'Order groups: {len(order_groups)}')
+        html_path = self.get_html_path("orders", '')
+        html_path.write_text(self.render_html("orders", order_groups))
+
+    def write_search_index(self):
+        docs = [ o.get_searchdoc_dict() for o in self.officer_info_dict.values() ]
+        
+        lunrIdx = lunr(ref='idx', fields=['full_name', 'officer_id'],
+                       documents=docs)
+
+        search_index_file = self.output_dir / "lunr.idx.json"
+        search_index_file.write_text(json.dumps(lunrIdx.serialize()))
+
+        docs_file = self.output_dir / "docs.json"
+        docs_file.write_text(json.dumps(docs))
+        
+
 
     def pipe(self, docs, **kwargs):
         self.add_log_handler()
@@ -313,15 +393,20 @@ class WebsiteGenerator:
         tenures = list(flatten(doc.tenures for doc in docs))
         self.lgr.info(f"Handling #tenures: {len(tenures)}")
         
-
         officer_key = attrgetter("officer_id")
         officer_groups = groupby(sorted(tenures, key=officer_key), key=officer_key)
         for (officer_idx, (officer_id, officer_tenures)) in enumerate(officer_groups):
             self.gen_officer_page(officer_idx, officer_id, officer_tenures)
             self.officer_idx_dict[officer_id] = officer_idx
+            self.officer_info_dict[officer_id].officer_idx = officer_idx
 
         [ self.gen_order_page(idx, o) for idx, o in enumerate(orders) ]
+
+        self.gen_officers_page()
+        self.gen_orders_page()
+        self.write_search_index()
 
         self.lgr.info("Leaving website builder")
         self.remove_log_handler()
         return docs
+            

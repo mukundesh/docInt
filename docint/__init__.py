@@ -13,9 +13,15 @@ from . import pipeline
 def load(name: Path, *, config: Dict[str, Any] = SimpleFrozenDict()) -> Vision:
     """Load a docInt model from either local path.
 
-    name (Path): Path to the model config file
-    config (Dict[str, Any]): Config options
-    RETURNS (Vision): A loaded viz object.
+    Args: 
+        name (Path): Path to the model config file
+        config (Dict[str, Any]): Config options
+    Returns: 
+        Vision: A loaded viz object.
+
+        .. _PEP 484:
+            https://www.python.org/dev/peps/pep-0484/
+
     """
     path = Path(name)
 
@@ -26,10 +32,15 @@ def load(name: Path, *, config: Dict[str, Any] = SimpleFrozenDict()) -> Vision:
     return Vision.from_config(config)
 
 
-def empty(*, config: Dict[str, Any] = SimpleFrozenDict()) -> None:
-    """Create an empty docInt model ** NOT IMPLEMENTED **
+def empty(*, config: Dict[str, Any] = SimpleFrozenDict()) -> Vision:
+    """Create an empty docInt model
 
-    config (Dict[str, Any]): Config options
-    RETURNS (Vision): A loaded viz object.
+    Args:
+        config (Dict[str, Any]): Config options
+    Returns:
+        Vision: A loaded viz object.
     """
-    raise NotImplementedError("Will do when needed")
+    return Vision.from_config(config)
+    
+
+

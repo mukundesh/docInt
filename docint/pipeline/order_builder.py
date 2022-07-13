@@ -235,8 +235,11 @@ class OrderBuilder:
         person_spans = list_item.get_spans('person')
         person_str = person_spans[0].span_str(list_item_text) if person_spans else ''
 
-        
-        errors = list_item.list_errors +  post_info.errors
+        if type(list_item).__name__ == 'ListItem':
+            errors = list_item.list_errors +  post_info.errors            
+        else:
+            errors = list_item.errors + post_info.errors
+            
         errors += order_detail.errors if order_detail is not None else []
 
         #u_texts = [ t.lower() for t in list_item.get_unlabeled_texts() if t.lower() not in self.ignore_unmatched ]

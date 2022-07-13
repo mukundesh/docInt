@@ -4,6 +4,7 @@ import subprocess
 from typing import List, Tuple, Dict, Any
 import math
 from base64 import b64encode
+from itertools import zip_longest
 
 from pydantic import BaseModel, Field, parse_obj_as
 
@@ -20,6 +21,7 @@ from wand.image import Image
 from .shape import Shape, Box, Coord
 from .page import Page
 from .region import Region
+from .errors import Errors
 
 
 # A container for tracking the document from a pdf/image to extracted information.
@@ -60,6 +62,23 @@ class PageImage(BaseModel):
         return image_coord
 
     def transform(self, image_coord):
+        """Example function with types documented in the docstring.
+
+        `PEP 484`_ type annotations are supported. If attribute, parameter, and
+        return types are annotated according to `PEP 484`_, they do not need to be
+        included in the docstring:
+
+        Args:
+            param1 (int): The first parameter.
+            param2 (str): The second parameter.
+
+        Returns:
+            bool: The return value. True for success, False otherwise.
+
+        .. _PEP 484:
+            https://www.python.org/dev/peps/pep-0484/
+
+        """        
         for trans_tuple in self.transformations:
             if trans_tuple[0] == 'crop':
                 top, bot = trans_tuple[1], trans_tuple[2]
@@ -343,9 +362,9 @@ class Doc(BaseModel):
         import msgpack
         return msgpack.packb(json.loads(self.to_json()))
 
-    def to_disk(self, disk_file):
+    def to_disk(self, disk_file, format='json'):
         disk_file = Path(disk_file)
-        if disk_file.suffix.lower() in ('.json', '.jsn'):
+        if format == 'json':
             disk_file.write_text(self.to_json())
         else:
             disk_file.write_bytes(self.to_msgpack())
@@ -456,6 +475,7 @@ class Doc(BaseModel):
         return self
 
     # TODO proper path processing please...
+    # combine all of these in one single path
     def _splitPath(self, path):
         page_idx, word_idx = path.split(".", 1)
         return (int(page_idx[2:]), int(word_idx[2:]))
@@ -517,7 +537,7 @@ class Doc(BaseModel):
         else:
             return jpath
 
-    def edit(self, edits):
+    def edit(self, edits, file_path='', line_nums=[]):
         def clearWord(doc, path):
             word = doc.get_word(path)
             word.clear()
@@ -638,10 +658,18 @@ class Doc(BaseModel):
             for page in doc.pages[del_idx:]:
                 page.page_idx -= 1
 
-
-        for edit in edits:
+        if line_nums:
+            assert len(line_nums) == len(edits)
+            
+        for (edit, line_num) in zip_longest(edits, line_nums, fillvalue=''):
             #print(f"Edit: {edit}")
             editList = shlex.split(edit.strip())
             proc = editList.pop(0)
-            cmd = locals()[proc]
+            
+            cmd = locals().get(proc, None)
+            if not cmd:
+                file_str = str(file_path)
+                line_str = f'{file_str}:{line_num}' if (file_path or line_num) else ''
+                raise ValueError(Errors.E020.format(line_num=line_str, function=proc))
+
             cmd(self, *editList)

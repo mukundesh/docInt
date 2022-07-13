@@ -41,7 +41,8 @@ class Vision:
         self._components = []
         self.default_error_handler = raise_error
         self.images_dir = '.img'
-        self.image_root = '.img' # We should be using this 
+        self.image_root = '.img' # We should be using this
+        self.ignore_docs = []
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
@@ -51,7 +52,7 @@ class Vision:
         Doc._image_root = viz.image_root
             
         viz.ignore_docs = config.get('ignore_docs', [])
-        for pipe_config in config["pipeline"]:
+        for pipe_config in config.get("pipeline", []):
             viz.add_pipe(
                 pipe_config.get("name"),
                 pipe_config=pipe_config.get("config", {}),

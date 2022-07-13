@@ -431,7 +431,8 @@ class WordsFixer:
                 list_item_errors = self.test(list_item, item_path )
                 
                 list_item.errors += list_item_errors
-                list_item.list_errors += list_item_errors
+                if type(list_item).__name__ == 'ListItem':
+                    list_item.list_errors += list_item_errors
                 
                 err_str = list_item.error_counts_str
                 self.lgr.debug(list_item.str_spans())

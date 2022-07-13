@@ -30,30 +30,30 @@ class Page(BaseModel):
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
-            Region(self.doc, self.page_idx, self.words[idx])
+            return Region.build(self.words[idx], self.page_idx)
         elif isinstance(idx, int):  # should I return a region ?
             return self.words[idx]
         else:
             raise TypeError("Unknown type {type(idx)} this method can handle")
 
-    def get_region(self, shape, overlap=100):
-        assert False
-        pass
+    # def get_region(self, shape, overlap=100):
+    #     assert False
+    #     pass
 
-    def get_text_at(self, direction, word, use_ordered=False):
-        assert False        
-        if direction not in ("left", "right"):
-            raise ValueError()
-        pass
+    # def get_text_at(self, direction, word, use_ordered=False):
+    #     assert False        
+    #     if direction not in ("left", "right"):
+    #         raise ValueError()
+    #     pass
 
-    def get_ordered_words(self):
-        assert False        
-        pass
-        # Should this be outside ???
+    # def get_ordered_words(self):
+    #     assert False        
+    #     pass
+    #     # Should this be outside ???
 
-    def orient_page(self):
-        assert False        
-        pass
+    # def orient_page(self):
+    #     assert False        
+    #     pass
 
     @property
     def width(self):
@@ -84,66 +84,67 @@ class Page(BaseModel):
     def shape(self):
         return Box(top=Coord(x=0.0, y=0.0), bot=Coord(x=1.0, y=1.0))
 
-    # TODO fix this, can we move page_image to page
+    # TODO fix this, can we move page_image to page, actually to a separte object
     @property
     def page_image(self):
         page_image = self.doc.page_images[self.page_idx]
         page_image.page = self
         return page_image
 
-    def get_doc_x_val(self, img_x):
-        #print(f'img_x: {img_x}')
-        page_image = self.doc.page_images[self.page_idx]
-        image_box = page_image.image_box
+    # def get_doc_x_val(self, img_x):
+    #     # should operate on coords
+    #     #print(f'img_x: {img_x}')
+    #     page_image = self.doc.page_images[self.page_idx]
+    #     image_box = page_image.image_box
 
-        page_x_scale =  (image_box.bot.x - image_box.top.x) /page_image.image_width
-        page_y_scale =  (image_box.bot.y - image_box.top.y) /page_image.image_height
-        page_scale = page_x_scale
+    #     page_x_scale =  (image_box.bot.x - image_box.top.x) /page_image.image_width
+    #     page_y_scale =  (image_box.bot.y - image_box.top.y) /page_image.image_height
+    #     page_scale = page_x_scale
         
-        page_x = img_x * page_scale
-        #print(f'page_x: {page_x}')        
+    #     page_x = img_x * page_scale
+    #     #print(f'page_x: {page_x}')        
 
-        doc_x_val = (page_x + image_box.top.x) / self.width
-        #print (f'doc_x_val: {doc_x_val}')
-        return doc_x_val
+    #     doc_x_val = (page_x + image_box.top.x) / self.width
+    #     #print (f'doc_x_val: {doc_x_val}')
+    #     return doc_x_val
 
-    def get_doc_y_val(self, img_y):
-        page_image = self.doc.page_images[self.page_idx]
-        image_box = page_image.image_box
+    # def get_doc_y_val(self, img_y):
+    #     page_image = self.doc.page_images[self.page_idx]
+    #     image_box = page_image.image_box
 
-        page_y_scale =  (image_box.bot.y - image_box.top.y) /page_image.image_height
-        page_y = img_y * page_y_scale
+    #     page_y_scale =  (image_box.bot.y - image_box.top.y) /page_image.image_height
+    #     page_y = img_y * page_y_scale
 
-        return (page_y + image_box.top.y) / self.height
+    #     return (page_y + image_box.top.y) / self.height
     
-    def get_image_x_val(self, x):
-        #print(f'x: {x}')
-        # convert 0.0 - 1.0 coords to page_coords
-        page_x = int(x * self.width)
+    # def get_image_x_val(self, x):
+    #     #print(f'x: {x}')
+    #     # convert 0.0 - 1.0 coords to page_coords
+    #     page_x = int(x * self.width)
 
-        #print(f'page_x: {page_x}')        
+    #     #print(f'page_x: {page_x}')        
         
-        page_image = self.doc.page_images[self.page_idx]
-        image_box = page_image.image_box
+    #     page_image = self.doc.page_images[self.page_idx]
+    #     image_box = page_image.image_box
         
-        image_x_scale = page_image.image_width / (image_box.bot.x - image_box.top.x)
+    #     image_x_scale = page_image.image_width / (image_box.bot.x - image_box.top.x)
 
-        # convert page_coords to image_coords
-        image_x_val = int((page_x - image_box.top.x) * image_x_scale)
-        #print(f'image_x_val: {image_x_val}')        
-        return image_x_val
+    #     # convert page_coords to image_coords
+    #     image_x_val = int((page_x - image_box.top.x) * image_x_scale)
+    #     #print(f'image_x_val: {image_x_val}')        
+    #     return image_x_val
         
-    def get_image_y_val(self, y):
-        # convert 0.0 - 1.0 coords to page_coords
-        page_y = int(y * self.height)
+    # def get_image_y_val(self, y):
+    #     # convert 0.0 - 1.0 coords to page_coords
+    #     page_y = int(y * self.height)
         
-        page_image = self.doc.page_images[self.page_idx]
-        image_box = page_image.image_box
+    #     page_image = self.doc.page_images[self.page_idx]
+    #     image_box = page_image.image_box
         
-        image_y_scale = page_image.image_height / (image_box.bot.y - image_box.top.y)
+    #     image_y_scale = page_image.image_height / (image_box.bot.y - image_box.top.y)
 
-        # convert page_coords to image_coords
-        return int((page_y - image_box.top.y) * image_y_scale)
+    #     # convert page_coords to image_coords
+    #     return int((page_y - image_box.top.y) * image_y_scale)
 
 
     def words_in_xrange(self, xrange, partial=False):
@@ -182,7 +183,7 @@ class Page(BaseModel):
                 top_most = max(0.0, word.ymin - offset)
                 yrange = (0.0, word.ymin)
             else:
-                bot_most = min(1.0, word.ymax + offste)
+                bot_most = min(1.0, word.ymax + offset)
                 yrange = (word.ymax, bot_most)
             
             vert_words = self.words_in_xrange(xrange, partial=True)
