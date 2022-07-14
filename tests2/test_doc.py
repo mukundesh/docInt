@@ -1,13 +1,9 @@
 from pathlib import Path
-import docint
 
 from docint.doc import Doc
 from docint.region import Region
 
-import pytest
-
 small_json = '{"pdffile_path": "one_word.pdf", "pages": [{"page_idx": 0, "words": [{"page_idx": 0, "word_idx": 0, "text_": "One", "break_type": 1, "shape_": {"top": {"x": 0.1211429781512605, "y": 0.08872684085510685}, "bot": {"x": 0.15513645714285715, "y": 0.10297862232779094}}}], "width_": 595, "height_": 842}], "page_infos": [{"width": 595.0, "height": 842.0, "num_images": 0}], "page_images": [{"image_width": 2480.0, "image_height": 3509.0, "image_path": "orig-001-000.png", "image_box": {"top": {"x": 0.0, "y": 0.0}, "bot": {"x": 595.0, "y": 842.0}}, "image_type": "raster"}]}'
-
 
 
 def test_properties(one_word_doc):

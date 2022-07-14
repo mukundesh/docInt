@@ -1,31 +1,29 @@
 import logging
-import sys
-from pathlib import Path
-import unicodedata
 import re
+import sys
+import unicodedata
+from pathlib import Path
 
 from more_itertools import first
 from polyleven import levenshtein
 
-
-from ..vision import Vision
-
-
-from ..extracts.orgpedia import Officer, OrderDetail, Order
-
-# from ..extracts.orgpedia import IncorrectOrderDateError, OrderDateNotFoundErrror
+from ..extracts.orgpedia import Officer, Order, OrderDetail
 
 # from ..region Region, UnmatchedTextsError
 from ..span import Span
 
 # from ..hierarchy import Hierarchy, MatchOptions
-from ..util import read_config_from_disk, load_config, find_date
+from ..util import find_date, load_config, read_config_from_disk
+from ..vision import Vision
+from .pdfpost_parser import PostParser
 from .hindi_order_builder import (
     BadCharsInNameError,
     IncorrectNameError,
     UntranslatableTextsInPostError,
 )
-from . import PostParser
+
+# from ..extracts.orgpedia import IncorrectOrderDateError, OrderDateNotFoundErrror
+
 
 PassthroughStr = ".,()-/123456789:"
 PasssthroughList = [
@@ -75,8 +73,8 @@ class HindiOrderTagger:
             "डॉ": "Dr.",
             "": "",
         }
-        self.name_split_strs = ''
-        
+        self.name_split_strs = ""
+
         post_yml_dict = read_config_from_disk(self.posts_file)
         self.post_stubs_dict = post_yml_dict["stubs_translation"]
         self.post_dict = post_yml_dict["translation"]
@@ -189,13 +187,12 @@ class HindiOrderTagger:
 
         hi_full, hi_relative = hi_text.strip(), ""
 
-
         if self.has_relative_name and has_name_split_str(hi_text):
             hi_full, hi_relative = split_on_name_split_str(hi_text)
             hi_full, hi_relative = hi_full.strip(), hi_relative.strip()
 
         hi_salut = self.get_salut(hi_full).strip()
-        hi_name = hi_full[len(hi_salut):].strip()
+        hi_name = hi_full[len(hi_salut) :].strip()
         return hi_salut, hi_name, hi_relative
 
     def translate_name(self, hi_salut, hi_name, path):
@@ -219,7 +216,7 @@ class HindiOrderTagger:
             print("Found It")
 
         salut = self.salut_dict[hi_salut.strip(" .")]
-        name_words, errors = [], []
+        name_words, errors = [], []  # noqa: F841
         hi_name = hi_result = hi_name.strip(". ")
         for hi_word in re.split("[ .]+", hi_name):
             name_word = self.names_dict.get(hi_word, None)
@@ -352,7 +349,9 @@ class HindiOrderTagger:
 
         post_str, untrans_texts = self.translate_post(hi_text)
         if untrans_texts:
-            print(f"hi:>{hi_text}< en:>UntranslatableTextsInPostError< {path} {','.join(untrans_texts)}")
+            print(
+                f"hi:>{hi_text}< en:>UntranslatableTextsInPostError< {path} {','.join(untrans_texts)}"
+            )
             msg = f'Untranslatable texts: >{"<, >".join(untrans_texts)}< >{hi_text}<'
             trans_err = UntranslatableTextsInPostError(
                 msg=msg, path=path, texts=untrans_texts, post_text=hi_text
@@ -378,7 +377,7 @@ class HindiOrderTagger:
         verb_dict = {}
         for verb in ["continues", "relinquishes", "assumes"]:
             for conf_post in conf_detail.get(verb, []):
-                post_words = [page.words[idx] for idx in conf_post['idxs']]
+                post_words = [page.words[idx] for idx in conf_post["idxs"]]
                 post_path = f"pa{page.page_idx}.wo{post_words[0].word_idx}"
 
                 post, post_errors = self.build_post(post_words, post_path)
@@ -427,10 +426,10 @@ class HindiOrderTagger:
 
             if update_order:
                 detail_idx = conf_detail["detail_idx"]
-                if doc.order.details: 
+                if doc.order.details:
                     order_detail = doc.order.details[detail_idx]
                     updated_detail = self.update_detail(conf_detail, order_detail, page)
-                    doc.order.details[detail_idx] = updated_detail                    
+                    doc.order.details[detail_idx] = updated_detail
                 else:
                     new_detail = self.build_detail(conf_detail, page)
                     details.append(new_detail)

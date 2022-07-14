@@ -1,12 +1,12 @@
 from collections import Counter
 from pathlib import Path
-#import subprocess
 
 from PIL import Image
 
+from ..shape import Coord
 from ..vision import Vision
-from ..page import Page
-from ..shape import Coord, Poly
+
+# import subprocess
 
 
 @Vision.factory("orient_pages", default_config={"min_word_len": 4, "images_dir": None})
@@ -27,21 +27,18 @@ class OrientPage:
             (1, 0, 2, 3): 0,
             (1, 0, 3, 2): 0,
             (0, 1, 2, 3): 0,
-            
             (3, 0, 2, 1): 90,
             (0, 3, 1, 2): 90,
             (0, 3, 2, 1): 90,
-            (3, 0, 1, 2): 90,            
-            
+            (3, 0, 1, 2): 90,
             (2, 3, 1, 0): 180,
             (3, 2, 1, 0): 180,
             (3, 2, 0, 1): 180,
-            (2, 3, 0, 1): 180,                                    
-            
+            (2, 3, 0, 1): 180,
             (1, 2, 0, 3): 270,
-            (1, 2, 3, 0): 270,            
+            (1, 2, 3, 0): 270,
             (2, 1, 3, 0): 270,
-            (2, 1, 0, 3): 270,                        
+            (2, 1, 0, 3): 270,
         }
         angle_counter = Counter()
         for w in long_words:
@@ -49,7 +46,7 @@ class OrientPage:
             wCoordIdxs.sort(key=lambda tup: (tup[1].y, tup[1].x))
             idxs = tuple([tup[0] for tup in wCoordIdxs])
             if tuple(idxs) not in angleDict:
-                print(f'idx: {w.page_idx} {w.word_idx} -> {idxs}')
+                print(f"idx: {w.page_idx} {w.word_idx} -> {idxs}")
                 assert False
             else:
                 angle = angleDict[tuple(idxs)]
@@ -58,13 +55,11 @@ class OrientPage:
 
     def orient_image(self, img_path, angle):
         assert angle in (90, 180, 270)
-        new_path = img_path.parent / (img_path.stem + f'-r{angle}' + img_path.suffix)
+        new_path = img_path.parent / (img_path.stem + f"-r{angle}" + img_path.suffix)
         if not new_path.exists():
-            print(f'rotating the image {new_path}')
+            print(f"rotating the image {new_path}")
             img = Image.open(img_path).rotate(angle)
             img.save(new_path)
-
-        
 
     def orient_page(self, page, angle):
         xMultiplier = (page.height / float(page.width)) if angle in (90, 270) else 1.0
@@ -89,13 +84,13 @@ class OrientPage:
         [updateCoords(w, angle, page.width, page.height) for w in page.words]
 
     def __call__(self, doc):
-        print(f'Processing {doc.pdf_name}')
-        doc.add_extra_page_field('reoriented_angle', ('noparse', '', ''))
+        print(f"Processing {doc.pdf_name}")
+        doc.add_extra_page_field("reoriented_angle", ("noparse", "", ""))
         for page in doc.pages:
             angle = self.get_reorient_angle(page)
-            print(f'page_idx: {page.page_idx} Angle: {angle}')            
+            print(f"page_idx: {page.page_idx} Angle: {angle}")
             if angle != 0:
-                print(f'Orienting page_idx: {page.page_idx}')
+                print(f"Orienting page_idx: {page.page_idx}")
                 angle = self.get_reorient_angle(page)
                 self.orient_page(page, angle)
                 page.reoriented_angle = angle

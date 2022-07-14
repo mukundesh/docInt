@@ -1,4 +1,0 @@
-pipeline:
-  - name: gcv_recognizer
-    config:
-      bucket: pedia

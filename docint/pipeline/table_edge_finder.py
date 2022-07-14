@@ -1,24 +1,22 @@
-from dataclasses import dataclass
+import copy
+import functools
 import logging
 import sys
+from dataclasses import dataclass
+from itertools import chain, groupby
 from pathlib import Path
-from typing import List
-from itertools import groupby, chain
-from more_itertools import pairwise
-import functools
 from statistics import mean
-import copy
+from typing import List
 
-
+from more_itertools import pairwise
+from PIL import Image
 from pydantic import BaseModel
 
-from PIL import Image, ImageDraw
-
-from ..vision import Vision
-from ..shape import Edge, Coord
-from ..region import DataError
-from ..util import load_config
 from ..page import Page
+from ..region import DataError
+from ..shape import Coord, Edge
+from ..util import load_config
+from ..vision import Vision
 
 
 class TableEdges(BaseModel):
@@ -26,9 +24,9 @@ class TableEdges(BaseModel):
     col_edges: List[Edge]
     errors: List[DataError] = []
     col_img_xs: List[int] = []
+
     class Config:
-        fields = { 'col_img_xs': { 'exclude': True} }
-        
+        fields = {"col_img_xs": {"exclude": True}}
 
 
 class MismatchColumnEdges(DataError):
@@ -118,9 +116,9 @@ class TableEdgeFinder:
         return self.image_root / page.doc.pdf_stem / img_filename
 
     def find_column_ranges(self, page, conf, xmin=None, ymin=None, ymax=None):
-        import numpy as np
         import cv2
-        
+        import numpy as np
+
         def save_image(cv_img, stub, work_dir=".tmp/"):
             img_file_name = Path(work_dir) / f"{stub}-{page.page.page_idx}.png"
             img_pil = Image.fromarray(cv_img)
@@ -134,9 +132,9 @@ class TableEdgeFinder:
             wand_image = page_image.wimage
             img_buffer = np.asarray(bytearray(wand_image.make_blob()), dtype=np.uint8)
             img = cv2.imdecode(img_buffer, cv2.IMREAD_GRAYSCALE)
-            #img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        #save_image(img, 'orig')
+        # save_image(img, 'orig')
 
         # thresholding the image to a binary image
         thresh, img_bin = cv2.threshold(
@@ -159,7 +157,7 @@ class TableEdgeFinder:
         image_v = cv2.erode(img_bin, ver_kernel, iterations=conf.col_erode_iterations)
         vertical_lines = cv2.dilate(image_v, ver_kernel, iterations=3)
 
-        #save_image(vertical_lines, 'after_morph')
+        # save_image(vertical_lines, 'after_morph')
 
         # Eroding and thesholding the image
         img_vh = vertical_lines
@@ -250,7 +248,7 @@ class TableEdgeFinder:
             col_img_xs = [int((x2 + x1) / 2) for (x1, x2) in col_ranges]
 
             col_xs = [page.get_doc_x_val(img_x) for img_x in col_img_xs]
-            #print(col_xs)
+            # print(col_xs)
             if not col_xs:
                 continue
 
@@ -289,7 +287,7 @@ class TableEdgeFinder:
 
         def build_row_edge(img_xmin, img_xmax, ymin):
             lt_img_ymin = page_image.get_image_coord(Coord(x=0.0, y=ymin))
-            rt_img_ymin = page_image.get_image_coord(Coord(x=1.0, y=ymin))
+            # rt_img_ymin = page_image.get_image_coord(Coord(x=1.0, y=ymin))
 
             lt_ymin = page_image.get_doc_coord(Coord(x=img_xmin, y=lt_img_ymin.y))
             rt_ymin = page_image.get_doc_coord(Coord(x=col_img_xs[-1], y=lt_img_ymin.y))
@@ -311,7 +309,7 @@ class TableEdgeFinder:
 
         print(f"> Page: {page.page_idx}")
 
-        #b /Users/mukund/Software/docInt/docint/pipeline/table_edge_finder.py:302
+        # b /Users/mukund/Software/docInt/docint/pipeline/table_edge_finder.py:302
         for row_markers in table_markers_list:
             row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))
             ymin = row_markers[0].ymin - self.ygutter
@@ -328,28 +326,31 @@ class TableEdgeFinder:
                 top, bot = Coord(x=0.0, y=0.0), Coord(x=1.0, y=1.0)
 
             v_skew_angle = page_image.get_skew_angle("v")
-            h_skew_angle = page_image.get_skew_angle("h")            
+            h_skew_angle = page_image.get_skew_angle("h")
             print(f"\tv_skew_angle: {v_skew_angle} h_skew_angle: {h_skew_angle}")
-            
+
             if abs(v_skew_angle) > conf.skew_threshold:
                 print("\tRotating Image")
                 page_image.rotate(v_skew_angle)
 
             col_ranges = self.find_column_ranges(page_image, conf)
-            #print(col_ranges)
+            # print(col_ranges)
             col_img_xs = [int((x2 + x1) / 2) for (x1, x2) in col_ranges]
-            
+
             if conf.rm_column_atidxs:
-                print(f'\t\tRemoving columns: {conf.rm_column_atidxs}')
-                col_img_xs = [img_xs for idx, img_xs in enumerate(col_img_xs) if idx not in conf.rm_column_atidxs]
-            
+                print(f"\t\tRemoving columns: {conf.rm_column_atidxs}")
+                col_img_xs = [
+                    img_xs
+                    for idx, img_xs in enumerate(col_img_xs)
+                    if idx not in conf.rm_column_atidxs
+                ]
+
             if conf.add_column_atpos:
                 col_img_xs.extend(conf.add_column_atpos)
                 col_img_xs.sort()
-                print(f'\t\tAdding columns: {conf.add_column_atpos}')                
-                
+                print(f"\t\tAdding columns: {conf.add_column_atpos}")
 
-            print(f'> {page.page_idx} Column img_xs[{len(col_img_xs)}]: {col_img_xs}')            
+            print(f"> {page.page_idx} Column img_xs[{len(col_img_xs)}]: {col_img_xs}")
 
             img_xmin, img_xmax = col_img_xs[0], col_img_xs[-1]
 
@@ -369,7 +370,6 @@ class TableEdgeFinder:
             page_image.clear_transforms()
         return table_edges_list
 
-
     def get_column_edges(self, page_image, crop_coords, conf):
         page_image.clear_transforms()
 
@@ -378,7 +378,7 @@ class TableEdgeFinder:
             page_image.crop(top, bot)
 
         v_skew_angle = page_image.get_skew_angle("v")
-        
+
         if abs(v_skew_angle) > conf.skew_threshold:
             self.lgr.debug(f"\tRotating Image v_skew_angle: {v_skew_angle}")
             page_image.rotate(v_skew_angle)
@@ -389,27 +389,33 @@ class TableEdgeFinder:
         col_img_xs = [int((x2 + x1) / 2) for (x1, x2) in col_ranges]
 
         if conf.rm_column_atidxs:
-            self.lgr.info(f'\t\tRemoving columns: {conf.rm_column_atidxs}')
-            col_img_xs = [img_xs for idx, img_xs in enumerate(col_img_xs) if idx not in conf.rm_column_atidxs]
-            
+            self.lgr.info(f"\t\tRemoving columns: {conf.rm_column_atidxs}")
+            col_img_xs = [
+                img_xs
+                for idx, img_xs in enumerate(col_img_xs)
+                if idx not in conf.rm_column_atidxs
+            ]
+
         if conf.add_column_atpos:
             col_img_xs.extend(conf.add_column_atpos)
             col_img_xs.sort()
-            self.lgr.info(f'\t\tAdding columns: {conf.add_column_atpos}')
+            self.lgr.info(f"\t\tAdding columns: {conf.add_column_atpos}")
 
         page_idx = page_image.page.page_idx
-        self.lgr.info(f'> Page {page_idx} Column img_xs[{len(col_img_xs)}]: {col_img_xs}')                    
+        self.lgr.info(
+            f"> Page {page_idx} Column img_xs[{len(col_img_xs)}]: {col_img_xs}"
+        )
 
-        col_top_img_coords = [ Coord(x=img_x, y=0) for img_x in col_img_xs]
-        col_bot_img_coords = [ Coord(x=img_x, y=img_ymax) for img_x in col_img_xs]
-        
-        col_top_doc_coords = [ page_image.get_doc_coord(c) for c in col_top_img_coords ]
-        col_bot_doc_coords = [ page_image.get_doc_coord(c) for c in col_bot_img_coords ]
+        col_top_img_coords = [Coord(x=img_x, y=0) for img_x in col_img_xs]
+        col_bot_img_coords = [Coord(x=img_x, y=img_ymax) for img_x in col_img_xs]
+
+        col_top_doc_coords = [page_image.get_doc_coord(c) for c in col_top_img_coords]
+        col_bot_doc_coords = [page_image.get_doc_coord(c) for c in col_bot_img_coords]
         page_image.clear_transforms()
 
         zip_col_coords = zip(col_top_doc_coords, col_bot_doc_coords)
         col_edges = [Edge.build_v_oncoords(top, bot) for top, bot in zip_col_coords]
-        
+
         return col_edges, col_img_xs
 
     def get_row_edges(self, page_image, row_markers, crop_coords, conf):
@@ -424,7 +430,7 @@ class TableEdgeFinder:
             page_image.crop(top, bot)
 
         h_skew_angle = page_image.get_skew_angle("h")
-        
+
         if abs(h_skew_angle) > conf.skew_threshold:
             self.lgr.debug(f"\tRotating Image h_skew_angle: {h_skew_angle}")
             page_image.rotate(h_skew_angle)
@@ -432,10 +438,10 @@ class TableEdgeFinder:
         img_xmax, img_ymax = page_image.curr_size
 
         m_doc_coords = [Coord(x=m.xmid, y=m.ymin) for m in row_markers]
-        
+
         last_m = row_markers[-1]
         m_doc_coords.append(Coord(x=last_m.xmid, y=last_m.ymin + (row_ht * 1.1)))
-        
+
         m_img_coords = [page_image.get_image_coord(c) for c in m_doc_coords]
 
         row_lt_img_coords = [Coord(x=0, y=m_img.y) for m_img in m_img_coords]
@@ -448,9 +454,8 @@ class TableEdgeFinder:
         zip_row_coords = zip(row_lt_doc_coords, row_rt_doc_coords)
         row_edges = [Edge.build_h_oncoords(lt, rt) for lt, rt in zip_row_coords]
         self.prev_row_ht = row_ht
-        
+
         return row_edges
-        
 
     def find_table_edges3(self, page, conf):
         def split_markers_in_tables(num_markers):
@@ -463,8 +468,6 @@ class TableEdgeFinder:
             table_markers_list = [t for t in table_markers_list if t]
             return table_markers_list
 
-        
-        
         self.lgr.debug(f"> Page: {page.page_idx}")
         if not page.num_markers:
             return []
@@ -482,7 +485,9 @@ class TableEdgeFinder:
             # crop the image first
             crop_coords = []
             if (ymax - ymin) * 100 < conf.crop_threshold:
-                self.lgr.debug(f"\tCropping Image {(ymax-ymin)*100} {conf.crop_threshold}")
+                self.lgr.debug(
+                    f"\tCropping Image {(ymax-ymin)*100} {conf.crop_threshold}"
+                )
                 top_y, bot_y = ymin - self.crop_gutter, ymax + (self.crop_gutter)
                 top_y, bot_y = max(0.0, top_y), min(1.0, bot_y)
 
@@ -493,12 +498,13 @@ class TableEdgeFinder:
 
             col_edges, col_img_xs = self.get_column_edges(page_image, crop_coords, conf)
             row_edges = self.get_row_edges(page_image, row_markers, crop_coords, conf)
-            
-            table_edges = TableEdges(row_edges=row_edges, col_edges=col_edges, col_img_xs=col_img_xs)
+
+            table_edges = TableEdges(
+                row_edges=row_edges, col_edges=col_edges, col_img_xs=col_img_xs
+            )
             table_edges_list.append(table_edges)
             self.prev_row_ht = row_ht
-        return table_edges_list            
-    
+        return table_edges_list
 
     def test(self, page, table_edges_list):
         for idx, table_edges in enumerate(table_edges_list):
@@ -519,10 +525,12 @@ class TableEdgeFinder:
     def set_page_configs(self, doc, doc_config):
         num_pages = len(doc.pages)
         page_config = EdgeFinderPageConfig(
-            col_erode_iterations=doc_config.get("col_erode_iterations", self.col_erode_iterations),
+            col_erode_iterations=doc_config.get(
+                "col_erode_iterations", self.col_erode_iterations
+            ),
             crop_threshold=self.crop_threshold,
             skew_threshold=self.skew_threshold,
-            rm_column_atidxs=[],            
+            rm_column_atidxs=[],
             add_column_atpos=[],
         )
 
@@ -538,42 +546,41 @@ class TableEdgeFinder:
             ]
 
     def get_fix_str(self, doc, error):
-        page_path, te_path = error.path.split('.')
+        page_path, te_path = error.path.split(".")
         page_idx = int(page_path[2:])
         image_path = self.get_image_path(doc.pages[page_idx])
         xs = error.col_img_xs
-        
-        html =  f'<h1>{doc.pdf_name}:> Page {page_idx} img_xs:[{len(xs)}] {xs}<\h1>\n'
-        html += f'<img src="{str(image_path)}">'
-        
-        yml =  f'  - page_idx: {page_idx}\n    add_column_atpos: []\n'
-        yml += f'    rm_column_atidxs: []\n'
-        return (html, yml)
 
+        html = f"<h1>{doc.pdf_name}:> Page {page_idx} img_xs:[{len(xs)}] {xs}</h1>\n"
+        html += f'<img src="{str(image_path)}">'
+
+        yml = f"  - page_idx: {page_idx}\n    add_column_atpos: []\n"
+        yml += "    rm_column_atidxs: []\n"
+        return (html, yml)
 
     def write_fixes(self, doc, errors):
         if not errors:
             return
-        
+
         html_ymls = [self.get_fix_str(doc, e) for e in errors]
-        with open('fix.html', 'a') as html_file:
+        with open("fix.html", "a") as html_file:
             html_file.write("\n\n".join(tup[0] for tup in html_ymls))
             html_file.write("<hr>")
 
-        with open('fix.yml', 'a') as yml_file:
-            yml_str = '\n'.join(tup[1] for tup in html_ymls)
-            yml_file.write(f'#F {doc.pdf_name}\n')
-            yml_file.write(f'page_configs:\n{yml_str}\n')
+        with open("fix.yml", "a") as yml_file:
+            yml_str = "\n".join(tup[1] for tup in html_ymls)
+            yml_file.write(f"#F {doc.pdf_name}\n")
+            yml_file.write(f"page_configs:\n{yml_str}\n")
 
     def __call__(self, doc):
-        import cv2
-        import numpy as np
-        
+        import cv2  # noqa: F401
+        import numpy as np  # noqa: F401
+
         self.add_log_handler(doc)
         self.lgr.info(f"column_finder: {doc.pdf_name}")
 
         doc_config = load_config(self.doc_confdir, doc.pdf_name, self.conf_stub)
-        page_configs = self.set_page_configs(doc, doc_config)
+        self.set_page_configs(doc, doc_config)
 
         doc.add_extra_page_field("table_edges_list", ("list", __name__, "TableEdges"))
         doc.add_extra_page_field("edges", ("list", "docint.shape", "Edge"))
@@ -586,7 +593,9 @@ class TableEdgeFinder:
             errors += self.test(page, page.table_edges_list)
             total_tables += len(page.table_edges_list)
 
-        self.lgr.info(f'=={doc.pdf_name}.num_marker {total_tables} {DataError.error_counts(errors)}')            
+        self.lgr.info(
+            f"=={doc.pdf_name}.num_marker {total_tables} {DataError.error_counts(errors)}"
+        )
         [self.lgr.info(e.msg) for e in errors]
 
         self.write_fixes(doc, errors)

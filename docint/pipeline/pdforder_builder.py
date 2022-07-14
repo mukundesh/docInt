@@ -2,12 +2,10 @@ import logging
 import sys
 from pathlib import Path
 
-from ..vision import Vision
+from ..extracts.orgpedia import Officer, Order, OrderDetail
 from ..region import DataError
-
-
-from ..extracts.orgpedia import Officer, OrderDetail, Order
-from ..util import find_date, load_config
+from ..util import find_date
+from ..vision import Vision
 
 
 @Vision.factory(
@@ -71,7 +69,7 @@ class InferHeaders:
         try:
             header_row = doc.pages[0].tables[0].header_rows[0]
             cells = header_row.cells
-        except:
+        except Exception as e:  # noqa: F841
             self.lgr.info(f"\t{doc.pdf_name} Empty Header Row")
             assert False
             cells = []
@@ -86,7 +84,7 @@ class InferHeaders:
                 .replace(",", "")
                 .replace("'", "")
                 .replace("`", "")
-                .replace("*", "")                                
+                .replace("*", "")
             )
             if header_text not in self.header_dict:
                 self.lgr.info(f"\tNot Found: {doc.pdf_name} {cell_text}->{header_text}")
@@ -141,20 +139,22 @@ class PDFOrderBuilder:
         o_errors = self.test_officer(officer)
         p_errors = self.test_post(post)
 
-        d = OrderDetail.build(row.words, [row.words], officer, row_idx, continues=[post])
-        
-        print('--------')
+        d = OrderDetail.build(
+            row.words, [row.words], officer, row_idx, continues=[post]
+        )
+
+        print("--------")
         print(d.to_str())
         return d, o_errors + p_errors
 
     def build_officer(self, row, header_info, row_idx):
         def extract_in_name(name):
-            if name.endswith('(ADHOC)'):
-                name = name.replace('(ADHOC)', '').strip()
-                
-            if name.endswith('(SCRB)'):
-                name = name.replace('(SCRB)', '').strip()
-            
+            if name.endswith("(ADHOC)"):
+                name = name.replace("(ADHOC)", "").strip()
+
+            if name.endswith("(SCRB)"):
+                name = name.replace("(SCRB)", "").strip()
+
             if name.endswith(" IPS"):
                 name, cadre = name[:-3].strip(), "I.P.S."
             else:
@@ -163,8 +163,15 @@ class PDFOrderBuilder:
             return name, cadre
 
         def clean_text(v):
-            return v if not v else v.replace("\n", " ").replace("\xa0", " ").replace('*','').replace('`','')
-        
+            return (
+                v
+                if not v
+                else v.replace("\n", " ")
+                .replace("\xa0", " ")
+                .replace("*", "")
+                .replace("`", "")
+            )
+
         o_fields = [
             "salut",
             "name",
@@ -175,20 +182,20 @@ class PDFOrderBuilder:
         ]
         o_vals = [row.cells[header_info.index(f)].arranged_text() for f in o_fields]
         o_vals = [clean_text(v) for v in o_vals]
-        
+
         officer_dict = dict(zip(o_fields, o_vals))
 
         name, cadre = extract_in_name(officer_dict["name"])
-        
+
         officer_dict["full_name"] = officer_dict["name"] = name
         officer_dict["words"] = row.words
         officer_dict["cadre"] = cadre
         officer_dict["word_idxs"] = [w.word_idx for w in row.words]
         officer_dict["page_idx_"] = row.words[0].page_idx if row.words else None
 
-        #print(officer_dict)
+        # print(officer_dict)
 
-        for date_field in ['birth_date', 'posting_date']:
+        for date_field in ["birth_date", "posting_date"]:
             if not officer_dict[date_field]:
                 del officer_dict[date_field]
             else:
@@ -201,16 +208,16 @@ class PDFOrderBuilder:
 
     def get_order_date(self, doc):
         first_page = doc.pages[0]
-        
-        if not hasattr(first_page, 'heading'):
+
+        if not hasattr(first_page, "heading"):
             return None
 
-        heading_str = ' '.join([w.text for w in first_page.heading.words])
+        heading_str = " ".join([w.text for w in first_page.heading.words])
         order_date, err = find_date(heading_str)
         if err:
-            print(f'OrderDateError: {doc.pdf_name} {err} >{heading_str}<')
-            
-        print(f'OrderDate: {doc.pdf_name} {order_date} >{heading_str}<')        
+            print(f"OrderDateError: {doc.pdf_name} {err} >{heading_str}<")
+
+        print(f"OrderDate: {doc.pdf_name} {order_date} >{heading_str}<")
         return order_date
 
     def iter_rows(self, doc):
@@ -241,12 +248,11 @@ class PDFOrderBuilder:
             errors.extend(d_errors)
             detail_idx += 1
 
-            
         doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, details)
-        doc.order.category = 'civil_list'        
+        doc.order.category = "civil_list"
         self.lgr.info(f"==Total:{len(errors)} {DataError.error_counts(errors)}")
         self.remove_log_handler(doc)
         return doc
 
 
-#b /Users/mukund/Software/docInt/docint/pipeline/pdforder_builder.py:164    
+# b /Users/mukund/Software/docInt/docint/pipeline/pdforder_builder.py:164

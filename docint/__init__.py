@@ -1,22 +1,19 @@
-from typing import Any, Dict
 from pathlib import Path
-
-from .errors import Errors
-from .vision import Vision
-from .util import SimpleFrozenDict
-from .util import is_readable, read_config_from_disk
-from .vision import Vision
+from typing import Any, Dict
 
 from . import pipeline
+from .errors import Errors
+from .util import SimpleFrozenDict, is_readable, read_config_from_disk
+from .vision import Vision
 
 
 def load(name: Path, *, config: Dict[str, Any] = SimpleFrozenDict()) -> Vision:
     """Load a docInt model from either local path.
 
-    Args: 
+    Args:
         name (Path): Path to the model config file
         config (Dict[str, Any]): Config options
-    Returns: 
+    Returns:
         Vision: A loaded viz object.
 
         .. _PEP 484:
@@ -41,6 +38,3 @@ def empty(*, config: Dict[str, Any] = SimpleFrozenDict()) -> Vision:
         Vision: A loaded viz object.
     """
     return Vision.from_config(config)
-    
-
-

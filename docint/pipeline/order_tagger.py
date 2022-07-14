@@ -4,16 +4,19 @@ from pathlib import Path
 
 from more_itertools import first
 
+from ..extracts.orgpedia import (
+    IncorrectOrderDateError,
+    Officer,
+    Order,
+    OrderDateNotFoundErrror,
+    OrderDetail,
+    Post,
+)
+from ..hierarchy import Hierarchy, MatchOptions
+from ..span import SpanGroup
+from ..util import find_date, load_config
 from ..vision import Vision
 from ..word_line import words_in_lines
-
-
-from ..extracts.orgpedia import Officer, OrderDetail, Order, Post
-from ..extracts.orgpedia import IncorrectOrderDateError, OrderDateNotFoundErrror
-from ..util import find_date, load_config
-from ..region import Region, UnmatchedTextsError
-from ..span import SpanGroup
-from ..hierarchy import Hierarchy, MatchOptions
 
 
 @Vision.factory(
@@ -114,20 +117,20 @@ class OrderTagger:
 
     def build_officer(self, conf_officer, page):
         words = [page.words[idx] for idx in conf_officer["idxs"]]
-        officer_text = ' '.join(w.text for w in words)
+        officer_text = " ".join(w.text for w in words)
         officer_text = officer_text.strip(".|,-*@():%/1234567890$ '")
 
         self.lgr.info(f"Building Officer on: >{officer_text}<")
 
         salut = self.get_salut(officer_text)
-        name = officer_text[len(salut):].strip()
+        name = officer_text[len(salut) :].strip()  # noqa: E203
         officer = Officer.build(words, salut, name, cadre="goi_minister")
         return officer
 
     def build_post(self, conf_post, page):
         words = [page.words[idx] for idx in conf_post["idxs"]]
-        post_text = ' '.join(w.text for w in words)
-        
+        post_text = " ".join(w.text for w in words)
+
         self.lgr.info(f"Building Post on: >{post_text}<")
 
         dept_sgs = self.hierarchy_dict["dept"].find_match(post_text, self.match_options)
@@ -159,7 +162,7 @@ class OrderTagger:
             detail_words,
             [detail_words],
             officer,
-            conf_detail["detail_idx"],            
+            conf_detail["detail_idx"],
             continues=verb_dict.get("continues", []),
             relinquishes=verb_dict.get("relinquishes", []),
             assumes=verb_dict.get("assumes", []),
@@ -171,13 +174,13 @@ class OrderTagger:
             officer = self.build_officer(conf_detail["officer"], page)
         else:
             officer = order_detail.officer
-            
+
         detail_words = officer.words[:]
 
         verb_dict = {}
         for verb in ["continues", "relinquishes", "assumes"]:
             verb_dict[verb] = getattr(order_detail, verb)
-            print(f'verb: order_len: {len(verb_dict[verb])}')
+            print(f"verb: order_len: {len(verb_dict[verb])}")
 
             # overwrite it with conf_detail
             for conf_post in conf_detail.get(verb, []):
@@ -192,7 +195,7 @@ class OrderTagger:
             conf_detail["detail_idx"],
             continues=verb_dict["continues"],
             relinquishes=verb_dict["relinquishes"],
-            assumes=verb_dict["assumes"]
+            assumes=verb_dict["assumes"],
         )
         return detail
 
@@ -200,26 +203,25 @@ class OrderTagger:
         self.add_log_handler(doc)
         self.lgr.info(f"manual_tagger: {doc.pdf_name}")
 
-        
         doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
         conf_order = doc_config.get("order", None)
-        
+
         if not doc_config:
-            self.remove_log_handler(doc)            
+            self.remove_log_handler(doc)
             return doc
 
         edits = doc_config.get("edits", [])
         if edits:
-            print(f'Edited document: {doc.pdf_name}')
+            print(f"Edited document: {doc.pdf_name}")
             doc.edit(edits)
 
         mode = doc_config.get("mode", "build")
 
         if mode in ("merge_detail", "overwrite_detail"):
-            assert hasattr(doc, "order")            
+            assert hasattr(doc, "order")
         else:
             assert not hasattr(doc, "order")
-            doc.add_extra_field("order", ("obj", 'docint.extracts.orgpedia', 'Order'))
+            doc.add_extra_field("order", ("obj", "docint.extracts.orgpedia", "Order"))
 
         details = []
         for conf_detail in conf_order.get("details", []):
@@ -227,38 +229,39 @@ class OrderTagger:
 
             if mode == "build":
                 detail = self.build_detail(conf_detail, page)
-                assert conf_detail['detail_idx'] == len(details)
+                assert conf_detail["detail_idx"] == len(details)
                 details.append(detail)
-                
+
             elif mode == "merge_detail":
-                detail_idx = conf_detail['detail_idx']
+                detail_idx = conf_detail["detail_idx"]
                 order_detail = doc.order.details[detail_idx]
-                meged_detail = self.merge_detail(conf_detail, order_detail, page)
-                doc.order.details[detail_idx] = merge_detail
+                merged_detail = self.merge_detail(conf_detail, order_detail, page)
+                doc.order.details[detail_idx] = merged_detail
 
             elif mode == "overwrite_detail":
                 detail = self.build_detail(conf_detail, page)
-                detail_idx = conf_detail['detail_idx']
+                detail_idx = conf_detail["detail_idx"]
                 if detail_idx < len(doc.order.details):
                     doc.order.details[detail_idx] = detail
                 else:
-                    assert detail_idx == len(doc.order.details)                    
+                    assert detail_idx == len(doc.order.details)
                     doc.order.details.append(detail)
-            
+
         if "order_date" in conf_order:
             order_date, _ = find_date(conf_order["order_date"])
             self.lgr.info(f"order_tagger: Date: {order_date}")
         else:
             order_date, date_errors = self.get_order_date(doc)
-            self.lgr.info(f"order_tagger: Date: {order_date}")            
+            self.lgr.info(f"order_tagger: Date: {order_date}")
 
-
-        if mode == 'build':
+        if mode == "build":
             doc.order = Order.build(doc.pdf_name, order_date, doc.pdffile_path, details)
         else:
             doc.order.date = order_date
-            
+
         self.lgr.info(f"=={doc.pdf_name}.order_tagger {len(doc.order.details)}")
         self.remove_log_handler(doc)
         return doc
-#b /Users/mukund/Software/docInt/docint/pipeline/order_tagger.py:154
+
+
+# b /Users/mukund/Software/docInt/docint/pipeline/order_tagger.py:154

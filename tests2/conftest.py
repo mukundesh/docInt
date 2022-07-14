@@ -1,7 +1,9 @@
+from pathlib import Path
+
 import pytest
+
 import docint
 
-from pathlib import Path
 
 def build_doc(file_name):
     if Path(file_name).exists():
@@ -14,18 +16,21 @@ def build_doc(file_name):
     doc = viz(file_path)
     return doc
 
+
 @pytest.fixture
 def one_word_doc():
     return build_doc("one_word.pdf")
 
+
 @pytest.fixture
 def one_line_doc():
-    return build_doc("one_line.pdf") 
+    return build_doc("one_line.pdf")
 
 
 @pytest.fixture
 def two_lines_doc():
     return build_doc("two_lines.pdf")
+
 
 @pytest.fixture
 def two_pages_doc():

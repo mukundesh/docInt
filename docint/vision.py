@@ -1,23 +1,23 @@
-from typing import Any, Dict, Optional, Union, Iterator, List, Tuple, Iterable, Callable
-from pathlib import Path
 import functools
-
-from .util import (
-    SimpleFrozenList,
-    SimpleFrozenDict,
-    _pipe,
-    get_object_name,
-    raise_error,
-    get_arg_names,
-)
-
-from .errors import Errors
-from .doc import Doc
 
 # from .pipeline import Pipe
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
-#b  /Users/mukund/Software/docInt/docint/vision.py:208
+from .doc import Doc
+from .errors import Errors
+from .util import (
+    SimpleFrozenDict,
+    SimpleFrozenList,
+    _pipe,
+    get_arg_names,
+    get_object_name,
+    raise_error,
+)
+
+# b  /Users/mukund/Software/docInt/docint/vision.py:208
+
 
 @dataclass
 class FactoryMeta:
@@ -40,25 +40,25 @@ class Vision:
     def __init__(self):
         self._components = []
         self.default_error_handler = raise_error
-        self.images_dir = '.img'
-        self.image_root = '.img' # We should be using this
+        self.images_dir = ".img"
+        self.image_root = ".img"  # We should be using this
         self.ignore_docs = []
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
         viz = Vision()
-        viz.images_dir = config.get('images_dir', '.img')
-        viz.image_root = config.get('image_root', '.img')
+        viz.images_dir = config.get("images_dir", ".img")
+        viz.image_root = config.get("image_root", ".img")
         Doc._image_root = viz.image_root
-            
-        viz.ignore_docs = config.get('ignore_docs', [])
+
+        viz.ignore_docs = config.get("ignore_docs", [])
         for pipe_config in config.get("pipeline", []):
             viz.add_pipe(
                 pipe_config.get("name"),
                 pipe_config=pipe_config.get("config", {}),
             )
             print(f'Added {pipe_config.get("name")}')
-        
+
         return viz
 
     def build_doc(self, pdf_path):
@@ -156,12 +156,11 @@ class Vision:
         component_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Doc:
         path = Path(path)
-        if path.suffix.lower() in ('.json', '.msgpack', '.jsn'):
+        if path.suffix.lower() in (".json", ".msgpack", ".jsn"):
             doc = Doc.from_disk(path)
         else:
             doc = self.build_doc(path)
 
-            
         if component_cfg is None:
             component_cfg = {}
 
@@ -172,7 +171,7 @@ class Vision:
                 raise ValueError(Errors.E003.format(component=type(proc), name=name))
             error_handler = self.default_error_handler
             if hasattr(proc, "get_error_handler"):
-                error_handler = proc.get_error_handler()
+                error_handler = proc.get_error_handler()  # noqa: F841 todo
             try:
                 # doc = proc(doc, **component_cfg.get(name, {}))  # type: ignore[call-arg]
                 doc = proc(doc)  # type: ignore[call-arg]
@@ -180,8 +179,8 @@ class Vision:
                 # This typically happens if a component is not initialized
                 raise ValueError(Errors.E109.format(name=name)) from e
             except Exception as e:
-                raise
-                #error_handler(name, proc, [doc], e)
+                raise e
+                # error_handler(name, proc, [doc], e)
             if doc is None:
                 raise ValueError("Errors.E005.format(name=name)")
         return doc
@@ -190,9 +189,9 @@ class Vision:
         def get_pdf_name(path):
             path = Path(path)
             name = path.name
-            pdf_pos = name.lower().index('.pdf')
-            return name[:pdf_pos+4]
-            
+            pdf_pos = name.lower().index(".pdf")
+            return name[: pdf_pos + 4]
+
         print("INSIDE PIPE")
 
         pipes = []
@@ -207,15 +206,17 @@ class Vision:
             )
             pipes.append(f)
 
-        print(f'Building docs... #paths: {len(paths)}')
-        paths = (Path(p) for p in paths if get_pdf_name(p) not in self.ignore_docs)        
-        docs = list(self.build_doc(p) if p.suffix == '.pdf' else Doc.from_disk(p) for p in paths)
-        
-        print(f'Read #docs: {len(docs)}')
+        print(f"Building docs... #paths: {len(paths)}")
+        paths = (Path(p) for p in paths if get_pdf_name(p) not in self.ignore_docs)
+        docs = list(
+            self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths
+        )
+
+        print(f"Read #docs: {len(docs)}")
         for pipe in pipes:
-            print(f'\tPipe: {pipe}')
+            print(f"\tPipe: {pipe}")
             docs = pipe(docs)
-        print("Leaving PIPE")            
+        print("Leaving PIPE")
         return docs
 
     @property
@@ -228,7 +229,7 @@ class Vision:
         return SimpleFrozenList(names)
 
     @property
-    def components(self) -> List[Tuple[str, "Pipe"]]:
+    def components(self) -> List[Tuple[str, "Pipe"]]:  # noqa: F821 todo
         """Get all (name, component) tuples in the pipeline, including the
         currently disabled components.
         """
@@ -249,7 +250,7 @@ class Vision:
         )
 
     @property
-    def pipeline(self) -> List[Tuple[str, "Pipe"]]:
+    def pipeline(self) -> List[Tuple[str, "Pipe"]]:  # noqa: F821 todo
         """The processing pipeline consisting of (name, component) tuples. The
         components are called on the Doc in order as it passes through the
         pipeline.
@@ -306,7 +307,7 @@ class Vision:
 
             cls.factories_meta[name] = factory_meta
             cls.factories[name] = factory_func
-            arg_names = get_arg_names(factory_func)
+            arg_names = get_arg_names(factory_func)  # noqa: F841 todo
             return factory_func
 
         if func is not None:  # Support non-decorator use cases
@@ -320,7 +321,7 @@ class Vision:
         *,
         assigns: Iterable[str] = SimpleFrozenList(),
         requires: Iterable[str] = SimpleFrozenList(),
-        func: Optional["Pipe"] = None,
+        func: Optional["Pipe"] = None,  # noqa: F821 todo
     ) -> Callable:
 
         if name is not None and not isinstance(name, str):
@@ -332,7 +333,7 @@ class Vision:
             if isinstance(func, type):  # function is a class
                 raise ValueError("Errors.E965.format(name=component_name)")
 
-            def factory_func() -> "Pipe":
+            def factory_func() -> "Pipe":  # noqa: F821 todo
                 return component_func
 
             cls.factory(
@@ -347,7 +348,7 @@ class Vision:
             return add_component(func)
         return add_component
 
-    def get_pipe(self, name: str) -> "Pipe":
+    def get_pipe(self, name: str) -> "Pipe":  # noqa: F821 todo
         """Get a pipeline component for a given component name.
 
         name (str): Name of pipeline component to get.

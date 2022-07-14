@@ -1,10 +1,9 @@
-from ..vision import Vision
-from ..doc import Doc
-from ..page import Page
-from ..word import Word, BreakType
-from ..shape import Coord, Box
-
 import pdfplumber
+
+from ..page import Page
+from ..shape import Box, Coord
+from ..vision import Vision
+from ..word import BreakType, Word
 
 
 @Vision.factory(
@@ -34,8 +33,6 @@ class PDFReader:
             shape_=box,
         )
 
-
-
     def __call__(self, doc):
         pdf = pdfplumber.open(doc.pdf_path)
 
@@ -51,7 +48,7 @@ class PDFReader:
                 self.build_word(doc, page_idx, idx, pdf_page, pdf_word)
                 for (idx, pdf_word) in enumerate(pdf_words)
             ]
-            
+
             page = Page(
                 doc=doc,
                 page_idx=page_idx,

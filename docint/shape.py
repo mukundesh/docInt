@@ -1,15 +1,15 @@
-from typing import List, Union
 import math
+from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class Coord(BaseModel):
-    x: float # currently always stay as float
-    y: float 
+    x: float  # currently always stay as float
+    y: float
 
     def __str__(self):
-        return f'{self.x:4.4f}:{self.y:4.4f}'
+        return f"{self.x:4.4f}:{self.y:4.4f}"
 
     def inside(self, top, bot):
         return (top.x <= self.x <= bot.x) and (top.y <= self.y <= bot.y)
@@ -30,13 +30,14 @@ class Shape(BaseModel):
 
     @classmethod
     def build_box_ranges(cls, xrange, yrange):
-        return Box(top=Coord(x=xrange[0], y=yrange[0]), bot=Coord(x=xrange[1], y=yrange[1]))
+        return Box(
+            top=Coord(x=xrange[0], y=yrange[0]), bot=Coord(x=xrange[1], y=yrange[1])
+        )
 
 
 class Box(Shape):
     top: Coord
     bot: Coord
-
 
     @classmethod
     def build(self, coords):
@@ -44,15 +45,16 @@ class Box(Shape):
         xmin, xmax = min(c.x for c in coords), max(c.x for c in coords)
         ymin, ymax = min(c.y for c in coords), max(c.y for c in coords)
         return Box(top=Coord(x=xmin, y=ymin), bot=Coord(x=xmax, y=ymax))
-    
-    def __post__init__(self):
-        self.check_coords(top, bot)
+
+    def __post_init__(self):
+        # TODO move this somewhere else ?
+        self.check_coords(self.top, self.bot)
 
     def is_box(self):
         return True
 
     def __str__(self):
-        return f'[{self.top}, {self.bot}]'
+        return f"[{self.top}, {self.bot}]"
 
     @classmethod
     def check_coords(cls, top, bot):
@@ -90,7 +92,7 @@ class Box(Shape):
 
     @property
     def xmid(self):
-        return (self.top.x + self.bot.x)/2
+        return (self.top.x + self.bot.x) / 2
 
     @property
     def ymin(self):
@@ -102,10 +104,9 @@ class Box(Shape):
 
     @property
     def ymid(self):
-        return (self.top.y + self.bot.y)/2
-    
+        return (self.top.y + self.bot.y) / 2
 
-    @property    
+    @property
     def coords(self):
         return [self.top, self.bot]
 
@@ -148,21 +149,26 @@ class Box(Shape):
         top, bot = yrange
         ymin, ymax = self.top.y, self.bot.y
         if partial:
-            return  (top <= ymin <= bot) or (top <= ymax <= bot) or (ymin < top < bot < ymax)
+            return (
+                (top <= ymin <= bot)
+                or (top <= ymax <= bot)  # noqa: W503
+                or (ymin < top < bot < ymax)  # noqa: W503
+            )
         else:
             return (top < ymin < bot) and (top < ymax < bot)
-    
+
 
 class Poly(Shape):
     coords: List[Coord]
     box_: Box = None
 
     class Config:
-        fields = {'box_': {'exclude': True},}
-    
-    def __post__init__(self):
-        self.check_coords(coords)        
-        
+        fields = {
+            "box_": {"exclude": True},
+        }
+
+    def __post_init__(self):
+        self.check_coords(self.coords)
 
     @classmethod
     def check_coords(cls, coords):
@@ -202,7 +208,6 @@ class Poly(Shape):
             self.box_ = Box(top=top, bot=bot)
         return self.box_
 
-
     @property
     def xmin(self):
         return self.box.top.x
@@ -226,34 +231,32 @@ class Poly(Shape):
     @property
     def ymid(self):
         return self.box.ymid
-    
+
 
 class Edge(Shape):
     coord1: Coord
     coord2: Coord
     orientation: str
-    
+
     @classmethod
     def build_v(cls, x1, y1, x2, y2):
         c1 = Coord(x=x1, y=y1)
         c2 = Coord(x=x2, y=y2)
-        return Edge(coord1=c1, coord2=c2, orientation='v')
+        return Edge(coord1=c1, coord2=c2, orientation="v")
 
     @classmethod
     def build_h(cls, x1, y1, x2, y2):
         c1 = Coord(x=x1, y=y1)
         c2 = Coord(x=x2, y=y2)
-        return Edge(coord1=c1, coord2=c2, orientation='h')
-
+        return Edge(coord1=c1, coord2=c2, orientation="h")
 
     @classmethod
     def build_v_oncoords(cls, c1, c2):
-        return Edge(coord1=c1, coord2=c2, orientation='v')
+        return Edge(coord1=c1, coord2=c2, orientation="v")
 
     @classmethod
     def build_h_oncoords(cls, c1, c2):
-        return Edge(coord1=c1, coord2=c2, orientation='h')
-    
+        return Edge(coord1=c1, coord2=c2, orientation="h")
 
     @property
     def xmin(self):
@@ -266,11 +269,10 @@ class Edge(Shape):
     @property
     def xmid(self):
         return (self.coord1.x + self.coord2.x) / 2
-    
 
     @property
     def ymin(self):
-        return min(self.coord1.y, self.coord2.y)                        
+        return min(self.coord1.y, self.coord2.y)
 
     @property
     def ymax(self):
@@ -279,7 +281,6 @@ class Edge(Shape):
     @property
     def ymid(self):
         return (self.coord1.y + self.coord2.y) / 2
-    
 
     @property
     def coords(self):
@@ -288,15 +289,14 @@ class Edge(Shape):
     @property
     def length(self):
         c1, c2 = self.coords
-        return math.sqrt((c2.x - c1.x)**2 + (c2.y - c1.y)**2)
-
+        return math.sqrt((c2.x - c1.x) ** 2 + (c2.y - c1.y) ** 2)
 
     def get_coord(self, length_ratio):
         """Get the coordinates of the point at length ratio from c1"""
         c1, c2 = self.coord1, self.coord2
-        
+
         if (c1.x == c2.x) or (c1.y == c2.y):
-            if self.orientation == 'h':
+            if self.orientation == "h":
                 assert c1.y == c2.y
                 x = c1.x + ((c2.x - c1.x) * length_ratio)
                 return Coord(x=x, y=c1.y)
@@ -315,8 +315,9 @@ class Edge(Shape):
     def alt_text(self):
         def percent(v):
             return int(100 * v)
-        ts = [f'{percent(c.x)},{percent(c.y)}' for c in self.coords]
-        return '->'.join(ts)
+
+        ts = [f"{percent(c.x)},{percent(c.y)}" for c in self.coords]
+        return "->".join(ts)
 
     def is_box(self):
         return False
@@ -327,13 +328,12 @@ class Edge(Shape):
 
     @property
     def path_abbr(self):
-        return 'edge'
+        return "edge"
 
     def cross(self, edge):
         return Edge.intersection(self, edge)
 
-
-    #https://stackoverflow.com/questions/20677795/how-do-i-compute-the-intersection-point-of-two-lines
+    # https://stackoverflow.com/questions/20677795/how-do-i-compute-the-intersection-point-of-two-lines
     @classmethod
     def intersection(cls, edge1, edge2):
         xdiff = (edge1.coord1.x - edge1.coord2.x, edge2.coord1.x - edge2.coord2.x)
@@ -347,86 +347,82 @@ class Edge(Shape):
 
         div = det(xdiff, ydiff)
         if div == 0:
-            raise Exception('lines do not intersect')
+            raise Exception("lines do not intersect")
 
         d = (det(*coord_pair(edge1)), det(*coord_pair(edge2)))
         x = det(d, xdiff) / div
         y = det(d, ydiff) / div
         return Coord(x=x, y=y)
-    
 
 
 # Poly
-    # def get_coords_inpage(self, page_size, delim=" "):
-    #     w, h = page_size
-    #     pg_coords = [f"{int(w * c.x)},{int(h * c.y)}" for c in self.coords]
-    #     coord_str = delim.join(pg_coords)
-    #     return coord_str
+# def get_coords_inpage(self, page_size, delim=" "):
+#     w, h = page_size
+#     pg_coords = [f"{int(w * c.x)},{int(h * c.y)}" for c in self.coords]
+#     coord_str = delim.join(pg_coords)
+#     return coord_str
 
-    # def get_coords_inimage(self, page, delim=" "):
-    #     def get_image_val(c, axis):
-    #         if axis == 'x':
-    #             return page.get_image_x_val(c.x)
-    #         else:
-    #             return page.get_image_y_val(c.y)
-    #     pg_vals = [f"{get_image_val(c, 'x')},{get_image_val(c, 'y')}" for c in self.coords]
-    #     coord_str = delim.join(pg_vals)
-    #     return coord_str
-    
-    
+# def get_coords_inimage(self, page, delim=" "):
+#     def get_image_val(c, axis):
+#         if axis == 'x':
+#             return page.get_image_x_val(c.x)
+#         else:
+#             return page.get_image_y_val(c.y)
+#     pg_vals = [f"{get_image_val(c, 'x')},{get_image_val(c, 'y')}" for c in self.coords]
+#     coord_str = delim.join(pg_vals)
+#     return coord_str
 
 
-#Box
-    # @classmethod
-    # def build_box_inpage(cls, bbox, page_size):
-    #     [x0, y0, x1, y1] = bbox
-    #     (w, h) = page_size
-    #     top, bot = Coord(x=x0/w, y=y0/h), Coord(x=x1/w, y=y1/h)
-    #     return Box(top=top, bot=bot)
+# Box
+# @classmethod
+# def build_box_inpage(cls, bbox, page_size):
+#     [x0, y0, x1, y1] = bbox
+#     (w, h) = page_size
+#     top, bot = Coord(x=x0/w, y=y0/h), Coord(x=x1/w, y=y1/h)
+#     return Box(top=top, bot=bot)
 
 
+# Box
+# def width_inpage(self, pageSize):
+#     w, h = pageSize
+#     return self.width * w
 
-#Box
-    # def width_inpage(self, pageSize):
-    #     w, h = pageSize
-    #     return self.width * w
+# def height_inpage(self, pageSize):
+#     w, h = pageSize
+#     return self.height * h
 
-    # def height_inpage(self, pageSize):
-    #     w, h = pageSize
-    #     return self.height * h
+# def top_inpage(self, pageSize):
+#     (w, h) = pageSize
+#     return Coord(x=self.top.x * w, y=self.top.y * h)
 
-    # def top_inpage(self, pageSize):
-    #     (w, h) = pageSize
-    #     return Coord(x=self.top.x * w, y=self.top.y * h)
+# def bot_inpage(self, pageSize):
+#     (w, h) = pageSize
+#     return Coord(x=self.bot.x * w, y=self.bot.y * h)
 
-    # def bot_inpage(self, pageSize):
-    #     (w, h) = pageSize
-    #     return Coord(x=self.bot.x * w, y=self.bot.y * h)
+# def top_inimage(self, page):
+#     return Coord(x=page.get_image_x_val(top.x), y=page.get_image_y_val(top.y))
 
-    # def top_inimage(self, page):
-    #     return Coord(x=page.get_image_x_val(top.x), y=page.get_image_y_val(top.y))
+# def size_inpage(self, pageSize):
+#     return (self.width_inpage(pageSize), self.height_inpage(pageSize))
 
-    # def size_inpage(self, pageSize):
-    #     return (self.width_inpage(pageSize), self.height_inpage(pageSize))
-
-    # def size_inimage(self, page):
-    #    page_image = page.doc.page_images[self.page_idx]
-    #    return (page_image.image_width, page_image.image_height)
+# def size_inimage(self, page):
+#    page_image = page.doc.page_images[self.page_idx]
+#    return (page_image.image_width, page_image.image_height)
 
 
-#Edge
-    # def get_coords_inpage(self, page_size, delim=" "):
-    #     w, h = page_size
-    #     pg_coords = [f"{int(w * c.x)},{int(h * c.y)}" for c in self.coords]
-    #     coord_str = delim.join(pg_coords)
-    #     return coord_str
+# Edge
+# def get_coords_inpage(self, page_size, delim=" "):
+#     w, h = page_size
+#     pg_coords = [f"{int(w * c.x)},{int(h * c.y)}" for c in self.coords]
+#     coord_str = delim.join(pg_coords)
+#     return coord_str
 
-    # def get_coords_inimage(self, page, delim=" "):
-    #     def get_image_val(c, axis):
-    #         if axis == 'x':
-    #             return page.get_image_x_val(c.x)
-    #         else:
-    #             return page.get_image_y_val(c.y)
-    #     pg_vals = [f"{get_image_val(c, 'x')},{get_image_val(c, 'y')}" for c in self.coords]
-    #     coord_str = delim.join(pg_vals)
-    #     return coord_str
+# def get_coords_inimage(self, page, delim=" "):
+#     def get_image_val(c, axis):
+#         if axis == 'x':
+#             return page.get_image_x_val(c.x)
+#         else:
+#             return page.get_image_y_val(c.y)
+#     pg_vals = [f"{get_image_val(c, 'x')},{get_image_val(c, 'y')}" for c in self.coords]
+#     coord_str = delim.join(pg_vals)
+#     return coord_str

@@ -1,24 +1,12 @@
-from typing import (
-    Any,
-    Callable,
-    List,
-    Dict,
-    Union,
-    Iterable,
-    NoReturn,
-    Mapping,
-    Iterator,
-)
-from pathlib import Path
 import inspect
-
 import os
+from pathlib import Path
+from typing import Any, Callable, List, Mapping
 
 import yaml
+from dateutil import parser
 
 from .errors import Errors
-
-from dateutil import parser
 
 
 class SimpleFrozenDict(dict):
@@ -87,12 +75,12 @@ class SimpleFrozenList(list):
         raise NotImplementedError(self.error)
 
 
-def load_config(
-    path: Union[str, Path],
-    overrides: Dict[str, Any] = SimpleFrozenDict(),
-    interpolate: bool = False,
-) -> Dict[str, Any]:
-    pass
+# def load_config(
+#     path: Union[str, Path],
+#     overrides: Dict[str, Any] = SimpleFrozenDict(),
+#     interpolate: bool = False,
+# ) -> Dict[str, Any]:
+#     pass
 
 
 def get_object_name(obj: Any) -> str:
@@ -124,9 +112,11 @@ def get_arg_names(func: Callable) -> List[str]:
 def is_readable(path):
     return path.is_file() and os.access(path, os.R_OK)
 
+
 def is_writeable_dir(path):
     path = Path(path)
     return path.is_dir() and os.access(path, os.W_OK)
+
 
 def is_readable_dir(path):
     path = Path(path)
@@ -137,55 +127,54 @@ def read_config_from_disk(path):
     path = Path(path)
     if not path.exists():
         return {}
-    
+
     config = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.FullLoader)
     config = {} if not config else config
     return config
 
+
 def load_config(config_dir, doc_name, stub):
-    config_file_path = Path(config_dir) / f'{doc_name}.{stub}.yml'
+    config_file_path = Path(config_dir) / f"{doc_name}.{stub}.yml"
     if is_readable(config_file_path):
         return read_config_from_disk(config_file_path)
     elif not config_file_path.exists():
         return {}
     else:
-        raise ValueError(f'Config file is not readable: {config_file_path}')
+        raise ValueError(f"Config file is not readable: {config_file_path}")
 
 
-def load_file_config(config, doc_name, stub):
-    config_file_path = Path(config_dir) / f'{doc_name}.{stub}.yml'
-    single_config_path = Path(config_dir) / f'{doc_name}.yml'
-    
-    
-    if is_readable(config_file_path):
-        return read_config_from_disk(config_file_path)
-    elif is_readable(single_config_path):
-        single_dict = read_config_from_disk(single_config_path)
-        result_dict = {}
-        for k, v in single_dict.items():
-            if k.startswith(stub):
-                if k == stub:
-                    assert instance(v, dict)
-                    result_dict.update(v)
-                else:
-                    (stub, field) = k.split('.')
-                    assert '.' not in field
-                    result_dict[field] = v
-        return result_dict
-    else:
-        raise ValueError(f'Config file is not readable: {config_file_path}')
-    
+# def load_file_config(config, doc_name, stub):
+#     config_file_path = Path(config_dir) / f"{doc_name}.{stub}.yml"
+#     single_config_path = Path(config_dir) / f"{doc_name}.yml"
+#
+#     if is_readable(config_file_path):
+#         return read_config_from_disk(config_file_path)
+#     elif is_readable(single_config_path):
+#         single_dict = read_config_from_disk(single_config_path)
+#         result_dict = {}
+#         for k, v in single_dict.items():
+#             if k.startswith(stub):
+#                 if k == stub:
+#                     assert instance(v, dict)
+#                     result_dict.update(v)
+#                 else:
+#                     (stub, field) = k.split(".")
+#                     assert "." not in field
+#                     result_dict[field] = v
+#         return result_dict
+#     else:
+#         raise ValueError(f"Config file is not readable: {config_file_path}")
 
-    
 
 def find_date(date_line):
     try:
-        date_line = date_line.strip('()')
+        date_line = date_line.strip("()")
         dt = parser.parse(date_line, fuzzy=True, dayfirst=True)
-        #return str(dt.date()), ''
-        return dt.date(), ''
+        # return str(dt.date()), ''
+        return dt.date(), ""
     except ValueError as e:
         return None, str(e)
+
 
 def raise_error(proc_name, proc, docs, e):
     raise e
@@ -200,7 +189,7 @@ def _pipe(
 ):
     print(f"INSIDE _PIPE {proc}")
     if hasattr(proc, "pipe"):
-        print(f"INSIDE _PIPE {proc}")        
+        print(f"INSIDE _PIPE {proc}")
         yield from proc.pipe(docs, **kwargs)
     else:
         # We added some args for pipe that __call__ doesn't expect.
@@ -217,15 +206,3 @@ def _pipe(
                 yield doc
             except Exception as e:
                 error_handler(name, proc, [doc], e)
-
-
-
-    
-        
-    
-
-
-    
-    
-    
-    

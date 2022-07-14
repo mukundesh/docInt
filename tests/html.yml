@@ -1,9 +1,0 @@
-pipeline:
-  - name: gcv_recognizer
-    config:
-      bucket: pedia
-
-  - name: html_generator
-    config:
-      html_root: html
-      image_root: ../.img

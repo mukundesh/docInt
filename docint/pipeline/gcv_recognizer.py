@@ -2,15 +2,13 @@ import io
 import json
 import pathlib
 
+from google.cloud import storage, vision_v1
 from google.protobuf.json_format import MessageToDict
-from google.cloud import vision_v1
-from google.cloud import storage
 
-from ..vision import Vision
-from ..doc import Doc
 from ..page import Page
-from ..word import Word, BreakType
 from ..shape import Coord, Poly
+from ..vision import Vision
+from ..word import BreakType, Word
 
 _break_type_dict = {
     "UNKNOW": BreakType.Unknown,
@@ -181,9 +179,8 @@ class CloudVisionRecognizer:
 
         if len(json_blobs) != 1:
             blob_names = ", ".join(b.name for b in json_blobs)
-            print(f'Blobs found: {len(json_blobs)} >{blob_names}< {outputPrefix}')
+            print(f"Blobs found: {len(json_blobs)} >{blob_names}< {outputPrefix}")
 
-        
         for blob in json_blobs:
             output_path.write_bytes(blob.download_as_string())
 
@@ -204,10 +201,10 @@ class CloudVisionRecognizer:
             output_path.write_bytes(output_jsons[0].download_as_string())
         else:
             if doc.num_pages < 5:
-                print('Running in sync') 
+                print("Running in sync")
                 self.run_sync_gcv(doc, output_path)
             else:
-                print('Running in async')                 
+                print("Running in async")
                 self.run_async_gcv(doc, output_path)
 
     def read_gcv(self, doc, output_path):
@@ -220,9 +217,9 @@ class CloudVisionRecognizer:
             return self.read_gcv(doc, output_path)
         else:
             # imports are expensive
-            #from google.protobuf.json_format import MessageToDict
-            #from google.cloud import vision_v1
-            #from google.cloud import storage
+            # from google.protobuf.json_format import MessageToDict
+            # from google.cloud import vision_v1
+            # from google.cloud import storage
 
             self.run_gcv(doc, output_path)
             return self.build_pages(doc, output_path)

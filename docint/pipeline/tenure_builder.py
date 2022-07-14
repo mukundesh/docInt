@@ -1,22 +1,22 @@
+import datetime
+import json
 import logging
 import sys
-import datetime
 from dataclasses import dataclass
-from operator import attrgetter
 from itertools import groupby
-from more_itertools import flatten
-import json
+from operator import attrgetter
 from pathlib import Path
 
 import yaml
 from dateutil import parser
+from more_itertools import flatten
 
-from ..vision import Vision
 from ..extracts.orgpedia import Tenure
 from ..region import DataError
-
+from ..vision import Vision
 
 # b /Users/mukund/Software/docInt/docint/pipeline/id_assigner.py:34
+
 
 class TenureMissingAssumeError(DataError):
     @classmethod
@@ -41,7 +41,7 @@ class DetailInfo:
     order_category: str
 
     def __str__(self):
-        return f'{self.order_id} {self.officer_id} {self.post_id}'
+        return f"{self.order_id} {self.officer_id} {self.post_id}"
 
 
 @Vision.factory(
@@ -49,7 +49,7 @@ class DetailInfo:
     default_config={
         "conf_dir": "conf",
         "conf_stub": "tenure_builder",
-        "ministry_file": "conf/ministries.yml",        
+        "ministry_file": "conf/ministries.yml",
     },
 )
 class TenureBuilder:
@@ -70,7 +70,6 @@ class TenureBuilder:
                 )
         else:
             self.ministry_dict = {}
-        
 
         self.lgr = logging.getLogger(__name__)
         self.lgr.setLevel(logging.DEBUG)
@@ -91,7 +90,7 @@ class TenureBuilder:
         def iter_posts(detail):
             if not detail.officer.officer_id:
                 return
-            
+
             for verb in ["continues", "relinquishes", "assumes"]:
                 for post in getattr(detail, verb):
                     yield verb, post
@@ -108,7 +107,7 @@ class TenureBuilder:
             )
 
         if order.order_id == "1_Upload_2830.pdf":
-            print('Found It')
+            print("Found It")
 
         if not valid_date(order):
             return []
@@ -121,7 +120,6 @@ class TenureBuilder:
             if m["start_date"] <= date < m["end_date"]:
                 return m["end_date"]
         return None
-    
 
     def build_officer_tenures(self, officer_id, detail_infos):
         def build_tenure(start_info, end_order_id, end_date, end_detail_idx):
@@ -137,11 +135,12 @@ class TenureBuilder:
                 end_order_id=end_order_id,
                 end_detail_idx=end_detail_idx,
             )
+
         def get_postids(infos):
             infos = list(infos)
             if not infos:
-                return '[0]'
-            
+                return "[0]"
+
             if isinstance(infos[0], DetailInfo):
                 post_ids = [i.post_id for i in infos]
             else:
@@ -149,77 +148,91 @@ class TenureBuilder:
             return f'[{len(post_ids)}]: {", ".join(post_ids)}'
 
         errors = []
+
         def handle_order_infos(order_infos):
             first = order_infos[0]
             o_id, o_date, d_idx = first.order_id, first.order_date, first.detail_idx
             o_tenures = []
             active_posts = set(postid_info_dict.keys())
-            self.lgr.info(f'\tActive{get_postids(active_posts)} Order{get_postids(order_infos)}')
+            self.lgr.info(
+                f"\tActive{get_postids(active_posts)} Order{get_postids(order_infos)}"
+            )
             if first.order_category == "Council":
                 order_posts = set(i.post_id for i in order_infos)
                 ignored_posts = list(active_posts - order_posts)
                 if ignored_posts:
                     for post_id in ignored_posts:
                         ignored_info = postid_info_dict[post_id]
-                        o_tenures.append(build_tenure(ignored_info, o_id, o_date, d_idx))
+                        o_tenures.append(
+                            build_tenure(ignored_info, o_id, o_date, d_idx)
+                        )
                         del postid_info_dict[post_id]
-                    self.lgr.info(f'\t\tClosing Actives*{get_postids(ignored_posts)} {o_id} {d_idx}')                
-
+                    self.lgr.info(
+                        f"\t\tClosing Actives*{get_postids(ignored_posts)} {o_id} {d_idx}"
+                    )
 
             for info in order_infos:
                 if info.verb in ("assumes", "continues"):
                     if info.post_id not in postid_info_dict:
                         postid_info_dict.setdefault(info.post_id, info)
                         # if info.verb == "continues":
-                        #     errors.append(TenureMissingAssumeError.build(info))                           
+                        #     errors.append(TenureMissingAssumeError.build(info))
                 elif info.verb == "relinquishes":
                     start_info = postid_info_dict.get(info.post_id, None)
                     if not start_info:
-                        self.lgr.warning(f"***Missing Assume post_id: {info.post_id} not found in {str(info)}")
+                        self.lgr.warning(
+                            f"***Missing Assume post_id: {info.post_id} not found in {str(info)}"
+                        )
                         errors.append(TenureMissingAssumeError.build(info))
                         continue
                     o_tenures.append(build_tenure(start_info, o_id, o_date, d_idx))
-                    self.lgr.info(f'\t\tClosing Active: {info.post_id} {o_id} {d_idx}')
+                    self.lgr.info(f"\t\tClosing Active: {info.post_id} {o_id} {d_idx}")
                     del postid_info_dict[info.post_id]
                 else:
                     raise NotImplementedError(f"Unknown verb: {info.verb}")
             return o_tenures
 
         detail_infos = sorted(detail_infos, key=lambda i: (i.order_date, i.order_id))
-        self.lgr.info(f'\n## Processing Officer: {officer_id} #detailpost_infos: {len(detail_infos)}')        
+        self.lgr.info(
+            f"\n## Processing Officer: {officer_id} #detailpost_infos: {len(detail_infos)}"
+        )
 
         postid_info_dict, officer_tenures = {}, []
         for order_id, order_infos in groupby(detail_infos, key=attrgetter("order_id")):
             order_infos = list(order_infos)
-            self.lgr.info(f'Order: {order_id} #detailpost_infos: {len(order_infos)}')            
+            self.lgr.info(f"Order: {order_id} #detailpost_infos: {len(order_infos)}")
             officer_tenures += handle_order_infos(order_infos)
 
         if postid_info_dict:
-            self.lgr.warning(f"***No Closing Orders{get_postids(postid_info_dict.keys())}")
+            self.lgr.warning(
+                f"***No Closing Orders{get_postids(postid_info_dict.keys())}"
+            )
             if self.ministry_dict:
                 for post_id, info in postid_info_dict.items():
                     end_date = self.ministry_end_date(info.order_date)
                     officer_tenures.append(build_tenure(info, "", end_date, -1))
-            
+
         return officer_tenures, errors
 
     def write_tenures(self, tenures):
         tenure_dicts = []
         for t in tenures:
             td = t.dict()
-            td['start_date'] = str(td['start_date'])
-            td['end_date'] = str(td['end_date'])
+            td["start_date"] = str(td["start_date"])
+            td["end_date"] = str(td["end_date"])
             tenure_dicts.append(td)
-        tenure_output_path = Path('output/tenures.json')
-        tenure_output_path.write_text(json.dumps({'tenures': tenure_dicts}, indent=2))
+        tenure_output_path = Path("output/tenures.json")
+        tenure_output_path.write_text(json.dumps({"tenures": tenure_dicts}, indent=2))
 
     def pipe(self, docs, **kwargs):
         print("Inside tenure_builder")
         self.lgr.info("Entering tenure builder")
-        docs = list(docs)        
+        docs = list(docs)
 
         for doc in docs:
-            doc.add_extra_field('tenures', ('list', 'docint.extracts.orgpedia', 'Tenure'))
+            doc.add_extra_field(
+                "tenures", ("list", "docint.extracts.orgpedia", "Tenure")
+            )
 
         orders = [doc.order for doc in docs]
         detail_infos = list(flatten(self.build_detail_infos(o) for o in orders))
@@ -230,7 +243,7 @@ class TenureBuilder:
         tenures, errors = [], []
         for officer_id, officer_infos in officer_groupby:
             o_tenures, o_errors = self.build_officer_tenures(officer_id, officer_infos)
-            tenures +=  o_tenures
+            tenures += o_tenures
             errors += o_errors
 
         self.lgr.info(f"#Tenures: {len(tenures)}")
@@ -239,12 +252,13 @@ class TenureBuilder:
             order_id_doc_dict[doc.order.order_id] = doc
             doc.tenures = []
 
-            
         for tenure in tenures:
             doc = order_id_doc_dict[tenure.start_order_id]
             doc.tenures.append(tenure)
 
         self.write_tenures(tenures)
-        self.lgr.info(f"=={doc.pdf_name}.tenure_builder {len(tenures)} {DataError.error_counts(errors)}")
+        self.lgr.info(
+            f"=={doc.pdf_name}.tenure_builder {len(tenures)} {DataError.error_counts(errors)}"
+        )
         self.lgr.info("Leaving tenure_builder")
         return docs

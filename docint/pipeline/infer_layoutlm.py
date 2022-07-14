@@ -1,24 +1,27 @@
 import itertools
 import json
 import logging
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
-from transformers import LayoutLMv2Processor
-from transformers import LayoutLMv2ForTokenClassification
-from datasets import load_dataset
-from datasets import Features, Sequence, ClassLabel, Value, Array2D, Array3D
 import torch
-from torch.utils.data import DataLoader
+from datasets import (
+    Array2D,
+    Array3D,
+    ClassLabel,
+    Features,
+    Sequence,
+    Value,
+    load_dataset,
+)
 from PIL import Image, ImageDraw, ImageFont
-
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+from transformers import LayoutLMv2ForTokenClassification, LayoutLMv2Processor
 
-
-from ..vision import Vision
 from ..region import Region
-from ..util import load_config
-from ..word import Word
+from ..vision import Vision
+
 
 def drawBoxesAndSave(predictionsList, boxesList, images, imagePaths, imgSaveDir):
     def iob_to_label(label):
@@ -38,8 +41,10 @@ def drawBoxesAndSave(predictionsList, boxesList, images, imagePaths, imgSaveDir)
 
     font = ImageFont.load_default()
     imgDirPath = Path(imgSaveDir)
-        
-    for predictions, boxes, image, imgPath in zip(predictionsList, boxesList, images, imagePaths):
+
+    for predictions, boxes, image, imgPath in zip(
+        predictionsList, boxesList, images, imagePaths
+    ):
         draw = ImageDraw.Draw(image)
 
         for prediction, box in zip(predictions, boxes):
@@ -53,10 +58,9 @@ def drawBoxesAndSave(predictionsList, boxesList, images, imagePaths, imgSaveDir)
             )
 
         imgPath = Path(imgPath)
-        imgSavePath =  imgDirPath / (imgPath.stem + ".marked.png")
+        imgSavePath = imgDirPath / (imgPath.stem + ".marked.png")
         image.save(imgSavePath)
-    #end for
-
+    # end for
 
 
 @Vision.factory(
@@ -94,26 +98,29 @@ class InferLayoutLM:
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(logging.StreamHandler())
 
-        
-
     def write_layoutlm_json(self, doc, page_idx):
         page = doc[page_idx]
         newWh, newHt = int((page.width * 1000.0) / page.height), 1000
+
         def flatten_box(box):
             flat_box = [box.top.x, box.top.y, box.bot.x, box.bot.y]
-            flat_box = [ min(max(v,0.0), 1.0) for v in flat_box]
+            flat_box = [min(max(v, 0.0), 1.0) for v in flat_box]
             [x0, y0, x1, y1] = flat_box
-            flat_box = [ int(x0*newWh), int(y0*newHt), int(x1*newWh), int(y1*newHt)]
+            flat_box = [
+                int(x0 * newWh),
+                int(y0 * newHt),
+                int(x1 * newWh),
+                int(y1 * newHt),
+            ]
             [x0, y0, x1, y1] = flat_box
-            x0, x1 = x0 if x0 < newWh else newWh-1, x1 if x1 < newWh else newWh-1
-            y0, y1 = y0 if y0 < newHt else newHt-1, y1 if y1 < newHt else newHt-1
-            return [x0,y0, x1, y1]
-
+            x0, x1 = x0 if x0 < newWh else newWh - 1, x1 if x1 < newWh else newWh - 1
+            y0, y1 = y0 if y0 < newHt else newHt - 1, y1 if y1 < newHt else newHt - 1
+            return [x0, y0, x1, y1]
 
         def build_word(word):
             return {"text": word.text, "box": flatten_box(word.box)}
 
-        print(f'**{doc.pdf_name} {len(doc.pages[0].words)}')        
+        print(f"**{doc.pdf_name} {len(doc.pages[0].words)}")
 
         page_region = Region(words=page.words)
         entity = {
@@ -124,11 +131,9 @@ class InferLayoutLM:
             "linking": [],
             "words": [],
         }
-        print(f'\t** Doing words')
+        print("\t** Doing words")
 
         entity["words"] = [build_word(w) for w in doc.pages[0].words]
-
-
 
         layout_dict = {"form": [entity]}
         json_dir = Path(self.layoutlm_dir) / "annotations"
@@ -136,7 +141,7 @@ class InferLayoutLM:
         json_path.write_text(json.dumps(layout_dict, indent=2))
 
     def write_layoutlm_image(self, doc, page_idx):
-        page = doc.pages[page_idx]
+        # page = doc.pages[page_idx]
 
         input_img_path = doc.get_image_path(page_idx)
         output_img_dir = Path(self.layoutlm_dir) / "images"
@@ -164,13 +169,13 @@ class InferLayoutLM:
             boxes = examples["bboxes"]
             word_labels = examples["ner_tags"]
 
-            for (path, exWords, exBoxes) in zip(examples['image_path'], words, boxes):
+            for (path, exWords, exBoxes) in zip(examples["image_path"], words, boxes):
                 maxVal = max([max(box) for box in exBoxes])
                 if maxVal > 1000:
-                    print(f'{path}')
+                    print(f"{path}")
                     for idx, (exWord, exBox) in enumerate(zip(exWords, exBoxes)):
                         if max(exBox) > 1000:
-                            print(f'{idx} -> {exWord} {exBox}')
+                            print(f"{idx} -> {exWord} {exBox}")
             encoded_inputs = processor(
                 images,
                 words,
@@ -227,7 +232,7 @@ class InferLayoutLM:
             grouper(imagePaths, batchSize),
         )
 
-        self.logger.info(f'Evaluating model with batchSize: {batchSize}')                            
+        self.logger.info(f"Evaluating model with batchSize: {batchSize}")
 
         model = LayoutLMv2ForTokenClassification.from_pretrained(self.model_dir)
 
@@ -240,7 +245,7 @@ class InferLayoutLM:
             numExamples = len(batch["bbox"])
             wordsBatch = next(wordsLoader)[:numExamples]
             imagePathBatch = next(imageLoader)[:numExamples]
-            print('***** New Batch ********')
+            print("***** New Batch ********")
             print(imagePathBatch)
             with torch.no_grad():
                 input_ids = batch["input_ids"].to(device)
@@ -249,8 +254,8 @@ class InferLayoutLM:
                 attention_mask = batch["attention_mask"].to(device)
                 token_type_ids = batch["token_type_ids"].to(device)
 
-                print(f'**** min: {torch.min(bbox)}')
-                print(f'**** max: {torch.max(bbox)}')
+                print(f"**** min: {torch.min(bbox)}")
+                print(f"**** max: {torch.max(bbox)}")
 
                 # forward pass
                 outputs = model(
@@ -269,16 +274,16 @@ class InferLayoutLM:
                 labels = [labels] if numExamples == 1 else labels
                 predictions = outputs.logits.argmax(dim=2)
 
-                print(f'predictions.shape: {predictions.shape}')
-                print(f'len(labels): {len(labels)}')
-                print(f'len(labels[0]): {len(labels[0])}')
+                print(f"predictions.shape: {predictions.shape}")
+                print(f"len(labels): {len(labels)}")
+                print(f"len(labels[0]): {len(labels[0])}")
 
                 # Remove ignored index (special tokens)
                 true_predictions = [
                     [
                         model.config.id2label[p.item()]
-                        for (l, p) in zip(label, prediction)
-                        if l != -100
+                        for (lb, p) in zip(label, prediction)
+                        if lb != -100
                     ]
                     for label, prediction in zip(labels, predictions)
                 ]
@@ -289,15 +294,21 @@ class InferLayoutLM:
                 true_boxes = [
                     [
                         unnormalize_box(box, width, height)
-                        for (l, box) in zip(label, boxes)
-                        if l != -100
+                        for (lb, box) in zip(label, boxes)
+                        if lb != -100
                     ]
                     for (label, boxes, (width, height)) in zip(
                         labels, batch["bbox"], imgSizesBatch
                     )
                 ]
 
-                drawBoxesAndSave(true_predictions, true_boxes, imageBatch, imagePathBatch, 'output/images')
+                drawBoxesAndSave(
+                    true_predictions,
+                    true_boxes,
+                    imageBatch,
+                    imagePathBatch,
+                    "output/images",
+                )
                 true_words = wordsBatch
                 assert len(true_words) == len(true_boxes) == len(true_predictions)
 
@@ -317,37 +328,37 @@ class InferLayoutLM:
         return allDocDicts, allImgPaths
 
     def pipe(self, docs, **kwargs):
-        self.logger.info('Entering infer_layoutlm.pipe')
-        
+        self.logger.info("Entering infer_layoutlm.pipe")
+
         docs = list(docs)
         for doc in docs:
             self.write_layoutlm_json(doc, 0)
             self.write_layoutlm_image(doc, 0)
 
         doc_dict = dict([(doc.pdf_name, doc) for doc in docs])
-        self.logger.info('Done saving layoutlm files')            
+        self.logger.info("Done saving layoutlm files")
 
         ptDataset, docWords, imagePaths = self.get_pytorch_dataset()
 
-        self.logger.info('Generated pytorch dataset')                    
+        self.logger.info("Generated pytorch dataset")
 
         allDocDicts, allImgPaths = self.eval(ptDataset, docWords, imagePaths)
 
         for imgPath, docDict in zip(allImgPaths, allDocDicts):
-            pdf_name = Path(imgPath).name.replace('.annot.png','')
+            pdf_name = Path(imgPath).name.replace(".annot.png", "")
             doc = doc_dict[pdf_name]
-            
+
             doc.add_extra_page_field("layoutlm", ("dict", "docint.region", "Region"))
             page = doc[self.page_num - 1]
             page.layoutlm = {}
 
             page = doc[0]
-            print(f'{pdf_name} ****************')
+            print(f"{pdf_name} ****************")
             for label, wordDicts in docDict.items():
                 words = [page[w["idx"]] for w in wordDicts]
                 page.layoutlm[label] = Region(words=words)
-                print(f'{label}')
-                print(f'{page.layoutlm[label].text}')
-                print('')
+                print(f"{label}")
+                print(f"{page.layoutlm[label].text}")
+                print("")
         # end for
         return docs

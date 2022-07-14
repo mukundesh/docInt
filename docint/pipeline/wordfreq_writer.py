@@ -1,10 +1,9 @@
-from pathlib import Path
-from collections import Counter
 import logging
 import string
+from collections import Counter
+from pathlib import Path
 
 from ..vision import Vision
-from ..util import load_config
 
 
 @Vision.factory(
@@ -37,7 +36,6 @@ class WordfreqWriter:
 
     def __call__(self, doc):
         self.logger.info(f"wordfreq_writer: {doc.pdf_name}")
-        doc_config = load_config(self.doc_confdir, doc.pdf_name, "listfinder")
         counter = Counter()
         for page in doc.pages:
             for list_item in page.list_items:

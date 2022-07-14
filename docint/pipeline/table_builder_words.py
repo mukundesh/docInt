@@ -1,14 +1,14 @@
-import sys
-from pathlib import Path
 import logging
-from itertools import groupby, chain
+import sys
+from itertools import chain, groupby
 from operator import attrgetter, itemgetter
+from pathlib import Path
 
-from ..vision import Vision
 from ..region import Region
 
 # from ..table import Table, Row, Cell
 from ..shape import Edge
+from ..vision import Vision
 
 
 @Vision.factory(
@@ -183,8 +183,8 @@ class TableBuilderOnWords:
         return edges
 
     def build_edges(self, table_words):
-        edges = self.build_v_edges(table_words) #+ self.build_h_edges(table_words)
-        self.lgr.info(f'Total Edges: {len(edges)}')
+        edges = self.build_v_edges(table_words)  # + self.build_h_edges(table_words)
+        self.lgr.info(f"Total Edges: {len(edges)}")
         # edges = self.merge_edges(edges)
         edges = [e for e in edges if e.length > self.edge_min_length]
         return edges
@@ -207,7 +207,7 @@ class TableBuilderOnWords:
 
     def build_tables(table_words):
         edges = self.build_edges(table_words)
-        
+
         intersections = edges_to_intersections(edges)
         cells = interesections_to_cells(intersections)
         tables = cells_to_tables(cells)
@@ -272,7 +272,7 @@ class TableBuilderOnWords:
 
                         return (c.x, c.y, bottom_right.x, bottom_right.y)
 
-        coords = sorted(intersections.keys())                            
+        coords = sorted(intersections.keys())
         cell_gen = (find_smallest_cell(coords, idx) for idx in range(len(coords)))
         return list(filter(None, cell_gen))
 
