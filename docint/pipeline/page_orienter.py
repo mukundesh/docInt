@@ -51,7 +51,7 @@ class OrientPage:
             else:
                 angle = angleDict[tuple(idxs)]
             angle_counter[angle] += 1
-        return max(angle_counter, key=angle_counter.get)
+        return max(angle_counter, key=angle_counter.get, default=0)
 
     def orient_image(self, img_path, angle):
         assert angle in (90, 180, 270)

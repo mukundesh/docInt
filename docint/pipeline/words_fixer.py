@@ -7,6 +7,7 @@ from pathlib import Path
 
 from enchant import request_pwl_dict
 from enchant.utils import levenshtein
+from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 
 from ..region import DataError, TextConfig
 from ..span import Span
@@ -51,11 +52,6 @@ class WordsFixer:
         unicode_file,
         officer_at_start,
     ):
-        from transformers import (
-            AutoModelForTokenClassification,
-            AutoTokenizer,
-            pipeline,
-        )
 
         ignore_puncts = string.punctuation
         self.punct_tbl = str.maketrans(ignore_puncts, " " * len(ignore_puncts))
@@ -84,23 +80,17 @@ class WordsFixer:
             "indop",
         ]
 
-        u_lines = [
-            line.split()
-            for line in Path(self.unicode_file).read_text().split("\n")
-            if line.strip()
-        ]
+        u_lines = [line.split() for line in Path(self.unicode_file).read_text().split("\n") if line.strip()]
         self.unicode_dict = dict((u, a if a != "<ignore>" else "") for u, a in u_lines)
 
-        self.dictionary = request_pwl_dict(str(self.dict_file))
-
         # TODO PLEASE MOVE THIS TO OPTIONS
-        tokenizer = AutoTokenizer.from_pretrained(
-            "/Users/mukund/Github/huggingface/bert-base-NER"
-        )
-        model = AutoModelForTokenClassification.from_pretrained(
-            "/Users/mukund/Github/huggingface/bert-base-NER"
-        )
+        tokenizer = AutoTokenizer.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
+        model = AutoModelForTokenClassification.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
+
         self.nlp = pipeline("ner", model=model, tokenizer=tokenizer)
+        # self.nlp = pipeline("ner")
+
+        self.dictionary = request_pwl_dict(str(self.dict_file))
 
         self.test_doc = True
 
@@ -413,9 +403,7 @@ class WordsFixer:
 
         if len(person_spans) > 2:
             msg = f'incorrect span: {",".join(str(s) for s in person_spans)}'
-            errors.append(
-                OfficerMultipleError(path=path, msg=msg, num_officers=len(person_spans))
-            )
+            errors.append(OfficerMultipleError(path=path, msg=msg, num_officers=len(person_spans)))
         return errors
 
     def set_config(self, doc_config):
@@ -436,9 +424,7 @@ class WordsFixer:
 
         doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
         old_officer_at_start = self.officer_at_start
-        self.officer_at_start = doc_config.get(
-            "officer_at_start", self.officer_at_start
-        )
+        self.officer_at_start = doc_config.get("officer_at_start", self.officer_at_start)
 
         if self.pre_edit:
             edits = doc_config.get("edits", [])

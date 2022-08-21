@@ -1,7 +1,10 @@
 from itertools import chain
 from typing import List
 
+from pydantic import BaseModel
+
 from .region import DataError, Region
+from .shape import Edge
 
 
 class TableEmptyError(DataError):
@@ -38,9 +41,7 @@ class Cell(Region):
     def build(cls, words):
         word_idxs = [w.word_idx for w in words]
         page_idx = words[0].page_idx if words else None
-        return Cell(
-            words=words, word_lines=[words], word_idxs=word_idxs, page_idx_=page_idx
-        )
+        return Cell(words=words, word_lines=[words], word_idxs=word_idxs, page_idx_=page_idx)
 
 
 class Row(Region):
@@ -58,6 +59,10 @@ class Row(Region):
         cells = [c for b in self.body_rows for c in b.cells]
         return [self] + cells
 
+    def remove_word(self, word):
+        self.remove_word_ifpresent(word)
+        [c.remove_word_ifpresent(word) for c in self.cells]
+
     def test(self, path, num_cols=None, is_header=False):
         errors = []
         if num_cols is not None and len(self.cells) != num_cols:
@@ -70,26 +75,29 @@ class Row(Region):
                 is_none = True if cell is None else False
                 msg = f"{cell_path}: emtpy cell is_none: {is_none}"
                 if is_header:
-                    errors.append(
-                        TableEmptyHeaderCellError(
-                            path=cell_path, msg=msg, is_none=is_none
-                        )
-                    )
+                    errors.append(TableEmptyHeaderCellError(path=cell_path, msg=msg, is_none=is_none))
                 else:
-                    errors.append(
-                        TableEmptyBodyCellError(
-                            path=cell_path, msg=msg, is_none=is_none
-                        )
-                    )
+                    errors.append(TableEmptyBodyCellError(path=cell_path, msg=msg, is_none=is_none))
         return errors
+
+
+class TableEdges(BaseModel):
+    row_edges: List[Edge]
+    col_edges: List[Edge]
+    errors: List[DataError] = []
+    col_img_xs: List[int] = []
+
+    class Config:
+        fields = {"col_img_xs": {"exclude": True}}
 
 
 class Table(Region):
     header_rows: List[Row]
     body_rows: List[Row]
+    title: Region = None
 
     @classmethod
-    def build(cls, body_rows, header_rows=[]):
+    def build(cls, body_rows, header_rows=[], title=None):
         words = [w for row in body_rows for w in row.words]
         words += [w for row in header_rows for w in row.words]
         word_idxs = [w.word_idx for w in words]
@@ -100,12 +108,14 @@ class Table(Region):
             header_rows=header_rows,
             word_idxs=word_idxs,
             page_idx_=page_idx,
+            title=title,
         )
 
     def get_regions(self):
         all_rows = self.body_rows + self.header_rows
         cells = [c for b in all_rows for c in b.cells]
-        return [self] + all_rows + cells
+        title = [] if not self.title else [self.title]
+        return [self] + all_rows + cells + title
 
     def iter_body_cells(self):
         for row_idx, row in enumerate(self.body_rows):
@@ -117,11 +127,7 @@ class Table(Region):
         all_tests = ["TableEmptyError", "TableEmptyBodyError", "TableEmptyHeaderError"]
         do_tests = [t for t in all_tests if t not in ignore]
 
-        if (
-            "TableEmptyError" in do_tests
-            and not self.header_rows  # noqa: W503
-            and not self.body_rows  # noqa: W503
-        ):
+        if "TableEmptyError" in do_tests and not self.header_rows and not self.body_rows:  # noqa: W503  # noqa: W503
             msg = f"{path}: Both header and body rows are empty"
             errors.append(TableEmptyError(path=path, msg=msg))
 
@@ -135,7 +141,5 @@ class Table(Region):
 
         en_b, en_h = enumerate(self.body_rows), enumerate(self.header_rows)
         errors += chain(*(r.test(f"{path}.b{idx}") for (idx, r) in en_b))
-        errors += chain(
-            *(r.test(f"{path}.h{idx}", is_header=True) for (idx, r) in en_h)
-        )
+        errors += chain(*(r.test(f"{path}.h{idx}", is_header=True) for (idx, r) in en_h))
         return errors

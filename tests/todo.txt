@@ -27,8 +27,8 @@
 3. Need to figure out the interaction with dictionary and make dictionary a first class
    object.
 4. Should all the text processing operations be part of sentence instead of region, which
-   is a child class of Region ? 
+   is a child class of Region ?
 
-    
+
 ### Top Level
 1. Figure out the word_lines before fixing region/page

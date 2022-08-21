@@ -5,15 +5,7 @@ import subprocess
 from pathlib import Path
 
 import torch
-from datasets import (
-    Array2D,
-    Array3D,
-    ClassLabel,
-    Features,
-    Sequence,
-    Value,
-    load_dataset,
-)
+from datasets import Array2D, Array3D, ClassLabel, Features, Sequence, Value, load_dataset
 from PIL import Image, ImageDraw, ImageFont
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
@@ -42,9 +34,7 @@ def drawBoxesAndSave(predictionsList, boxesList, images, imagePaths, imgSaveDir)
     font = ImageFont.load_default()
     imgDirPath = Path(imgSaveDir)
 
-    for predictions, boxes, image, imgPath in zip(
-        predictionsList, boxesList, images, imagePaths
-    ):
+    for predictions, boxes, image, imgPath in zip(predictionsList, boxesList, images, imagePaths):
         draw = ImageDraw.Draw(image)
 
         for prediction, box in zip(predictions, boxes):
@@ -122,7 +112,7 @@ class InferLayoutLM:
 
         print(f"**{doc.pdf_name} {len(doc.pages[0].words)}")
 
-        page_region = Region(words=page.words)
+        page_region = Region.build(words=page.words, page_idx=page_idx)
         entity = {
             "id": 0,
             "text": page.text_with_ws,
@@ -146,9 +136,7 @@ class InferLayoutLM:
         input_img_path = doc.get_image_path(page_idx)
         output_img_dir = Path(self.layoutlm_dir) / "images"
         output_img_path = output_img_dir / Path(doc.pdf_name + ".annot.png")
-        subprocess.check_call(
-            ["convert", "-resize", "x1000", input_img_path, output_img_path]
-        )
+        subprocess.check_call(["convert", "-resize", "x1000", input_img_path, output_img_path])
 
     def get_pytorch_dataset(self):
         hugging_face_datasets = load_dataset(self.hugging_face_dataset_path)
@@ -162,9 +150,7 @@ class InferLayoutLM:
         )
 
         def preprocess_data(examples):
-            images = [
-                Image.open(path).convert("RGB") for path in examples["image_path"]
-            ]
+            images = [Image.open(path).convert("RGB") for path in examples["image_path"]]
             words = examples["words"]
             boxes = examples["bboxes"]
             word_labels = examples["ner_tags"]
@@ -204,9 +190,7 @@ class InferLayoutLM:
             }
         )
         columnNames = selHfDatasets.column_names
-        ptDataset = selHfDatasets.map(
-            preprocess_data, batched=True, remove_columns=columnNames, features=features
-        )
+        ptDataset = selHfDatasets.map(preprocess_data, batched=True, remove_columns=columnNames, features=features)
         ptDataset.set_format(type="torch")
         return ptDataset, docWords, imagePaths
 
@@ -280,11 +264,7 @@ class InferLayoutLM:
 
                 # Remove ignored index (special tokens)
                 true_predictions = [
-                    [
-                        model.config.id2label[p.item()]
-                        for (lb, p) in zip(label, prediction)
-                        if lb != -100
-                    ]
+                    [model.config.id2label[p.item()] for (lb, p) in zip(label, prediction) if lb != -100]
                     for label, prediction in zip(labels, predictions)
                 ]
 
@@ -292,14 +272,8 @@ class InferLayoutLM:
                 imgSizesBatch = [img.size for img in imageBatch]
 
                 true_boxes = [
-                    [
-                        unnormalize_box(box, width, height)
-                        for (lb, box) in zip(label, boxes)
-                        if lb != -100
-                    ]
-                    for (label, boxes, (width, height)) in zip(
-                        labels, batch["bbox"], imgSizesBatch
-                    )
+                    [unnormalize_box(box, width, height) for (lb, box) in zip(label, boxes) if lb != -100]
+                    for (label, boxes, (width, height)) in zip(labels, batch["bbox"], imgSizesBatch)
                 ]
 
                 drawBoxesAndSave(
@@ -313,13 +287,9 @@ class InferLayoutLM:
                 assert len(true_words) == len(true_boxes) == len(true_predictions)
 
                 docDicts = []
-                for (doc_preds, doc_words, doc_boxes) in zip(
-                    true_predictions, true_words, true_boxes
-                ):
+                for (doc_preds, doc_words, doc_boxes) in zip(true_predictions, true_words, true_boxes):
                     docDict = {}
-                    for (wordIdx, (pred, word, box)) in enumerate(
-                        zip(doc_preds, doc_words, doc_boxes)
-                    ):
+                    for (wordIdx, (pred, word, box)) in enumerate(zip(doc_preds, doc_words, doc_boxes)):
                         wordDict = {"text": word, "box": box, "idx": wordIdx}
                         docDict.setdefault(pred[2:], []).append(wordDict)
                     docDicts.append(docDict)
@@ -355,10 +325,15 @@ class InferLayoutLM:
             page = doc[0]
             print(f"{pdf_name} ****************")
             for label, wordDicts in docDict.items():
-                words = [page[w["idx"]] for w in wordDicts]
-                page.layoutlm[label] = Region(words=words)
+                words = [page[w["idx"]] for w in wordDicts if w["idx"] < len(page.words) and w["idx"] >= 0]
+
+                wrong_idxs = [w["idx"] for w in wordDicts if (w["idx"] >= len(page.words)) or (w["idx"] < 0)]
+                if wrong_idxs:
+                    print(f'WRONG IDXS: {" ".join(str(idx) for idx in wrong_idxs)}')
+
+                page.layoutlm[label] = Region.build(words=words, page_idx=0)
                 print(f"{label}")
-                print(f"{page.layoutlm[label].text}")
+                print(f"{page.layoutlm[label].raw_text()}")
                 print("")
         # end for
         return docs

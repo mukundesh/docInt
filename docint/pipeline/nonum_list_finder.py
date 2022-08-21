@@ -2,55 +2,33 @@ import logging
 import statistics
 import sys
 from pathlib import Path
-from typing import List, Union
 
 from ..page import Page
-from ..region import Region
 from ..util import load_config
 from ..vision import Vision
 from ..word_line import words_in_lines
-from .num_marker import NumMarker, NumType
-from .words_fixer import OfficerMisalignedError, OfficerMultipleError
+from .list_finder import ListItem
 
 
-class ListItem(Region):
-    marker: "NumMarker" = None
-    list_errors: List[Union[OfficerMisalignedError, OfficerMultipleError]] = []
+def parse_range(astr):
+    result = set()
+    if isinstance(astr, list):
+        return astr
 
-    @classmethod
-    def build(cls, marker, item_word_lines):
-        words = [w for wl in item_word_lines for w in wl]
-        word_idxs = [w.word_idx for w in words]
-        page_idx = words[0].page_idx
-        word_lines_idxs = [[w.word_idx for w in wl] for wl in item_word_lines]
-
-        list_item = ListItem(
-            words=words,
-            word_lines=item_word_lines,
-            marker=marker,
-            word_idxs=word_idxs,
-            page_idx_=page_idx,
-            word_lines_idxs=word_lines_idxs,
-        )
-        return list_item
-
-    @property
-    def path_abbr(self):
-        return "list_item"
-
-    def __str__(self):
-        return self.line_text()
+    for part in astr.split(','):
+        x = part.split('-')
+        result.update(range(int(x[0]), int(x[-1]) + 1))
+    return sorted(result)
 
 
 @Vision.factory(
-    "list_finder",
+    "nonum_list_finder",
     default_config={
         "doc_confdir": "conf",
         "pre_edit": True,
-        "find_ordinal": True,
-        "find_roman": True,
-        "find_alphabet": False,
-        "min_markers_onpage": 1,
+        "page_idxs": [],
+        "x_range": (0.0, 0.2),
+        "y_range": (0.09, 1.0),
         "has_footer": True,
         "footer_delim": ".,;",
         "footer_height_multiple": 2.0,
@@ -63,15 +41,14 @@ class ListItem(Region):
         "conf_stub": "listfinder",
     },
 )
-class ListFinder:
+class NonumberListFinder:
     def __init__(
         self,
         doc_confdir,
         pre_edit,
-        find_ordinal,
-        find_roman,
-        find_alphabet,
-        min_markers_onpage,
+        page_idxs,
+        x_range,
+        y_range,
         has_footer,
         footer_delim,
         footer_height_multiple,
@@ -80,10 +57,9 @@ class ListFinder:
     ):
         self.doc_confdir = doc_confdir
         self.pre_edit = pre_edit
-        self.find_ordinal = find_ordinal
-        self.find_roman = find_roman
-        self.find_alphabet = find_alphabet
-        self.min_markers_onpage = min_markers_onpage
+        self.page_idxs = parse_range(page_idxs)
+        self.x_range = x_range
+        self.y_range = y_range
         self.has_footer = has_footer
         self.footer_delim = footer_delim
         self.footer_height_multiple = footer_height_multiple
@@ -119,8 +95,12 @@ class ListFinder:
         self.lgr.debug("** Inside Footer processing")
         last_word_lines = []
         footer_delim_tuple = tuple(self.footer_delim)
-        avg_height = statistics.mean([w.box.height for wl in word_lines for w in wl])
+        heights = [w.box.height for wl in word_lines for w in wl]
+        avg_height = statistics.mean(heights) if heights else 0.0
         height_cutoff = avg_height * self.footer_height_multiple
+
+        if not heights:
+            return [[]]
 
         prev_ymin = -1.0
         for word_line in [wl for wl in word_lines if wl]:
@@ -141,14 +121,21 @@ class ListFinder:
         return last_word_lines
 
     def find_inpage(self, word_lines, num_markers, page_path):
+        def build_list_item(marker, word_lines):
+            word_lines[0] = [marker] + word_lines[0]
+            return ListItem.build(None, word_lines)
+
         def to_str(word_lines):
             return "\n".join([" ".join(w.text for w in line) for line in word_lines])
 
         # assumption that word_lines and num_markers are similarly ordered.
         list_items = []
+        if not num_markers:
+            return list_items
+
         item_word_lines, m_idx, marker = [], 0, num_markers[0]
 
-        self.lgr.debug(f"> Page {page_path} num_markers: {len(num_markers)}")
+        self.lgr.debug(f"> Page {page_path} word_markers: {len(num_markers)}")
         for word_line in word_lines:
             item_word_line = []
             for word in word_line:
@@ -157,7 +144,7 @@ class ListFinder:
                     item_word_lines.append(item_word_line)
                     if m_idx != 0:
                         prev_marker = num_markers[m_idx - 1]
-                        li = ListItem.build(prev_marker, item_word_lines)
+                        li = build_list_item(prev_marker, item_word_lines)
                         self.lgr.debug(f"\t New list_item: {str(li)}")
                         list_items.append(li)
                     item_word_lines, item_word_line, m_idx = [], [], m_idx + 1
@@ -170,28 +157,39 @@ class ListFinder:
             f_text = to_str(item_word_lines)
             self.lgr.debug(f"\tFooter Lines:\n {f_text}\n")
             item_word_lines = self.remove_footer(item_word_lines)
-            list_items.append(ListItem.build(num_markers[-1], item_word_lines))
+            list_items.append(build_list_item(num_markers[-1], item_word_lines))
 
         enum_li = enumerate(list_items)
         [self.lgr.debug(f"> Page {page_path} {idx}: {str(li)}") for idx, li in enum_li]
 
         return list_items
 
-    def filter_markers(self, markers):
-        filtered_markers = []
-        for marker in markers:
-            if marker.num_type == NumType.Ordinal:
-                if self.find_ordinal:
-                    filtered_markers.append(marker)
-            elif marker.num_type == NumType.Roman:
-                if self.find_roman:
-                    filtered_markers.append(marker)
-            elif marker.num_type == NumType.Alphabet:
-                if self.find_alphabet:
-                    filtered_markers.append(marker)
+    def find_markers(self, page, word_lines):
+        ws = page.words_in_xrange(self.x_range, partial=True)
+        print(f'x_range: {self.x_range} {len(ws)}')
+        ws = [w for w in ws if w.box.in_yrange(self.y_range, partial=False)]
 
-        print(f"Num: {len(filtered_markers)}")
-        return filtered_markers
+        ws = [w for w in ws if len(w.text) >= 1 and not w.text.isupper()]
+
+        print(f'marker_words[{len(ws)}:{", ".join(w.text for w in ws)}')
+        line_idxs = [-1] * len(page.words)
+        for line_idx, wline in enumerate(word_lines):
+            for w in wline:
+                line_idxs[w.word_idx] = line_idx
+
+        line_marker_dict = {}
+        for w in ws:
+            line_idx = line_idxs[w.word_idx]
+            line_marker_dict.setdefault(line_idx, []).append(w)
+
+        result_ws = []
+        sorted_line_idxs = sorted(line_marker_dict.keys())
+        for line_idx in sorted_line_idxs:
+            line_words = sorted(line_marker_dict[line_idx], key=lambda w: w.xmin)
+            result_ws.append(line_words[0])
+
+        print(f'marker_words[{len(result_ws)}:{", ".join(w.text for w in result_ws)}')
+        return result_ws
 
     def get_arranged_word_lines(self, page):
         wl_idxs = page.arranged_word_lines_idxs
@@ -273,10 +271,21 @@ class ListFinder:
         old_fhm = self.footer_height_multiple
         self.footer_height_multiple = doc_config.get("footer_height_multiple", old_fhm)
 
+        old_page_idxs = self.page_idxs
+        self.page_idxs = doc_config.get('page_idxs', self.page_idxs)
+        self.page_idxs = parse_range(self.page_idxs)
+        print('Page_idxs: {self.page_idxs}')
+
+        old_y_range = self.y_range
+        self.y_range = doc_config.get('y_range', self.y_range)
+
         rotation_config = self.get_rotation_config(doc_config)
 
         doc.add_extra_page_field("list_items", ("list", __name__, "ListItem"))
-        for page in doc.pages:
+        for page_idx, page in enumerate(doc.pages):
+            if page_idx not in self.page_idxs:
+                page.list_items = []
+                continue
 
             if hasattr(page, "arranged_word_lines_idxs"):
                 word_lines = self.get_arranged_word_lines(page)
@@ -287,14 +296,14 @@ class ListFinder:
                 word_lines = words_in_lines(page, newline_height_multiple=nl_ht_multiple)
 
             # Move this to the top and save some words lines methods
-            num_markers = self.filter_markers(page.num_markers)
-
-            if len(num_markers) >= self.min_markers_onpage:
-                page.list_items = self.find_inpage(word_lines, num_markers, page.page_idx)
-            else:
-                page.list_items = []
+            word_markers = self.find_markers(page, word_lines)
+            print(f'Page {page_idx}: {len(word_markers)}')
+            page.list_items = self.find_inpage(word_lines, word_markers, page.page_idx)
 
         self.footer_height_multiple = old_fhm
+        self.page_idxs = old_page_idxs
+        self.y_range = old_y_range
+
         self.remove_log_handler(doc)
         return doc
 

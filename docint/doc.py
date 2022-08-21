@@ -8,7 +8,7 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-import msgpack
+# import msgpack
 import pdf2image
 import pdfplumber
 import pydantic
@@ -50,12 +50,8 @@ class PageImage(BaseModel):
         centre_x = image_coord.x - prev_width + image_x_centre
         centre_y = prev_height - image_coord.y - image_y_centre
 
-        rota_centre_x = (centre_x * math.cos(angle_rad)) - (
-            centre_y * math.sin(angle_rad)
-        )
-        rota_centre_y = (centre_y * math.cos(angle_rad)) + (
-            centre_x * math.sin(angle_rad)
-        )
+        rota_centre_x = (centre_x * math.cos(angle_rad)) - (centre_y * math.sin(angle_rad))
+        rota_centre_y = (centre_y * math.cos(angle_rad)) + (centre_x * math.sin(angle_rad))
 
         rota_image_x, rota_image_y = (
             rota_centre_x + curr_width / 2,
@@ -73,9 +69,7 @@ class PageImage(BaseModel):
                 top, bot = trans_tuple[1], trans_tuple[2]
                 if not image_coord.inside(top, bot):
                     assert False, f"coord: {image_coord} outside [{top}, {bot}]"
-                    raise ValueError(
-                        f"coord: {image_coord} outside crop_area [{top}, {bot}]"
-                    )
+                    raise ValueError(f"coord: {image_coord} outside crop_area [{top}, {bot}]")
                 image_coord = Coord(x=image_coord.x - top.x, y=image_coord.y - top.y)
             elif trans_tuple[0] == "rotate":
                 angle, prev_size, curr_size = (
@@ -83,9 +77,7 @@ class PageImage(BaseModel):
                     trans_tuple[2],
                     trans_tuple[3],
                 )
-                image_coord = self.transform_rotate(
-                    image_coord, angle, prev_size, curr_size
-                )
+                image_coord = self.transform_rotate(image_coord, angle, prev_size, curr_size)
         return image_coord
 
     def inverse_transform(self, image_coord):
@@ -105,9 +97,7 @@ class PageImage(BaseModel):
                     trans_tuple[2],
                     trans_tuple[3],
                 )
-                image_coord = self.transform_rotate(
-                    image_coord, -angle, curr_size, prev_size
-                )
+                image_coord = self.transform_rotate(image_coord, -angle, curr_size, prev_size)
                 # print(f'\t>inverse_rotate image_coord: {image_coord}')
         return image_coord
 
@@ -116,9 +106,7 @@ class PageImage(BaseModel):
         page_y = round(doc_coord.y * self.page.height)
 
         image_x_scale = self.image_width / (self.image_box.bot.x - self.image_box.top.x)
-        image_y_scale = self.image_height / (
-            self.image_box.bot.y - self.image_box.top.y
-        )
+        image_y_scale = self.image_height / (self.image_box.bot.y - self.image_box.top.y)
 
         image_x = round((page_x - self.image_box.top.x) * image_x_scale)
         image_y = round((page_y - self.image_box.top.y) * image_y_scale)
@@ -320,9 +308,7 @@ class Doc(BaseModel):
         pdf_path = Path(pdf_path)
         image_dir_name = pdf_path.name[:-4]
 
-        image_dirs_path = (
-            cls.image_dirs_path if not image_dirs_path else image_dirs_path
-        )
+        image_dirs_path = cls.image_dirs_path if not image_dirs_path else image_dirs_path
         image_dirs_path = Path(image_dirs_path)
         image_dir_path = image_dirs_path / image_dir_name
 
@@ -338,11 +324,7 @@ class Doc(BaseModel):
         image_dir_path.mkdir(exist_ok=True, parents=True)
         pdf = pdfplumber.open(pdf_path)
         for (page_idx, page) in enumerate(pdf.pages):
-            doc.page_infos.append(
-                PageInfo(
-                    width=page.width, height=page.height, num_images=len(page.images)
-                )
-            )
+            doc.page_infos.append(PageInfo(width=page.width, height=page.height, num_images=len(page.images)))
 
             # TODO: check the shape of page image and extract only if it covers full page
             if len(page.images) == 1:
@@ -360,9 +342,7 @@ class Doc(BaseModel):
                 image_path = extract_image(pdf_path, image_dir_path, page_idx)
                 image_type = "original"
             else:
-                image_path, width, height = rasterize_page(
-                    pdf_path, image_dir_path, page_idx
-                )
+                image_path, width, height = rasterize_page(pdf_path, image_dir_path, page_idx)
                 [x0, y0, x1, y1] = page.bbox
                 top, bot = Coord(x=x0, y=y0), Coord(x=x1, y=y1)
                 image_box = Box(top=top, bot=bot)
@@ -377,25 +357,24 @@ class Doc(BaseModel):
             doc.page_images.append(page_image)
         # end
         pdf_info = {"page_infos": doc.page_infos, "page_images": doc.page_images}
-        pdf_info_path.write_text(
-            json.dumps(pdf_info, default=pydantic.json.pydantic_encoder, indent=2)
-        )
+        pdf_info_path.write_text(json.dumps(pdf_info, default=pydantic.json.pydantic_encoder, indent=2))
         return doc
 
     def to_json(self):
         return self.json(exclude_defaults=True)  # removed indent, models_as_dict=False
 
     def to_msgpack(self):
-        import msgpack
-
-        return msgpack.packb(json.loads(self.to_json()))
+        # import msgpack
+        # return msgpack.packb(json.loads(self.to_json()))
+        raise NotImplementedError('to_msgpack is not supported')
 
     def to_disk(self, disk_file, format="json"):
         disk_file = Path(disk_file)
         if format == "json":
             disk_file.write_text(self.to_json())
         else:
-            disk_file.write_bytes(self.to_msgpack())
+            raise NotImplementedError(f'Unknown format: {format}')
+            # disk_file.write_bytes(self.to_msgpack())
 
     def add_extra_page_field(self, field_name, field_tuple):
         self.extra_page_fields[field_name] = field_tuple
@@ -404,7 +383,7 @@ class Doc(BaseModel):
         self.extra_fields[field_name] = field_tuple
 
     @classmethod  # noqa: C901
-    def from_disk(cls, json_file):
+    def from_disk(cls, json_file):  # noqa: C901
         def get_extra_fields(obj):
             all_fields = set(obj.dict().keys())
             def_fields = set(obj.__fields__.keys())
@@ -427,7 +406,8 @@ class Doc(BaseModel):
         if json_file.suffix.lower() in (".json", ".jsn"):
             doc_dict = json.loads(json_file.read_text())
         else:
-            doc_dict = msgpack.unpackb(json_file.read_bytes())
+            # doc_dict = msgpack.unpackb(json_file.read_bytes())
+            NotImplementedError(f'Unknown suffix: {json_file.suffix}')
         new_doc = Doc(**doc_dict)
 
         # need to supply the field_set, page has 'doc' field excluded
@@ -444,6 +424,9 @@ class Doc(BaseModel):
             if not extra_attr_dict:
                 continue
             (extra_type, module_name, class_name) = field_tuple
+            # TODO
+            module_name = module_name.replace("docint.extracts", "orgpedia.extracts")
+
             if extra_type == "obj":
                 cls = getattr(import_module(module_name), class_name)
                 extra_attr_obj = parse_obj_as(cls, extra_attr_dict)
@@ -473,6 +456,9 @@ class Doc(BaseModel):
                 if not extra_attr_dict:
                     continue
                 (extra_type, module_name, class_name) = field_tuple
+
+                # TODO
+                module_name = module_name.replace("docint.extracts", "orgpedia.extracts")
                 if extra_type == "obj":
                     cls = getattr(import_module(module_name), class_name)
                     extra_attr_obj = parse_obj_as(cls, extra_attr_dict)
@@ -486,9 +472,7 @@ class Doc(BaseModel):
                         cls = getattr(import_module(module_name), class_name)
                         keys = list(extra_attr_dict.keys())
                         key_type = type(keys[0])
-                        extra_attr_obj = parse_obj_as(
-                            Dict[key_type, cls], extra_attr_dict
-                        )
+                        extra_attr_obj = parse_obj_as(Dict[key_type, cls], extra_attr_dict)
                         update_links(new_doc, list(extra_attr_obj.values()))
                 elif extra_type == "noparse":
                     continue
@@ -516,7 +500,6 @@ class Doc(BaseModel):
     def get_words(self, jpath):
         def split_path(idx):
             idx = idx[2:]
-            print(idx)
             s, e = idx.split(":") if ":" in idx else (int(idx), int(idx) + 1)
             return (int(s), int(e))
 
@@ -596,6 +579,30 @@ class Doc(BaseModel):
             box = Shape.build_box([xword.xmin, yword.ymin, xword.xmax, yword.ymax])
             word = page.add_word(text, box)
             return word
+
+        def newAdjWord(doc, text, path, direction="left"):
+            word = doc.get_word(path)
+            page = doc.get_page(path)
+
+            assert direction in ('left', 'right')
+            assert len(word), 'the word given does not have any text'
+
+            word_width = word.xmax - word.xmin
+            char_width = word_width / len(word)
+            new_word_width = char_width * len(text)
+
+            if direction == "left":
+                xmax = word.xmin - 0.02
+                xmin = xmax - new_word_width
+            else:
+                xmin = word.xmax + 0.02
+                xmax = xmin + new_word_width
+
+            print(f'Word: {word.xmin} - {word.xmax} New: {xmin}-{xmax}')
+
+            box = Shape.build_box([xmin, word.ymin, xmax, word.ymax])
+            new_word = page.add_word(text, box)
+            return new_word
 
         def mergeWords(doc, *paths):
             assert len(paths) > 1

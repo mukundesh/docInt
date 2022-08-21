@@ -78,6 +78,7 @@ class MarkerMisalginedError(DataError):
         "num_chars": ".,()",
         "max_number": 49,
         "page_idxs": [],
+        "include_zero": False,
     },
 )
 class FindNumMarker:
@@ -95,6 +96,7 @@ class FindNumMarker:
         num_chars,
         max_number,
         page_idxs,
+        include_zero,
     ):
         self.conf_dir = Path(conf_dir)
         self.conf_stub = conf_stub
@@ -108,6 +110,7 @@ class FindNumMarker:
         self.num_chars = num_chars
         self.max_number = max_number
         self.page_idxs = page_idxs
+        self.include_zero = include_zero
 
         self.roman_dict = self.build_roman_dict()
         self.alpha_dict = self.build_alphabet_dict()
@@ -185,9 +188,7 @@ class FindNumMarker:
             num_type = NumType.NotNumber
             num_val = None
 
-        self.lgr.debug(
-            f"{word_idx} num_type: {num_type} text: {text} num_val: {num_val}"
-        )
+        self.lgr.debug(f"{word_idx} num_type: {num_type} text: {text} num_val: {num_val}")
         return num_type, text, num_val
 
     def build_marker(self, word):
@@ -200,38 +201,36 @@ class FindNumMarker:
             return True
 
         if ignorePunct:
-            return (
-                True
-                if (region.text_len() == 0) or (not region.text_isalnum())
-                else False
-            )
+            return True if (region.text_len() == 0) or (not region.text_isalnum()) else False
         else:
             return True if region.text_len() == 0 else False
 
     def is_valid(self, page, word, marker):
+        def less_than_zero(num_val):
+            if self.include_zero:
+                return num_val < 0
+            else:
+                return num_val <= 0
+
         if marker.num_type == NumType.NotNumber:
             return False
 
         if marker.num_type not in self.valid_num_types:
             return False
 
-        if marker.num_val > self.max_number or marker.num_val <= 0:
-            self.lgr.debug(
-                f"\t{word.text}[{word.word_idx}] not in [0, {self.max_number}]"
-            )
+        if marker.num_val > self.max_number or less_than_zero(marker.num_val):
+            self.lgr.debug(f"\t{word.text}[{word.word_idx}] not in [0, {self.max_number}]")
             return False
 
         if not (word.box.in_xrange(self.x_range) and word.box.in_yrange(self.y_range)):
-            self.lgr.debug(
-                f"\t{word.text} {word.xmin}:{word.xmax} outside {self.x_range} {self.y_range}"
-            )
+            self.lgr.debug(f"\t{word.text} {word.xmin}:{word.xmax} outside {self.x_range} {self.y_range}")
             return False
 
         lt_words = page.words_to("left", word)
         if not self.is_empty(lt_words, ignorePunct=True):
             lt_text = " ".join(w.text for w in lt_words.words)
             self.lgr.debug(
-                f"\t{word.text} lt_words.text_len() {lt_words.text_len()} {lt_text}"
+                f"\t{word.text} lt_words.text_len() {lt_words.text_len()} {lt_text} {lt_words.words[0].word_idx} {lt_words.words[0].xmin} {lt_words.words[0].xmax}"
             )
             return False
 
@@ -278,9 +277,7 @@ class FindNumMarker:
             if marker.num_val != exp_val and marker.num_val != 1:
                 word_idx = marker.words[0].word_idx
                 path = f"pa{page.page_idx}.nu{m_idx}"
-                msg = (
-                    f"Expected: {exp_val} Actual: {marker.num_val} word_idx: {word_idx}"
-                )
+                msg = f"Expected: {exp_val} Actual: {marker.num_val} word_idx: {word_idx}"
                 err = MarkerMisalginedError(
                     path=path,
                     msg=msg,
@@ -304,9 +301,13 @@ class FindNumMarker:
 
         old_x_range = self.x_range
         old_min_marker = self.min_marker
+        old_include_zero = self.include_zero
 
         self.x_range = doc_config.get("x_range", self.x_range)
         self.min_marker = doc_config.get("min_marker", self.min_marker)
+        self.include_zero = doc_config.get("include_zero", self.include_zero)
+
+        print(f'INCLUDE ZERO: {self.include_zero}')
 
         edits = doc_config.get("edits", [])
         if edits:
@@ -354,9 +355,11 @@ class FindNumMarker:
         self.lgr.info(f"=={doc_stub} {total_markers} {DataError.error_counts(errors)}")
         [self.lgr.info(str(e)) for e in errors]
 
-        self.write_fixes(doc, errors)
+        # self.write_fixes(doc, errors)
+
         self.x_range = old_x_range
         self.min_marker = old_min_marker
+        self.include_zero = old_include_zero
 
         self.remove_log_handler(doc)
         return doc

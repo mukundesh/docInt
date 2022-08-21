@@ -122,9 +122,7 @@ class TableBuilderOnWords:
         if join_tolerance > 0:
             sorted_edges = sorted(edges, key=get_group)
             edge_groups = groupby(sorted_edges, key=get_group)
-            edge_gen = (
-                join_edge_group(items, k[0], join_tolerance) for k, items in edge_groups
-            )
+            edge_gen = (join_edge_group(items, k[0], join_tolerance) for k, items in edge_groups)
             edges = list(chain(*edge_gen))
         return edges
 
@@ -159,9 +157,7 @@ class TableBuilderOnWords:
         min_ymin = min(r.ymin for r in sorted_regions)
         max_ymax = min(r.ymax for r in sorted_regions)
 
-        edges = [
-            Edge.build_v(r.xmin, min_ymin, r.xmax, max_ymax) for r in sorted_regions
-        ]
+        edges = [Edge.build_v(r.xmin, min_ymin, r.xmax, max_ymax) for r in sorted_regions]
 
         edges += [Edge.build_v(max_xmax, min_ymin, max_xmax, max_ymax)]
         return edges

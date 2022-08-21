@@ -8,7 +8,6 @@ nav:
   - Installation: installation.md
   - Usage: usage.md
   - Modules: api.md
-  - Code Reference: reference/
   - Contributing: contributing.md
   - Changelog: changelog.md
 theme:
@@ -50,17 +49,9 @@ plugins:
   - include-markdown
   - search:
       lang: en
-  - gen-files:
-      scripts:
-      - docs/gen_ref_pages.py
-  - literate-nav:
-      nav_file: SUMMARY.md
-  - section-index
   - mkdocstrings:
       watch:
         - docint
-      python:
-        paths: [.]
 extra:
   social:
     - icon: fontawesome/brands/twitter
@@ -72,7 +63,7 @@ extra:
       link: https://github.com/waynerv/cookiecutter-pypackage
       name: Facebook
     - icon: fontawesome/brands/github
-      link: https://github.com/mike/calcu
+      link: https://github.com/mukundesh/docint
       name: Github
     - icon: material/email
       link: "mailto:mike@gmail.com"

@@ -10,23 +10,13 @@ from typing import List
 
 from more_itertools import pairwise
 from PIL import Image
-from pydantic import BaseModel
 
 from ..page import Page
 from ..region import DataError
 from ..shape import Coord, Edge
+from ..table import TableEdges
 from ..util import load_config
 from ..vision import Vision
-
-
-class TableEdges(BaseModel):
-    row_edges: List[Edge]
-    col_edges: List[Edge]
-    errors: List[DataError] = []
-    col_img_xs: List[int] = []
-
-    class Config:
-        fields = {"col_img_xs": {"exclude": True}}
 
 
 class MismatchColumnEdges(DataError):
@@ -137,9 +127,7 @@ class TableEdgeFinder:
         # save_image(img, 'orig')
 
         # thresholding the image to a binary image
-        thresh, img_bin = cv2.threshold(
-            img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU
-        )
+        thresh, img_bin = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         # inverting the image
         img_bin = 255 - img_bin
 
@@ -162,9 +150,7 @@ class TableEdgeFinder:
         # Eroding and thesholding the image
         img_vh = vertical_lines
         img_vh2 = cv2.erode(~img_vh, kernel, iterations=2)
-        thresh, img_vh2 = cv2.threshold(
-            img_vh2, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU
-        )
+        thresh, img_vh2 = cv2.threshold(img_vh2, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
 
         img_vh2_inv = ~img_vh2
 
@@ -242,9 +228,7 @@ class TableEdgeFinder:
             img_ymin = page.get_image_y_val(ymin)
             img_ymax = page.get_image_y_val(ymax)
 
-            col_ranges = self.find_column_ranges(
-                page, conf, img_xmin, img_ymin, img_ymax
-            )
+            col_ranges = self.find_column_ranges(page, conf, img_xmin, img_ymin, img_ymax)
             col_img_xs = [int((x2 + x1) / 2) for (x1, x2) in col_ranges]
 
             col_xs = [page.get_doc_x_val(img_x) for img_x in col_img_xs]
@@ -255,21 +239,14 @@ class TableEdgeFinder:
             # FILL ROW EDGES
             xmin = col_xs[0]
             xmax = col_xs[-1]
-            row_edges = [
-                Edge.build_h(xmin, m.ymin - self.ygutter, xmax, m.ymin - self.ygutter)
-                for m in table_markers
-            ]
-            avg_row_ht = mean(
-                (m2.ymin - m1.ymin) for (m1, m2) in pairwise(table_markers)
-            )
+            row_edges = [Edge.build_h(xmin, m.ymin - self.ygutter, xmax, m.ymin - self.ygutter) for m in table_markers]
+            avg_row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(table_markers))
             ymax += avg_row_ht
             botom_edge = Edge.build_h(xmin, ymax, xmax, ymax)
             row_edges.append(botom_edge)
 
             col_edges = [Edge.build_v(x, ymin, x, ymax) for x in col_xs]
-            table_edges_list.append(
-                TableEdges(row_edges=row_edges, col_edges=col_edges)
-            )
+            table_edges_list.append(TableEdges(row_edges=row_edges, col_edges=col_edges))
 
         # end for
         return table_edges_list
@@ -339,11 +316,7 @@ class TableEdgeFinder:
 
             if conf.rm_column_atidxs:
                 print(f"\t\tRemoving columns: {conf.rm_column_atidxs}")
-                col_img_xs = [
-                    img_xs
-                    for idx, img_xs in enumerate(col_img_xs)
-                    if idx not in conf.rm_column_atidxs
-                ]
+                col_img_xs = [img_xs for idx, img_xs in enumerate(col_img_xs) if idx not in conf.rm_column_atidxs]
 
             if conf.add_column_atpos:
                 col_img_xs.extend(conf.add_column_atpos)
@@ -354,16 +327,11 @@ class TableEdgeFinder:
 
             img_xmin, img_xmax = col_img_xs[0], col_img_xs[-1]
 
-            row_edges = [
-                build_row_edge(img_xmin, img_xmax, m.ymin) for m in row_markers
-            ]
+            row_edges = [build_row_edge(img_xmin, img_xmax, m.ymin) for m in row_markers]
             row_edges.append(build_row_edge(img_xmin, img_xmax, ymax))
 
             top_edge, bot_edge = row_edges[0], row_edges[-1]
-            col_edges = [
-                build_col_edge(img_xmin, img_xmax, x, top_edge, bot_edge)
-                for x in col_img_xs
-            ]
+            col_edges = [build_col_edge(img_xmin, img_xmax, x, top_edge, bot_edge) for x in col_img_xs]
 
             table_edges = TableEdges(row_edges=row_edges, col_edges=col_edges)
             table_edges_list.append(table_edges)
@@ -390,11 +358,7 @@ class TableEdgeFinder:
 
         if conf.rm_column_atidxs:
             self.lgr.info(f"\t\tRemoving columns: {conf.rm_column_atidxs}")
-            col_img_xs = [
-                img_xs
-                for idx, img_xs in enumerate(col_img_xs)
-                if idx not in conf.rm_column_atidxs
-            ]
+            col_img_xs = [img_xs for idx, img_xs in enumerate(col_img_xs) if idx not in conf.rm_column_atidxs]
 
         if conf.add_column_atpos:
             col_img_xs.extend(conf.add_column_atpos)
@@ -402,9 +366,7 @@ class TableEdgeFinder:
             self.lgr.info(f"\t\tAdding columns: {conf.add_column_atpos}")
 
         page_idx = page_image.page.page_idx
-        self.lgr.info(
-            f"> Page {page_idx} Column img_xs[{len(col_img_xs)}]: {col_img_xs}"
-        )
+        self.lgr.info(f"> Page {page_idx} Column img_xs[{len(col_img_xs)}]: {col_img_xs}")
 
         col_top_img_coords = [Coord(x=img_x, y=0) for img_x in col_img_xs]
         col_bot_img_coords = [Coord(x=img_x, y=img_ymax) for img_x in col_img_xs]
@@ -485,9 +447,7 @@ class TableEdgeFinder:
             # crop the image first
             crop_coords = []
             if (ymax - ymin) * 100 < conf.crop_threshold:
-                self.lgr.debug(
-                    f"\tCropping Image {(ymax-ymin)*100} {conf.crop_threshold}"
-                )
+                self.lgr.debug(f"\tCropping Image {(ymax-ymin)*100} {conf.crop_threshold}")
                 top_y, bot_y = ymin - self.crop_gutter, ymax + (self.crop_gutter)
                 top_y, bot_y = max(0.0, top_y), min(1.0, bot_y)
 
@@ -499,9 +459,7 @@ class TableEdgeFinder:
             col_edges, col_img_xs = self.get_column_edges(page_image, crop_coords, conf)
             row_edges = self.get_row_edges(page_image, row_markers, crop_coords, conf)
 
-            table_edges = TableEdges(
-                row_edges=row_edges, col_edges=col_edges, col_img_xs=col_img_xs
-            )
+            table_edges = TableEdges(row_edges=row_edges, col_edges=col_edges, col_img_xs=col_img_xs)
             table_edges_list.append(table_edges)
             self.prev_row_ht = row_ht
         return table_edges_list
@@ -525,9 +483,7 @@ class TableEdgeFinder:
     def set_page_configs(self, doc, doc_config):
         num_pages = len(doc.pages)
         page_config = EdgeFinderPageConfig(
-            col_erode_iterations=doc_config.get(
-                "col_erode_iterations", self.col_erode_iterations
-            ),
+            col_erode_iterations=doc_config.get("col_erode_iterations", self.col_erode_iterations),
             crop_threshold=self.crop_threshold,
             skew_threshold=self.skew_threshold,
             rm_column_atidxs=[],
@@ -539,11 +495,7 @@ class TableEdgeFinder:
         file_page_configs = doc_config.get("page_configs", [])
         for file_page_config in file_page_configs:
             page_idx = file_page_config["page_idx"]
-            [
-                setattr(self.page_configs[page_idx], k, v)
-                for (k, v) in file_page_config.items()
-                if k != "page_idx"
-            ]
+            [setattr(self.page_configs[page_idx], k, v) for (k, v) in file_page_config.items() if k != "page_idx"]
 
     def get_fix_str(self, doc, error):
         page_path, te_path = error.path.split(".")
@@ -593,9 +545,7 @@ class TableEdgeFinder:
             errors += self.test(page, page.table_edges_list)
             total_tables += len(page.table_edges_list)
 
-        self.lgr.info(
-            f"=={doc.pdf_name}.num_marker {total_tables} {DataError.error_counts(errors)}"
-        )
+        self.lgr.info(f"=={doc.pdf_name}.num_marker {total_tables} {DataError.error_counts(errors)}")
         [self.lgr.info(e.msg) for e in errors]
 
         self.write_fixes(doc, errors)

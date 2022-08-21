@@ -17,9 +17,7 @@ from ..vision import Vision
 )
 class WordfreqWriter:
     def __init__(self, doc_confdir, pre_edit, wordfreq_dir, min_count):
-        self.punct_tbl = str.maketrans(
-            string.punctuation, " " * len(string.punctuation)
-        )
+        self.punct_tbl = str.maketrans(string.punctuation, " " * len(string.punctuation))
         self.doc_confdir = doc_confdir
         self.pre_edit = pre_edit
         self.wordfreq_dir = Path(wordfreq_dir)

@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from ..shape import Box, Coord, Poly
+from ..util import load_config
 from ..vision import Vision
 from ..word_line import words_in_lines
 
@@ -19,18 +20,12 @@ from ..word_line import words_in_lines
         "para_indent": True,
         "is_page": False,
         "conf_stub": "words_arranger",
+        "conf_dir": "conf",
     },
 )
 class WordsArranger:
     def __init__(
-        self,
-        rotate_page,
-        merge_word_len,
-        num_slots,
-        newline_height_multiple,
-        para_indent,
-        is_page,
-        conf_stub,
+        self, rotate_page, merge_word_len, num_slots, newline_height_multiple, para_indent, is_page, conf_stub, conf_dir
     ):
         self.rotate_page = rotate_page
         self.merge_word_len = merge_word_len
@@ -39,6 +34,7 @@ class WordsArranger:
         self.para_indent = para_indent
         self.is_page = is_page
         self.conf_stub = conf_stub
+        self.conf_dir = conf_dir
 
         self.lgr = logging.getLogger(f"docint.pipeline.{self.conf_stub}")
         self.lgr.setLevel(logging.DEBUG)
@@ -73,9 +69,7 @@ class WordsArranger:
             old_w, old_h = old_size
             page_coord = Coord(x=c.x * old_w, y=c.y * old_h)
 
-            new_coord = page.page_image.transform_rotate(
-                page_coord, angle, old_size, new_size
-            )
+            new_coord = page.page_image.transform_rotate(page_coord, angle, old_size, new_size)
             new_w, new_h = new_size
             return Coord(x=new_coord.x / new_w, y=new_coord.y / new_h)
 
@@ -87,9 +81,7 @@ class WordsArranger:
         def print_details(old_word, new_word):
             old_shp_str = get_shape_str(old_word.shape_, old_size)
             new_shp_str = get_shape_str(new_word.shape_, new_size)
-            print(
-                f"{old_word.path_abbr}:{old_word.text} | {old_shp_str} | {new_shp_str}"
-            )
+            print(f"{old_word.path_abbr}:{old_word.text} | {old_shp_str} | {new_shp_str}")
 
         angle = page.num_marker_angle
         new_words = []
@@ -97,9 +89,7 @@ class WordsArranger:
         new_size = rotate_xy(page.width, page.height, angle)
         for word in page.words:
 
-            new_coords = [
-                rotate_coord(c, old_size, new_size, angle) for c in word.shape_.coords
-            ]
+            new_coords = [rotate_coord(c, old_size, new_size, angle) for c in word.shape_.coords]
             new_word = copy.copy(word)  # this doesn't copy coords
             if isinstance(word.shape_, Poly):
                 new_word.shape_ = Poly(coords=new_coords)
@@ -113,7 +103,18 @@ class WordsArranger:
         return new_page
 
     def __call__(self, doc):
-        print(f"Detect Rotation {doc.pdf_name}")
+        self.add_log_handler(doc)
+        doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
+        old_rotate_page = self.rotate_page
+        self.rotate_page = doc_config.get("rotate_page", self.rotate_page)
+
+        print(f"INSIDE Rotating {doc_config}")
+        if not self.rotate_page:
+            self.lgr.info("Not Rotating")
+            print("Not Rotating")
+            self.rotate_page = old_rotate_page
+            self.remove_log_handler(doc)
+            return doc
 
         doc.add_extra_page_field("arranged_word_lines_idxs", ("noparse", "", ""))
 
@@ -121,12 +122,15 @@ class WordsArranger:
             page.arranged_word_idxs = []
             page.arranged_new_line_pos = []
             if self.rotate_page:
-                rota_page = self.rotate_words_inpage(page)
+                r_page = self.rotate_words_inpage(page)
             else:
-                rota_page = page
+                r_page = page
 
-            word_lines = words_in_lines(rota_page)
+            word_lines = words_in_lines(r_page)
 
             lines_idxs = [[w.word_idx for w in wl] for wl in word_lines]
             page.arranged_word_lines_idxs = lines_idxs
+
+        self.rotate_page = old_rotate_page
+        self.remove_log_handler(doc)
         return doc

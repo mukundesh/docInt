@@ -1,6 +1,7 @@
 import logging
 import math
 import sys
+from collections import Counter
 from pathlib import Path
 from statistics import mean
 
@@ -48,12 +49,16 @@ class RotationDetector:
         if len(num_markers) < self.min_num_markers:
             return -0.0
 
-        marker_words = [m.words[0] for m in num_markers]
+        num_type_counter = Counter(m.num_type for m in num_markers)
+        max_type = max(num_type_counter, key=num_type_counter.get)
+
+        marker_words = [m.words[0] for m in num_markers if m.num_type == max_type and m.num_val != 0]
+
         m_xmids = [w.xmid for w in marker_words]
         m_ymids = [w.ymid for w in marker_words]
 
-        m_xdiffs = [m_xmids[idx] - m_xmids[0] for idx in range(len(num_markers))]
-        m_ydiffs = [m_ymids[idx] - m_ymids[0] for idx in range(len(num_markers))]
+        m_xdiffs = [m_xmids[idx] - m_xmids[0] for idx in range(len(marker_words))]
+        m_ydiffs = [m_ymids[idx] - m_ymids[0] for idx in range(len(marker_words))]
 
         y = [mx * page.width for mx in m_xdiffs]
         x = [my * page.height for my in m_ydiffs]

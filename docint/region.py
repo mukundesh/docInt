@@ -91,9 +91,7 @@ class ReplaceTextEdit(DataEdit):
     def build(cls, word, old_text, new_text):
         old_wtext = word.text
         msg = f"{old_wtext}->{old_wtext.replace(old_text, new_text)}"
-        return ReplaceTextEdit(
-            word_path=word.path, old_text=old_text, new_text=new_text, msg=msg
-        )
+        return ReplaceTextEdit(word_path=word.path, old_text=old_text, new_text=new_text, msg=msg)
 
 
 class TextConfig(BaseModel):
@@ -142,6 +140,25 @@ class Region(BaseModel):
 
     def __len__(self):
         return len(self.words)
+
+    def remove_word_ifpresent(self, word):
+        rm_idx = word.word_idx
+        if rm_idx in self.word_idxs:
+            self.word_idxs = [idx for idx in self.word_idxs if rm_idx != idx]
+            self.words = [w for w in self.words if w.word_idx != rm_idx]
+
+            if self.word_lines:
+                word_lines = []
+                for word_line in self.word_lines:
+                    word_lines.append([w for w in word_line if w.word_idx != rm_idx])
+                self.word_lines = word_lines
+
+            if self.word_lines_idxs:
+                word_lines_idxs = []
+                for word_line_idx in self.word_lines_idxs:
+                    word_lines_idxs.append([idx for idx in word_line_idx if idx != rm_idx])
+                self.word_lines_idxs = word_lines_idxs
+                self.shape_ = None
 
     def __bool__(self):
         # What is an empty region, what if remove the words from a
@@ -208,9 +225,7 @@ class Region(BaseModel):
 
             elif o_type == "partial":
                 (s, e) = (
-                    (o_span.end, word_span.end)
-                    if o_span.start == word_span.start
-                    else (word_span.start, o_span.start)
+                    (o_span.end, word_span.end) if o_span.start == word_span.start else (word_span.start, o_span.start)
                 )
                 s, e = s - word_span.start, e - word_span.start
                 yield word, word.text[s:e], line_idx, pos_idx
@@ -225,9 +240,7 @@ class Region(BaseModel):
             if (prev_line_idx is not None) and line_idx != prev_line_idx and prev_word:
                 yield prev_word, None, prev_text, ""
 
-            elif prev_word and is_adjoin(
-                prev_line_idx, prev_pos_idx, line_idx, pos_idx
-            ):
+            elif prev_word and is_adjoin(prev_line_idx, prev_pos_idx, line_idx, pos_idx):
                 yield prev_word, word, prev_text, text
             prev_word, prev_text, prev_line_idx, prev_pos_idx = (
                 word,
@@ -591,6 +604,7 @@ class Region(BaseModel):
         self.update_all_spans(elim_pos, -1)
 
     def replace_word_text(self, word, old_text, new_text):
+        # correct words and make ascii
         old_text = word.text if old_text == "<all>" else old_text
         inc = len(new_text) - len(old_text)
         self.edits.append(ReplaceTextEdit.build(word, old_text, new_text))
@@ -633,6 +647,7 @@ class Region(BaseModel):
         return self.shape.ymid
 
     def reduce_width_at(self, direction, ov_shape):
+        # edit, word_line
         # reduce with only of the box
         assert direction in ("left", "right")
         box = self.shape.box

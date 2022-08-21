@@ -121,17 +121,11 @@ class HierarchyNode:
             if len(all_spans) != before_len:
                 lgr.debug("\t\t\t Subsuming Spans removed")
             spans_str = ", ".join(s.span_str(text) for s in all_spans)
-            lgr.debug(
-                f"\t<matched: node:{self.path_str} spans[{len(all_spans)}]: >{spans_str}<"
-            )
+            lgr.debug(f"\t<matched: node:{self.path_str} spans[{len(all_spans)}]: >{spans_str}<")
         return all_spans
 
     def find_adjoin_span_groups(self, span, span_groups, text):
-        return [
-            span_group
-            for span_group in span_groups
-            if span.adjoins(span_group.full_span, text, " (),.;")
-        ]
+        return [span_group for span_group in span_groups if span.adjoins(span_group.full_span, text, " (),.;")]
 
     def find_child_span_groups(self, span, span_groups):
         span_path, child_sgs = self.full_path, []
@@ -149,9 +143,7 @@ class HierarchyNode:
 
     def rec_find_match(self, text, match_options):
         def print_groups(span_groups):
-            print(
-                f'>{self.name}< {[len(span_groups)]} {"|".join(str(sg) for sg in span_groups)}'
-            )
+            print(f'>{self.name}< {[len(span_groups)]} {"|".join(str(sg) for sg in span_groups)}')
             # print(fn'{text} [{len(span_groups)}]')
 
         # lgr.debug(f"\trec_find_match:{self.name}")
@@ -165,9 +157,7 @@ class HierarchyNode:
 
         if spans and span_groups:
             spans_str = ", ".join(f">{s.span_str(text)}<" for s in spans)
-            lgr.debug(
-                f"\t#Handling span_groups[{len(span_groups)}] spans[{len(spans)}]: {spans_str}"
-            )
+            lgr.debug(f"\t#Handling span_groups[{len(span_groups)}] spans[{len(spans)}]: {spans_str}")
 
             for span in spans:
                 # Hierarchy could have two nodes with same names - possible (not ideal)
@@ -185,9 +175,7 @@ class HierarchyNode:
                     lgr.debug("\t\t#Multiple merge_sgs")
                     hier_span = HierarchySpan.build(self, span)
                     [m_sg.add(hier_span) for m_sg in merge_sgs]
-                    lgr.debug(
-                        f"\t\t#Merged >{span.span_str(text)}< with {Hierarchy.to_str(merge_sgs)}"
-                    )
+                    lgr.debug(f"\t\t#Merged >{span.span_str(text)}< with {Hierarchy.to_str(merge_sgs)}")
                 else:
                     hier_span = HierarchySpan.build(self, span)
                     span_groups.append(HierarchySpanGroup.build(text, hier_span))
@@ -253,9 +241,7 @@ class HierarchySpanGroup(SpanGroup):
     @classmethod
     def select_left_most(cls, span_groups):
         sgs = sorted(span_groups, key=lambda sg: sg.full_span.start)
-        k, first_group = first(
-            groupby(sgs, key=lambda sg: sg.full_span.start), (None, [])
-        )
+        k, first_group = first(groupby(sgs, key=lambda sg: sg.full_span.start), (None, []))
         return list(first_group)
 
     @classmethod
@@ -511,6 +497,7 @@ class Hierarchy:
 
     def find_match(self, text, match_options):
         lgr.debug(f"find_match: {text}")
+        print(f'Hierarchy: {text}')
 
         if self._match_options and self._match_options != match_options:
             lgr.debug("New match options, clearing names")

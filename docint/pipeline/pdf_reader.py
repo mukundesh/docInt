@@ -39,14 +39,11 @@ class PDFReader:
         for page_idx, pdf_page in enumerate(pdf.pages):
             pdf_page = pdf_page.dedupe_chars(tolerance=1)
 
-            pdf_words = pdf_page.extract_words(
-                x_tolerance=self.x_tol, y_tolerance=self.y_tol
-            )
+            pdf_words = pdf_page.extract_words(x_tolerance=self.x_tol, y_tolerance=self.y_tol)
             pdf_words = [p_word for p_word in pdf_words if p_word["text"]]
 
             words = [
-                self.build_word(doc, page_idx, idx, pdf_page, pdf_word)
-                for (idx, pdf_word) in enumerate(pdf_words)
+                self.build_word(doc, page_idx, idx, pdf_page, pdf_word) for (idx, pdf_word) in enumerate(pdf_words)
             ]
 
             page = Page(

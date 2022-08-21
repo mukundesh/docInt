@@ -27,7 +27,7 @@ document.
 
 Here is a sample pipline file
 
-``` yaml 
+``` yaml
 
 pipeline:
   - name: gcv_recognizer
@@ -41,7 +41,7 @@ pipeline:
 
   - name: html_generator
     config:
-      image_root: ../.img      
+      image_root: ../.img
       html_root: html
       color_dict:
         nummarker: green
@@ -53,7 +53,7 @@ pipeline:
   - name: list_html_generator
     component: html_generator
     config:
-      image_root: ../.img      
+      image_root: ../.img
       html_root: html
       color_dict:
         nummarker: green
@@ -96,7 +96,7 @@ A pipeline can process multiple documents as well as a single document. Use the 
 >> from pathlib import Path
 >> # create a pipeline to process hdfc bank statement
 >> hdfc_pipeline = docint.load('hdfc-bank.yml')
->> 
+>>
 >> statement_dir = Path('hdfc-statements')
 >> hdfc_docs = hdfc_pipeline.pipe_all(statement_dir.glob('*.pdf'))
 >> hdfc_docs[0].statement
@@ -111,10 +111,10 @@ pipeline through methods provided in the `Pipeline` class.
 
 ```py
 >> import docint
->> 
+>>
 >> # create a pipeline to process hdfc bank statement
 >> small_pipeline = docint.empty()
->> 
+>>
 >> small_pipeline.add_pipe('gcv_recognizer', bucket='pedia')
 >> small_pipeline.add_pipe('html_gnerator', html_root='pedia')
 >> hdfc_statement = small_pipeline('hdfc-oct-2022.pdf')

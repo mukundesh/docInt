@@ -28,9 +28,7 @@ class LineWord(Region):
 
     @classmethod
     def build(cls, word):
-        return LineWord(
-            words=[word], word_idxs=[word.word_idx], page_idx_=word.page_idx
-        )
+        return LineWord(words=[word], word_idxs=[word.word_idx], page_idx_=word.page_idx)
 
     def is_short(self, config):
         return self.text_len() < config.merge_word_len
@@ -76,12 +74,8 @@ class LineWord(Region):
 
         # print(f'lt_words: {len(lt_words)} rt_words: {len(rt_words)}')
 
-        self.lt_lwords = (
-            [lWords_exp[w.word_idx] for w in lt_words.words] if lt_words else []
-        )
-        self.rt_lwords = (
-            [lWords_exp[w.word_idx] for w in rt_words.words] if rt_words else []
-        )
+        self.lt_lwords = [lWords_exp[w.word_idx] for w in lt_words.words] if lt_words else []
+        self.rt_lwords = [lWords_exp[w.word_idx] for w in rt_words.words] if rt_words else []
 
         assert all(self.lt_lwords) and all(self.rt_lwords)
 
@@ -259,7 +253,7 @@ def words_in_lines(
     num_words = sum([len(wl) for wl in word_lines])
     assert len(region.words) == num_words
 
-    # print_word_lines(word_lines)
+    print_word_lines(word_lines)
     return word_lines
 
 

@@ -29,6 +29,8 @@ class Page(BaseModel):
         if isinstance(idx, slice):
             return Region.build(self.words[idx], self.page_idx)
         elif isinstance(idx, int):  # should I return a region ?
+            if idx >= len(self.words):
+                print(f'Unknown idx: {idx}')
             return self.words[idx]
         else:
             raise TypeError("Unknown type {type(idx)} this method can handle")
@@ -149,9 +151,7 @@ class Page(BaseModel):
     def words_in_yrange(self, yrange, partial=False):
         return [w for w in self.words if w.box.in_yrange(yrange, partial)]
 
-    def words_to(
-        self, direction, word, offset=1.0, overlap_percent=1.0, min_height=None
-    ):
+    def words_to(self, direction, word, offset=1.0, overlap_percent=1.0, min_height=None):
         if direction not in ("left", "right", "above", "below"):
             raise ValueError(f"Incorrect value of direction {direction}")
 
@@ -173,9 +173,7 @@ class Page(BaseModel):
             # horz_words = self.words_in_xrange(xrange, partial=True)
 
             horz_box = Shape.build_box_ranges(xrange, yrange)
-            horz_words = [
-                w for w in horz_words if w.box.overlaps(horz_box, overlap_percent)
-            ]
+            horz_words = [w for w in horz_words if w.box.overlaps(horz_box, overlap_percent)]
             return Region.build(horz_words, self.page_idx)
         else:
             xrange = (word.xmin, word.xmax)
@@ -189,9 +187,7 @@ class Page(BaseModel):
             vert_words = self.words_in_xrange(xrange, partial=True)
 
             vert_box = Shape.build_box_ranges(xrange, yrange)
-            vert_words = [
-                w for w in vert_words if w.box.overlaps(vert_box, overlap_percent)
-            ]
+            vert_words = [w for w in vert_words if w.box.overlaps(vert_box, overlap_percent)]
             return Region.build(vert_words, self.page_idx)
 
     # edit methods
@@ -215,9 +211,7 @@ class Page(BaseModel):
     # TODO add svg also to the page.
     def get_base64_image(self, shape, height=50):
         image_box = shape.box
-        return self.page_image.get_base64_image(
-            image_box.top, image_box.bot, "png", height=height
-        )
+        return self.page_image.get_base64_image(image_box.top, image_box.bot, "png", height=height)
 
     # def arrange_words(
     #     self,
@@ -290,9 +284,7 @@ class Page(BaseModel):
             old_w, old_h = old_size
             page_coord = Coord(x=c.x * old_w, y=c.y * old_h)
 
-            new_coord = page.page_image.transform_rotate(
-                page_coord, angle, old_size, new_size
-            )
+            new_coord = page.page_image.transform_rotate(page_coord, angle, old_size, new_size)
             new_w, new_h = new_size
             return Coord(x=new_coord.x / new_w, y=new_coord.y / new_h)
 
@@ -304,9 +296,7 @@ class Page(BaseModel):
         def print_details(old_word, new_word):
             old_shp_str = get_shape_str(old_word.shape_, old_size)
             new_shp_str = get_shape_str(new_word.shape_, new_size)
-            print(
-                f"{old_word.path_abbr}:{old_word.text} | {old_shp_str} | {new_shp_str}"
-            )
+            print(f"{old_word.path_abbr}:{old_word.text} | {old_shp_str} | {new_shp_str}")
 
         new_page = copy.copy(page)  # this is purposely a shallow copy
 
@@ -314,9 +304,7 @@ class Page(BaseModel):
         old_size = page.size
         new_size = rotate_xy(page.width, page.height, angle)
         for word in page.words:
-            new_coords = [
-                rotate_coord(c, old_size, new_size, angle) for c in word.shape_.coords
-            ]
+            new_coords = [rotate_coord(c, old_size, new_size, angle) for c in word.shape_.coords]
             new_word = copy.copy(word)  # this doesn't copy coords
             if isinstance(word.shape_, Poly):
                 new_word.shape_ = Poly(coords=new_coords)

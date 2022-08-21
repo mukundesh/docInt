@@ -61,17 +61,13 @@ class FindBodyMarker:
         body_marker = first_page.layoutlm.get("ORDERBODY", [])
 
         nl_ht_multiple = doc_config.get("newline_height_multiple", 1.0)
-        word_lines = words_in_lines(
-            first_page, newline_height_multiple=nl_ht_multiple, para_indent=True
-        )
+        word_lines = words_in_lines(first_page, newline_height_multiple=nl_ht_multiple, para_indent=True)
 
         bm_idxs = set(w.word_idx for w in body_marker.words)
         bm_lines = [[w for w in line if w.word_idx in bm_idxs] for line in word_lines]
 
         lines_with_words = [idx for (idx, line) in enumerate(bm_lines) if line]
-        bm_lines = bm_lines[
-            lines_with_words[0] : lines_with_words[-1] + 1
-        ]  # noqa: E203
+        bm_lines = bm_lines[lines_with_words[0] : lines_with_words[-1] + 1]  # noqa: E203
 
         body_marker = Region.build_with_lines(body_marker.words, bm_lines)
 

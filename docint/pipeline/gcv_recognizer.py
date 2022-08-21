@@ -31,9 +31,7 @@ _break_type_dict = {
     },
 )
 class CloudVisionRecognizer:
-    def __init__(
-        self, bucket, cloud_dir_path, output_dir_path, output_stub, overwrite_cloud
-    ):
+    def __init__(self, bucket, cloud_dir_path, output_dir_path, output_stub, overwrite_cloud):
 
         self.bucket_name = bucket
         self.cloud_dir_path = pathlib.Path(cloud_dir_path)
@@ -78,27 +76,34 @@ class CloudVisionRecognizer:
 
     def build_pages(self, doc, output_path):
         def get_words(pg):
-            return [
-                w for b in pg["blocks"] for p in b["paragraphs"] for w in p["words"]
-            ]
+            if pg:
+                return [w for b in pg["blocks"] for p in b["paragraphs"] for w in p["words"]]
+            else:
+                return []
 
-        ocr_doc = json.loads(output_path.read_bytes())
+        def get_ocr_pages(output_path):
+            output_paths = output_path if isinstance(output_path, list) else [output_path]
+            for o_path in output_paths:
+                ocr_doc = json.loads(o_path.read_bytes())
+                responses = ocr_doc["responses"]
+                ocr_pages = []
+                for r in responses:
+                    if "fullTextAnnotation" in r:
+                        ocr_pages.append(r["fullTextAnnotation"]["pages"][0])
+                    else:
+                        ocr_pages.append({})
+                for ocr_page in ocr_pages:
+                    yield ocr_page
 
-        responses = ocr_doc["responses"]
-        ocr_pages = [r["fullTextAnnotation"]["pages"][0] for r in responses]
-
-        for (page_idx, ocr_page) in enumerate(ocr_pages):
-
+        for (page_idx, ocr_page) in enumerate(get_ocr_pages(output_path)):
             ocr_words = get_words(ocr_page)
 
             words = []
             for (word_idx, ocr_word) in enumerate(ocr_words):
                 words.append(self.build_word(doc, page_idx, word_idx, ocr_word))
 
-            width, height = ocr_page["width"], ocr_page["height"]
-            page = Page(
-                doc=doc, page_idx=page_idx, words=words, width_=width, height_=height
-            )
+            width, height = ocr_page.get("width", 0), ocr_page.get("height", 0)
+            page = Page(doc=doc, page_idx=page_idx, words=words, width_=width, height_=height)
             doc.pages.append(page)
         return doc
 
@@ -118,9 +123,7 @@ class CloudVisionRecognizer:
         # The service can process up to 5 pages per document file. Here we specify
         # the first, second, and last page of the document to be processed.
         pages = list(range(1, doc.num_pages + 1))
-        requests = [
-            {"input_config": input_config, "features": features, "pages": pages}
-        ]
+        requests = [{"input_config": input_config, "features": features, "pages": pages}]
         response = image_client.batch_annotate_files(requests=requests)
 
         # get the protobuffer
@@ -152,16 +155,12 @@ class CloudVisionRecognizer:
         batch_size = min(doc.num_pages, 100)
 
         image_client = vision_v1.ImageAnnotatorClient()
-        feature = vision_v1.Feature(
-            type_=vision_v1.Feature.Type.DOCUMENT_TEXT_DETECTION
-        )
+        feature = vision_v1.Feature(type_=vision_v1.Feature.Type.DOCUMENT_TEXT_DETECTION)
         gcs_source = vision_v1.GcsSource(uri=gcs_source_uri)
         input_config = vision_v1.InputConfig(gcs_source=gcs_source, mime_type=mime_type)
 
         gcs_destination = vision_v1.GcsDestination(uri=gcs_destination_uri)
-        output_config = vision_v1.OutputConfig(
-            gcs_destination=gcs_destination, batch_size=batch_size
-        )
+        output_config = vision_v1.OutputConfig(gcs_destination=gcs_destination, batch_size=batch_size)
 
         async_request = vision_v1.AsyncAnnotateFileRequest(
             features=[feature], input_config=input_config, output_config=output_config
@@ -181,45 +180,72 @@ class CloudVisionRecognizer:
             blob_names = ", ".join(b.name for b in json_blobs)
             print(f"Blobs found: {len(json_blobs)} >{blob_names}< {outputPrefix}")
 
-        for blob in json_blobs:
-            output_path.write_bytes(blob.download_as_string())
+            output_paths = []
+            for blob in json_blobs:
+                name = blob.name
+                mid_fix = name[name.index('jsonoutput') + len('jsonoutput') + 1 : -5]
+
+                output_name = f'{output_path.stem}-{mid_fix}-{output_path.suffix}'
+                o_path = output_path.parent / output_name
+                o_path.write_bytes(blob.download_as_string())
+                output_paths.append(o_path)
+            return output_paths
+        else:
+            output_path.write_bytes(json_blobs[0].download_as_string())
+            return output_path
 
     def run_gcv(self, doc, output_path):
         storage_client = storage.Client()
-        cloud_output_dir_path = (
-            self.cloud_dir_path / pathlib.Path("output") / doc.pdf_stem
-        )
+        cloud_output_dir_path = self.cloud_dir_path / pathlib.Path("output") / doc.pdf_stem
 
         bucket = storage_client.get_bucket(self.bucket_name)
         output_blobs = list(bucket.list_blobs(prefix=str(cloud_output_dir_path)))
-        output_jsons = [b for b in output_blobs if b.name.endswith("json")]
+        json_blobs = [b for b in output_blobs if b.name.endswith("json")]
 
-        if len(output_jsons) > 0 and not self.overwrite_cloud:
-            if len(output_jsons) != 1:
-                raise ValueError("Multiple files found, expecting on")
+        if len(json_blobs) > 0 and not self.overwrite_cloud:
+            if len(json_blobs) != 1:
+                json_blobs.sort(key=lambda b: b.name)
+                blob_names = ", ".join(b.name for b in json_blobs)
+                print(f"Blobs found: {len(json_blobs)} >{blob_names}<")
 
-            output_path.write_bytes(output_jsons[0].download_as_string())
+                output_paths = []
+                for blob in json_blobs:
+                    name = blob.name
+                    mid_fix = name[name.index('jsonoutput') + len('jsonoutput') + 1 : -5]
+
+                    output_name = f'{output_path.stem}-{mid_fix}{output_path.suffix}'
+                    o_path = output_path.parent / output_name
+                    o_path.write_bytes(blob.download_as_string())
+                    output_paths.append(o_path)
+                return output_paths
+            else:
+                output_path.write_bytes(json_blobs[0].download_as_string())
+                return output_path
         else:
             if doc.num_pages < 5:
                 print("Running in sync")
-                self.run_sync_gcv(doc, output_path)
+                return self.run_sync_gcv(doc, output_path)
             else:
                 print("Running in async")
-                self.run_async_gcv(doc, output_path)
+                return self.run_async_gcv(doc, output_path)
 
     def read_gcv(self, doc, output_path):
         return self.build_pages(doc, output_path)
 
     def __call__(self, doc):
-        output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
-        print(output_path)
-        if output_path.exists():
-            return self.read_gcv(doc, output_path)
+        # output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
+
+        output_paths = self.output_dir_path.glob(f"{doc.pdf_name}.{self.output_stub}*json")
+        output_paths = list(output_paths)
+        print(output_paths)
+        if output_paths:
+            return self.read_gcv(doc, output_paths)
         else:
             # imports are expensive
             # from google.protobuf.json_format import MessageToDict
             # from google.cloud import vision_v1
             # from google.cloud import storage
+            output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
 
-            self.run_gcv(doc, output_path)
-            return self.build_pages(doc, output_path)
+            result = self.run_gcv(doc, output_path)
+            return self.build_pages(doc, result)

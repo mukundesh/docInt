@@ -1,20 +1,11 @@
 import functools
-
-# from .pipeline import Pipe
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from .doc import Doc
 from .errors import Errors
-from .util import (
-    SimpleFrozenDict,
-    SimpleFrozenList,
-    _pipe,
-    get_arg_names,
-    get_object_name,
-    raise_error,
-)
+from .util import SimpleFrozenDict, SimpleFrozenList, _pipe, get_arg_names, get_object_name, raise_error
 
 # b  /Users/mukund/Software/docInt/docint/vision.py:208
 
@@ -31,6 +22,8 @@ class FactoryMeta:
     default_config: Optional[Dict[str, Any]] = None  # noqa: E704
     assigns: Iterable[str] = tuple()
     requires: Iterable[str] = tuple()
+    packages: Iterable[str] = tuple()
+    os_packages: Iterable[str] = tuple()
 
 
 class Vision:
@@ -53,11 +46,12 @@ class Vision:
 
         viz.ignore_docs = config.get("ignore_docs", [])
         for pipe_config in config.get("pipeline", []):
+            print(f'Adding {pipe_config.get("name")}')
             viz.add_pipe(
                 pipe_config.get("name"),
                 pipe_config=pipe_config.get("config", {}),
             )
-            print(f'Added {pipe_config.get("name")}')
+        print('Done creating pipeline')
 
         return viz
 
@@ -80,11 +74,7 @@ class Vision:
             raise ValueError(Errors.E004.format(name=name, opts=self.component_names))
 
         if factory_name not in self.factories:
-            raise ValueError(
-                Errors.E005.format(
-                    factory_name=factory_name, opts=self.factories.keys()
-                )
-            )
+            raise ValueError(Errors.E005.format(factory_name=factory_name, opts=self.factories.keys()))
 
         factory_meta = self.factories_meta[factory_name]
         default_config = factory_meta.default_config
@@ -113,39 +103,29 @@ class Vision:
         """
         all_args = {"before": before, "after": after, "first": first, "last": last}
         if sum(arg is not None for arg in [before, after, first, last]) >= 2:
-            raise ValueError(
-                Errors.E006.format(args=all_args, opts=self.component_names)
-            )
+            raise ValueError(Errors.E006.format(args=all_args, opts=self.component_names))
         if last or not any(value is not None for value in [first, before, after]):
             return len(self._components)
         elif first:
             return 0
         elif isinstance(before, str):
             if before not in self.component_names:
-                raise ValueError(
-                    Errors.E007.format(name=before, opts=self.component_names)
-                )
+                raise ValueError(Errors.E007.format(name=before, opts=self.component_names))
             return self.component_names.index(before)
         elif isinstance(after, str):
             if after not in self.component_names:
-                raise ValueError(
-                    Errors.E008.format(name=after, opts=self.component_names)
-                )
+                raise ValueError(Errors.E008.format(name=after, opts=self.component_names))
             return self.component_names.index(after) + 1
         # We're only accepting indices referring to components that exist
         # (can't just do isinstance here because bools are instance of int, too)
         elif type(before) == int:
             if before >= len(self._components) or before < 0:
-                err = Errors.E008.format(
-                    dir="before", idx=before, opts=self.component_names
-                )
+                err = Errors.E008.format(dir="before", idx=before, opts=self.component_names)
                 raise ValueError(err)
             return before
         elif type(after) == int:
             if after >= len(self._components) or after < 0:
-                err = Errors.E009.format(
-                    dir="after", idx=after, opts=self.component_names
-                )
+                err = Errors.E009.format(dir="after", idx=after, opts=self.component_names)
                 raise ValueError(err)
             return after + 1
         raise ValueError(Errors.E006.format(args=all_args, opts=self.component_names))
@@ -208,9 +188,7 @@ class Vision:
 
         print(f"Building docs... #paths: {len(paths)}")
         paths = (Path(p) for p in paths if get_pdf_name(p) not in self.ignore_docs)
-        docs = list(
-            self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths
-        )
+        docs = list(self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths)
 
         print(f"Read #docs: {len(docs)}")
         for pipe in pipes:
@@ -233,9 +211,7 @@ class Vision:
         """Get all (name, component) tuples in the pipeline, including the
         currently disabled components.
         """
-        return SimpleFrozenList(
-            self._components, error=Errors.E926.format(attr="components")
-        )
+        return SimpleFrozenList(self._components, error=Errors.E926.format(attr="components"))
 
     @property
     def component_names(self) -> List[str]:
@@ -245,9 +221,7 @@ class Vision:
         RETURNS (List[str]): List of component name strings, in order.
         """
         names = [pipe_name for pipe_name, _ in self._components]
-        return SimpleFrozenList(
-            names, error='Errors.E926.format(attr="component_names")'
-        )
+        return SimpleFrozenList(names, error='Errors.E926.format(attr="component_names")')
 
     @property
     def pipeline(self) -> List[Tuple[str, "Pipe"]]:  # noqa: F821 todo
@@ -288,6 +262,8 @@ class Vision:
         default_config: Dict[str, Any] = SimpleFrozenDict(),
         assigns: Iterable[str] = SimpleFrozenList(),
         requires: Iterable[str] = SimpleFrozenList(),
+        packages: Iterable[str] = SimpleFrozenList(),
+        os_packages: Iterable[str] = SimpleFrozenList(),
         func: Optional[Callable] = None,
     ) -> Callable:
         if not isinstance(name, str):
@@ -303,6 +279,8 @@ class Vision:
                 default_config=default_config,
                 assigns=assigns,
                 requires=requires,
+                packages=packages,
+                os_packages=packages,
             )
 
             cls.factories_meta[name] = factory_meta

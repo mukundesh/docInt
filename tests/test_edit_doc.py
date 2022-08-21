@@ -28,7 +28,8 @@ def test_replaceStr(one_word_doc):
     with pytest.raises(Exception) as e:
         doc.edit(["replaceStr pa0.wo0 <all>"], file_path="stdin", line_nums=[1])
     assert e.type == TypeError
-    assert str(e.value) == "replaceStr() missing 1 required positional argument: 'new'"
+    # -58 is needed for py310 as the format has changed
+    assert str(e.value)[-58:] == "replaceStr() missing 1 required positional argument: 'new'"
 
 
 def test_new_word(two_lines_doc):
