@@ -1,129 +1,25 @@
 import re
 import sys
-from collections import Counter
 from itertools import chain
 from string import punctuation
 from textwrap import wrap
-from typing import Any, Dict, Iterable, List
+from typing import Dict, Iterable, List
 
 from enchant.utils import levenshtein
-from more_itertools import flatten
 from pydantic import BaseModel
 from rich import print as rprint
 from rich.text import Text
 
-from .shape import Box, Coord, Shape
+from .region import MergeWordEdit, Region
 from .span import Span, SpanGroup
-from .word import Word
-
-
-class DataError(BaseModel):
-    path: str
-    msg: str
-    doc: Any
-
-    class Config:
-        fields = {"doc": {"exclude": True}}
-
-    def __str__(self):
-        if self.doc:
-            return f"{self.name}: {self.doc.pdf_name} {self.path} {self.msg}"
-        else:
-            return f"{self.name}: {self.path} {self.msg}"
-
-    @property
-    def name(self):
-        return type(self).__name__
-
-    @classmethod
-    def error_counts(cls, errors):
-        ctr = Counter(e.name for e in errors)
-        type_str = " ".join(f"{n}={ct}" for n, ct in ctr.most_common(None))
-        return f"Errors={sum(ctr.values())} {type_str}"
-
-    @classmethod
-    def ignore_error(cls, error, ignore_dict):
-        error_name = type(error).__name__
-        return error.path in ignore_dict.get(error_name, [])
-
-
-class UnmatchedTextsError(DataError):
-    texts: List[str]
-
-    @classmethod
-    def build(cls, path, unmatched_texts, post_str=""):
-        msg = f'{",".join(unmatched_texts)}|{post_str}'
-        return UnmatchedTextsError(path=path, msg=msg, texts=unmatched_texts)
-
-
-class DataEdit(BaseModel):
-    msg: str
-
-    def __str__(self):
-        return self.msg
-
-
-class MergeWordEdit(DataEdit):
-    keep_word_path: str
-    elim_word_path: str
-    elim_word_text: str
-    keep_word_text: str
-
-    @classmethod
-    def build(cls, keep_word, elim_word):
-        w1, w2 = keep_word, elim_word
-        t1, t2 = w1.text, w2.text
-        msg = f"{t1}<->{t2}"
-        return MergeWordEdit(
-            keep_word_path=w1.path,
-            elim_word_path=w2.path,
-            keep_word_text=t1,
-            elim_word_text=t2,
-            msg=msg,
-        )
-
-
-class ReplaceTextEdit(DataEdit):
-    word_path: str
-    old_text: str
-    new_text: str
-
-    @classmethod
-    def build(cls, word, old_text, new_text):
-        old_wtext = word.text
-        msg = f"{old_wtext}->{old_wtext.replace(old_text, new_text)}"
-        return ReplaceTextEdit(word_path=word.path, old_text=old_text, new_text=new_text, msg=msg)
 
 
 class TextConfig(BaseModel):
     rm_labels: List[str] = []
-    rm_nl: bool = True
 
 
-class Region(BaseModel):
-    word_idxs: List[int]
-    word_lines_idxs: List[List[int]] = None
-    page_idx_: int = None
-
-    words: List[Word] = None
-    # text_: str = None
-    shape_: Box = None
-    word_lines: List[List[Word]] = None
+class Para(Region):
     label_spans: Dict[str, List[Span]] = {}
-    errors: List[DataError] = []
-    edits: List[DataEdit] = []
-
-    class Config:
-        fields = {
-            "words": {"exclude": True},
-            "shape_": {"exclude": True},
-            "word_lines": {"exclude": True},
-        }
-
-    @classmethod
-    def build(cls, words, page_idx):
-        word_idxs = [w.word_idx for w in words]
-        return Region(words=words, word_idxs=word_idxs, page_idx_=page_idx)
 
     @classmethod
     def build_with_lines(cls, words, word_lines):
@@ -131,7 +27,7 @@ class Region(BaseModel):
         page_idx = words[0].page_idx if words else None
         word_lines_idxs = [[w.word_idx for w in wl] for wl in word_lines]
 
-        return Region(
+        return Para(
             words=words,
             word_lines=word_lines,
             word_idxs=word_idxs,
@@ -139,73 +35,14 @@ class Region(BaseModel):
             word_lines_idxs=word_lines_idxs,
         )
 
-    def __len__(self):
-        return len(self.words)
-
-    def remove_word_ifpresent(self, word):
-        rm_idx = word.word_idx
-        if rm_idx in self.word_idxs:
-            self.word_idxs = [idx for idx in self.word_idxs if rm_idx != idx]
-            self.words = [w for w in self.words if w.word_idx != rm_idx]
-
-            if self.word_lines:
-                word_lines = []
-                for word_line in self.word_lines:
-                    word_lines.append([w for w in word_line if w.word_idx != rm_idx])
-                self.word_lines = word_lines
-
-            if self.word_lines_idxs:
-                word_lines_idxs = []
-                for word_line_idx in self.word_lines_idxs:
-                    word_lines_idxs.append([idx for idx in word_line_idx if idx != rm_idx])
-                self.word_lines_idxs = word_lines_idxs
-                self.shape_ = None
-
-    def __bool__(self):
-        # What is an empty region, what if remove the words from a
-        # a region after words
-        return bool(self.words)
-
-    @property
-    def doc(self):
-        return self.words[0].doc
-
-    @property
-    def page_idx(self):
-        return self.page_idx_
-
-    @property
-    def page(self):
-        return self.doc.pages[self.page_idx]
-
-    def get_regions(self):
-        return [self]
-
-    @property
-    def error_counts_str(self):
-        ctr = Counter(e.name for e in self.errors)
-        return " ".join(f"{n}:{ct}" for n, ct in ctr.most_common(None))
-
+    ## Display methods
     def str_spans(self, indent=""):
-        # moved
         t = self.line_text()
         label_strs = []
         for label, spans in self.label_spans.items():
             spanStrs = [f"[{s.start}:{s.end}]=>{t[s.start:s.end]}<" for s in spans]
             label_strs.append(f'{indent}{label}: {" ".join(spanStrs)}')
         return "\n".join(label_strs)
-
-    def text_len(self):
-        # should we eliminate zero words ? not now
-        text_lens = [len(w.text) for w in self.words]
-        num_spaces = len(text_lens) - 1
-        return sum(text_lens) + num_spaces if text_lens else 0
-
-    def text_isalnum(self):
-        # should we eliminate zero words ? not now
-        return all([w.text.isalnum() for w in self.words])
-
-    ### <--- Moved to para.py
 
     def iter_word_span_idxs(self):
         # not sure about this
@@ -234,26 +71,6 @@ class Region(BaseModel):
                 )
                 s, e = s - word_span.start, e - word_span.start
                 yield word, word.text[s:e], line_idx, pos_idx
-
-    def iter_word_text_idxs_span(self, text_config):
-        # will include partial text, but not empty word
-        rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
-        rm_spans = Span.accumulate(rm_spans)
-        rm_span_group = SpanGroup(spans=rm_spans, text="")
-
-        for word, word_span, line_idx, pos_idx in self.iter_word_span_idxs():
-            o_type, o_span = rm_span_group.overlap_type(word_span)
-            if o_type == "none":
-                print(f'  {word.text} {str(word_span)}')
-                yield word, word.text, line_idx, pos_idx, word_span
-
-            elif o_type == "partial":
-                (s, e) = (
-                    (o_span.end, word_span.end) if o_span.start == word_span.start else (word_span.start, o_span.start)
-                )
-                o_word_span = Span(start=s, end=e)
-                s, e = s - word_span.start, e - word_span.start
-                yield word, word.text[s:e], line_idx, pos_idx, o_word_span
 
     def iter_adjoin_words_texts(self, text_config):
         def is_adjoin(prev_line_idx, prev_pos_idx, line_idx, pos_idx):
@@ -295,30 +112,7 @@ class Region(BaseModel):
             if edit_word.word_idx == word.word_idx:
                 return word_span.start
 
-    def get_full_spans(self, span, text_config):
-        rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
-        rm_spans = Span.accumulate(rm_spans)
-        start, end = span.start, span.end
-
-        new_spans, spanning_existing_span = [], False
-        for rm_span in rm_spans:
-            if rm_span.start <= start and rm_span.start < end:
-                start += len(rm_span)
-                end += len(rm_span)
-            elif rm_span.start < end:
-                # Added span is spanning an existing rm label span
-                new_spans.append(Span(start=start, end=rm_span.start))
-                new_spans.append(Span(start=rm_span.end, end=end + len(rm_span)))
-                spanning_existing_span = True
-                break
-
-        if not spanning_existing_span:
-            new_spans.append(Span(start=start, end=end))
-
-        return new_spans
-
     def add_span(self, start, end, label, text_config=None):
-        ### PLEASE MERGE WITH ABOVE METHOD
         assert label and (start < end)
 
         rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
@@ -358,82 +152,11 @@ class Region(BaseModel):
 
     def get_words_in_spans(self, spans):
         overlap_words = []
-        print("Input: " + Span.str_spans(spans))
         for word, word_span, line_idx, pos_idx in self.iter_word_span_idxs():
             if word_span.overlaps_any(spans):
-                print(f"\tSpan: {str(word_span)} text: {word.text}")
                 overlap_words.append(word)
         return overlap_words
 
-    def get_words_in_spans_with_config(self, spans, text_config):
-        full_spans = list(flatten(self.get_full_spans(s, text_config) for s in spans))
-        print(f'Spans: {Span.str_spans(full_spans)}')
-        overlap_words = []
-        for word, _, _, _, word_span in self.iter_word_text_idxs_span(text_config):
-            print(f'Text: {word.text} Span: {str(word_span)}')
-            if word_span.overlaps_any(full_spans):
-                print(f"\t*MATCHED Span: {str(word_span)} text: {word.text}*")
-                overlap_words.append(word)
-        return overlap_words
-
-    ### --> Moved to para.py
-
-    def raw_text(self):
-        word_texts = [w.text for w in self.words if w]
-        return " ".join(word_texts)
-
-    def arranged_words_old(self, words, num_slots=1000):
-        def get_line_num(word):
-            min_sidx, max_sidx = int(word.xmin * num_slots), int(word.xmax * num_slots)
-            max_sidx = min(max_sidx, num_slots - 1)
-
-            if min_sidx != max_sidx:
-                line_num = max(slots[min_sidx:max_sidx]) + 1
-            else:
-                line_num = slots[min_sidx] + 1
-            slots[min_sidx:max_sidx] = [line_num] * (max_sidx - min_sidx)
-            return line_num
-
-        slots = [0] * num_slots
-        words = sorted(words, key=lambda w: w.ymin)
-        line_nums = [get_line_num(w) for w in words]
-
-        words_line_nums = list(zip(words, line_nums))
-        words_line_nums.sort(key=lambda tup: (tup[1], tup[0].xmin))
-        return [tup[0] for tup in words_line_nums]
-
-    def arranged_words(self, words, cutoff_thous=5):
-        def centroid(line):
-            return line[-1].ymid
-
-        if not words:
-            return []
-
-        word_lines = [[]]
-        words = sorted(words, key=lambda w: w.ymid)
-        word_lines[0].append(words.pop(0))
-
-        for word in words:
-            last_centroid = centroid(word_lines[-1])
-
-            if (word.ymid - last_centroid) * 1000 > cutoff_thous:
-                word_lines.append([word])
-            else:
-                word_lines[-1].append(word)
-
-        [line.sort(key=lambda w: w.xmin) for line in word_lines]
-        return list(chain(*word_lines))
-
-    def arranged_text(self, cutoff_thous=5):
-        arranged_words = self.arranged_words(self.words, cutoff_thous)
-        word_texts = [w.text for w in arranged_words if w]
-        return " ".join(word_texts)
-
-    def orig_text(self):
-        word_texts = [w.orig_text for wl in self.word_lines for w in wl if w.orig_text]
-        return " ".join(word_texts)
-
-    ## <-- Moving this to para.py
     def line_text(self, text_config=None):
         word_texts = [w.text for wl in self.word_lines for w in wl if w]
         line_text = " ".join(word_texts)
@@ -482,26 +205,6 @@ class Region(BaseModel):
 
         line_text = "".join(line_text)
         return line_text.replace("|", "")
-
-    def make_ascii(self, unicode_dict={}):
-        assert not self.label_spans
-        not_found = []
-        for text, word in self.iter_word_text():
-            if not word.text.isascii():
-                u_text = word.text
-                if u_text in unicode_dict:
-                    a_text = unicode_dict[u_text]
-                    # self.lgr.debug(f'UnicodeFixed: {u_text}->{a_text}')
-                    assert a_text is not None, f"incorrect text >{u_text}<"
-                    self.replace_word_text(word, "<all>", a_text)
-                else:
-                    sys.stderr.write(f"Unicode: >{u_text}<\n")
-                    not_found.append(word.text)
-                    pass
-                    # self.lgr.info(f'unicode text not found: {u_text}\n')
-        return not_found
-
-    ## <--- Moved to para.py
 
     def _fix_text(self, text):
         if not text.isascii():
@@ -668,74 +371,3 @@ class Region(BaseModel):
         elim_pos = self.get_start_pos_word(elim_word)
         keep_word.mergeWord(elim_word)
         self.update_all_spans(elim_pos, -1)
-
-    # --> moved to para.py
-
-    def replace_word_text(self, word, old_text, new_text):
-        # correct words and make ascii
-        old_text = word.text if old_text == "<all>" else old_text
-        inc = len(new_text) - len(old_text)
-        self.edits.append(ReplaceTextEdit.build(word, old_text, new_text))
-        if inc != 0:
-            if new_text == "":
-                inc -= 1  # for space, as the word would be skipped.
-
-            word_pos = self.get_start_pos_word(word)
-            self.update_all_spans(word_pos, inc)
-        word.replaceStr(old_text, new_text)
-
-    @property
-    def shape(self):
-        if self.shape_ is None:
-            self.shape_ = Shape.build_box([w.box for w in self.words])
-        return self.shape_
-
-    @property
-    def xmin(self):
-        return self.shape.xmin
-
-    @property
-    def xmax(self):
-        return self.shape.xmax
-
-    @property
-    def xmid(self):
-        return self.shape.xmid
-
-    @property
-    def ymin(self):
-        return self.shape.ymin
-
-    @property
-    def ymax(self):
-        return self.shape.ymax
-
-    @property
-    def ymid(self):
-        return self.shape.ymid
-
-    def reduce_width_at(self, direction, ov_shape):
-        # edit, word_line
-        # reduce with only of the box
-        assert direction in ("left", "right")
-        box = self.shape.box
-
-        assert len(self.words) == 1
-
-        # print(f'\tReducing width >{self.words[0].text}< self:{box} ov:{ov_shape} {direction}')
-        inc = 0.000001
-        inc = 0.001
-
-        if direction == "left":
-            assert self.xmin <= ov_shape.xmax
-            new_top = Coord(x=ov_shape.xmax + inc, y=box.top.y)
-            self.words[0].shape.box.update_coords([new_top, self.shape.box.bot])
-            self.shape_ = None
-        else:
-            assert self.xmax >= ov_shape.xmin
-            new_bot = Coord(x=ov_shape.xmin - inc, y=box.bot.y)
-            self.words[0].shape.box.update_coords([self.shape.box.top, new_bot])
-            self.shape_ = None
-
-        box = self.shape.box
-        # print(f'\tReduced  width >{self.words[0].text}< self:{box} ov:{ov_shape} xmin:{self.xmin} xmax: {self.xmax}')

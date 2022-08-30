@@ -25,3 +25,4 @@ from .table_edge_finder import TableEdgeFinder
 from .table_finder import TableFinder
 from .wordfreq_writer import WordfreqWriter
 from .words_arranger import WordsArranger
+from .para_fixer import ParaFixer

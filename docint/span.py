@@ -282,6 +282,9 @@ class SpanGroup(BaseModel):
         if not overlap_spans:
             return "none", None
 
+        # even though the spans are not overlapping it is possible
+        # for the word_span to span two spans, especially for long words.
+        # currently region/Para cannot handle this case hence this assert
         assert len(overlap_spans) == 1
         overlap_len = word_span.get_overlap_len(overlap_spans[0])
 
