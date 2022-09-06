@@ -1,25 +1,27 @@
 import re
 import sys
-from itertools import chain
 from string import punctuation
-from textwrap import wrap
-from typing import Dict, Iterable, List
+from typing import Dict, List
 
-from enchant.utils import levenshtein
+from more_itertools import first, flatten
 from pydantic import BaseModel
-from rich import print as rprint
-from rich.text import Text
 
-from .region import MergeWordEdit, Region
-from .span import Span, SpanGroup
+from .region import Region
+from .span import Span, SpanGroup, flatten_spans
 
 
 class TextConfig(BaseModel):
     rm_labels: List[str] = []
 
+    @classmethod
+    def build(cls, labels):
+        labels = labels if isinstance(labels, list) else [labels]
+        return TextConfig(rm_labels=labels)
+
 
 class Para(Region):
     label_spans: Dict[str, List[Span]] = {}
+    t: str = None
 
     @classmethod
     def build_with_lines(cls, words, word_lines):
@@ -35,14 +37,17 @@ class Para(Region):
             word_lines_idxs=word_lines_idxs,
         )
 
-    ## Display methods
-    def str_spans(self, indent=""):
-        t = self.line_text()
-        label_strs = []
+    def __str__(self):
+        s = f'Text: {self.text}\n'
         for label, spans in self.label_spans.items():
-            spanStrs = [f"[{s.start}:{s.end}]=>{t[s.start:s.end]}<" for s in spans]
-            label_strs.append(f'{indent}{label}: {" ".join(spanStrs)}')
-        return "\n".join(label_strs)
+            s += f'\t{label}: {Span.to_str(self.text, spans)}\n'
+        return s
+
+    @property
+    def text(self):
+        if self.t is None:
+            self.t = " ".join(w.text for wl in self.word_lines for w in wl if w.text)
+        return self.t
 
     def iter_word_span_idxs(self):
         # not sure about this
@@ -54,320 +59,342 @@ class Para(Region):
                 yield word, Span(start=start_pos, end=end_pos), line_idx, pos_idx
                 start_pos += len(word) + 1
 
-    def iter_word_text_idxs(self, text_config):
+    def iter_word_text_idxs_span(self, text_config):
         # will include partial text, but not empty word
         rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
-        rm_spans = Span.accumulate(rm_spans)
+        rm_spans = Span.accumulate(rm_spans, text=self.text, ignore_chars=' ')
         rm_span_group = SpanGroup(spans=rm_spans, text="")
 
         for word, word_span, line_idx, pos_idx in self.iter_word_span_idxs():
-            o_type, o_span = rm_span_group.overlap_type(word_span)
+            o_type, o_spans = rm_span_group.overlap_type2(word_span)
             if o_type == "none":
-                yield word, word.text, line_idx, pos_idx
+                yield word, word.text, line_idx, pos_idx, [word_span]
 
             elif o_type == "partial":
-                (s, e) = (
-                    (o_span.end, word_span.end) if o_span.start == word_span.start else (word_span.start, o_span.start)
-                )
-                s, e = s - word_span.start, e - word_span.start
-                yield word, word.text[s:e], line_idx, pos_idx
+                non_o_spans = word_span.get_non_overlapping(o_spans)
+                non_o_text = ''.join(self.text[s.slice()] for s in non_o_spans)
+                yield word, non_o_text, line_idx, pos_idx, non_o_spans
 
     def iter_adjoin_words_texts(self, text_config):
         def is_adjoin(prev_line_idx, prev_pos_idx, line_idx, pos_idx):
             return prev_line_idx == line_idx and prev_pos_idx + 1 == pos_idx
 
         prev_word, prev_text, prev_line_idx, prev_pos_idx = None, None, None, None
-        for word, text, line_idx, pos_idx in self.iter_word_text_idxs(text_config):
+        for word, text, line_idx, pos_idx, _ in self.iter_word_text_idxs_span(text_config):
 
             if (prev_line_idx is not None) and line_idx != prev_line_idx and prev_word:
                 yield prev_word, None, prev_text, ""
 
             elif prev_word and is_adjoin(prev_line_idx, prev_pos_idx, line_idx, pos_idx):
                 yield prev_word, word, prev_text, text
-            prev_word, prev_text, prev_line_idx, prev_pos_idx = (
-                word,
-                text,
-                line_idx,
-                pos_idx,
-            )
+
+            prev_word, prev_text = word, text
+            prev_line_idx, prev_pos_idx = line_idx, pos_idx
         yield prev_word, None, prev_text, ""
 
-    # Temporary
-    def iter_word_pairs(self, text_config=None):
-        for word, n_word, _, _ in self.iter_adjoin_words_texts(text_config):
-            yield word, n_word
+    def iter_adjoin(self, adjoin_count, text_config):
+        assert adjoin_count > 1
 
-    # Temporary
-    def iter_words(self, text_config=None):
-        for word, _, _, pos_idx in self.iter_word_text_idxs(text_config):
-            yield pos_idx, word
+        def is_adjoin(prev_info, cur_info):
+            return prev_info[2] == cur_info[2] and prev_info[3] + 1 == cur_info[3]
 
-    # Temporary, Why ? it is very convenient
-    def iter_word_text(self, text_config=None):
-        for word, word_text, _, _ in self.iter_word_text_idxs(text_config):
-            yield word_text, word
+        def get_yield_pop_info(info_list):
+            has_none = info_list.count(None) > 0
+            if has_none:
+                adjoin_idx = min(adjoin_count, info_list.index(None))
+                if adjoin_idx > 1:
+                    return info_list[:adjoin_idx], True
+                else:
+                    return None, True
+            elif len(info_list) >= adjoin_count:
+                return info_list[:adjoin_count], True
+            else:
+                return None, False
 
-    def get_start_pos_word(self, edit_word):
-        for word, word_span, line_idx, pos_idx in self.iter_word_span_idxs():
-            if edit_word.word_idx == word.word_idx:
-                return word_span.start
+        info_list = []
+        for word, text, line_idx, pos_idx, _ in self.iter_word_text_idxs_span(text_config):
+            word_info = (word, text, line_idx, pos_idx)
 
-    def add_span(self, start, end, label, text_config=None):
-        assert label and (start < end)
+            if (not info_list) or is_adjoin(info_list[-1], word_info):
+                info_list.append(word_info)
+            else:
+                info_list.append(None)
+                info_list.append(word_info)
 
+            yield_list, pop_info = get_yield_pop_info(info_list)
+            if yield_list:
+                yield yield_list
+
+            if pop_info:
+                info_list.pop(0)
+
+        while info_list:
+            yield_list, _ = get_yield_pop_info(info_list)
+            if yield_list:
+                yield yield_list
+            info_list.pop(0)
+
+    def get_base_spans(self, span, text_config):
         rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
-        rm_spans = Span.accumulate(rm_spans)
+        rm_spans = Span.accumulate(rm_spans, text=self.text, ignore_chars=' ')
+        start, end = span.start, span.end
 
-        new_spans, spanning_existing_span = [], False
+        base_spans, spanning_existing_span = [], False
         for rm_span in rm_spans:
             if rm_span.start <= start and rm_span.start < end:
-                start += len(rm_span)
-                end += len(rm_span)
+                inc = 1 if rm_span.on_word_boundary(self.text) else 0
+                start += len(rm_span) + inc
+                end += len(rm_span) + inc
             elif rm_span.start < end:
                 # Added span is spanning an existing rm label span
-                new_spans.append(Span(start=start, end=rm_span.start))
-                new_spans.append(Span(start=rm_span.end, end=end + len(rm_span)))
+                base_spans.append(Span(start=start, end=rm_span.start))
+                base_spans.append(Span(start=rm_span.end, end=end + len(rm_span)))
                 spanning_existing_span = True
                 break
 
         if not spanning_existing_span:
-            new_spans.append(Span(start=start, end=end))
+            base_spans.append(Span(start=start, end=end))
 
-        for new_span in new_spans:
+        return base_spans
+
+    # def add_label(self, spans, label, text_config=None):
+    #     [self.label_span(s, label, text_config) for s in flatten_spans(spans)]
+
+    def add_label(self, span, label, text_config=None):
+        base_spans = []
+        for s in flatten_spans(span):
+            base_spans += self.get_base_spans(s, text_config)
+
+        outside_spans = [s for s in base_spans if s.in_boundary(self.text)]
+        if outside_spans:
+            o_span_str = Span.to_str(self.text, outside_spans)
+            raise ValueError(f'Spans start/end in > < Spans: {o_span_str}')
+
+        for new_span in base_spans:
             self.label_spans.setdefault(label, []).append(new_span)
+
+    def label_regex(self, regexes, label, text_config=None):
+        line_text = self.line_text(text_config)
+        new_spans = []
+        regexes = regexes if isinstance(regexes, list) else [regexes]
+        for regex in regexes:
+            for m in re.finditer(regex, line_text):
+                new_spans.append(Span(start=m.span()[0], end=m.span()[1]))
+        new_spans.sort(reverse=True)
+        [self.add_label(s, label, text_config) for s in new_spans]
 
     def get_spans(self, labels):
         if isinstance(labels, str):
             return self.label_spans.get(labels, [])
         else:
-            return list(chain(*[self.label_spans.get(lb, []) for lb in labels]))
+            return list(flatten(self.label_spans.get(lb, []) for lb in labels))
 
-    def get_text_for_spans(self, spans):
-        text = self.line_text()
-        if isinstance(spans, Iterable):
-            return ",".join(f"{text[s.slice()]}" for s in spans)
-        else:
-            span = spans
-            return text[span.slice()]
+    def get_text_for_spans(self, spans, text_config, boundary_char=" "):
+        line_text = self.line_text(text_config)
+        return boundary_char.join(line_text[s.slice()] for s in spans)
 
-    def get_words_in_spans(self, spans):
+    def get_words_for_spans(self, spans, text_config):
+        base_spans = self.get_base_spans(spans, text_config)
+
         overlap_words = []
-        for word, word_span, line_idx, pos_idx in self.iter_word_span_idxs():
-            if word_span.overlaps_any(spans):
+        for word, word_span, _, _ in self.iter_word_span_idxs():
+            if word_span.overlap_any(base_spans):
                 overlap_words.append(word)
         return overlap_words
 
     def line_text(self, text_config=None):
-        word_texts = [w.text for wl in self.word_lines for w in wl if w]
-        line_text = " ".join(word_texts)
+        if not text_config:
+            word_texts = [w.text for wl in self.word_lines for w in wl if w]
+            return " ".join(word_texts)
 
-        if text_config is None:
-            return line_text
-
-        if text_config.rm_nl:
-            line_text.replace("\n", " ")
-
-        # print(f"Line: {line_text}")
-
-        line_text = list(line_text)
-        rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
-        for rm_span in Span.accumulate(rm_spans):
-            # print(f"start: {rm_span.start} end: {rm_span.end} label: {rm_span.label}")
-            line_text[rm_span.start : rm_span.end] = "|" * len(rm_span)  # noqa: E203
-
-        line_text = "".join(line_text)
-        return line_text.replace("|", "")
+        else:
+            word_texts = []
+            for _, text, _, _, _ in self.iter_word_text_idxs_span(text_config):
+                if text:
+                    word_texts.append(text)
+            return ' '.join(word_texts)
 
     def word_idxs_line_text(self, text_config=None):
-        def idx_text(w):
-            idx, ln = w.word_idx, len(w.text)
+        def idx_text(word, text):
+            idx, ln = word.word_idx, len(text)
             if len(str(idx)) <= ln:
                 return "{0:{1}}".format(str(idx), ln)
             else:
                 return " " * ln
 
-        word_texts = [idx_text(w) for wl in self.word_lines for w in wl if w]
-        line_text = " ".join(word_texts)
+        idx_texts = []
+        for word, text, _, _, _ in self.iter_word_text_idxs_span(text_config):
+            if text:
+                idx_texts.append(idx_text(word, text))
 
-        if text_config is None:
-            return line_text
+        return ' '.join(idx_texts)
 
-        if text_config.rm_nl:
-            line_text.replace("\n", " ")
-
-        # print(f"Line: {line_text}")
-
-        line_text = list(line_text)
-        rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
-        for rm_span in Span.accumulate(rm_spans):
-            # print(f"start: {rm_span.start} end: {rm_span.end} label: {rm_span.label}")
-            line_text[rm_span.start : rm_span.end] = "|" * len(rm_span)  # noqa: E203
-
-        line_text = "".join(line_text)
-        return line_text.replace("|", "")
-
-    def _fix_text(self, text):
-        if not text.isascii():
-            sys.stderr.write(f"{text}\n")
-        text = text.strip()
-
+    def elim_punct(self, text):
         punct_tbl = str.maketrans(punctuation, " " * len(punctuation))
         text = text.translate(punct_tbl).strip()
         return text
 
-    def is_correctable(self, text, dictionary):
-        suggestions = dictionary.suggest(text)
-        if not suggestions:
+    def check_language(self, text, language='en'):
+        assert language == 'en'
+        if not text.isascii():
+            sys.stderr.write(f'Unicode: {text}\n')
             return False
-        lv_dist_cutoff = 1
+        return True
 
-        top_suggestion = suggestions[0].lower()
-        lv_dist = levenshtein(top_suggestion, text.lower())
-        # print(f'\t{text}->{suggestions[0]} {lv_dist}')
-
-        if lv_dist <= lv_dist_cutoff or top_suggestion.startswith(text.lower()):
-            return True
-        else:
-            return False
-
-    def is_mergeable(self, text, next_word, dictionary):
-        if next_word is None:
-            return False
-
-        next_text = self._fix_text(next_word.text)
-        if not next_text:
-            return False
-
-        merged_text = text + next_text
-        if dictionary.check(merged_text):
-            # self.lgr.debug(f"MergeFound >{text}+{next_text}<")
-            return True
-        elif self.is_correctable(merged_text, dictionary):
-            # self.lgr.debug(f"MergeCorrected {merged_text}")
-            return True
-        else:
-            # print(f"Merge NotFound {merged_text}")
-            return False
-
-    def merge_words(self, dictionary, text_config=None):
-        merge_count = 0
-
-        if len(self.words) == 0:
-            return
-
+    def merge_words(self, vocab, text_config=None, dist_cutoff=1):
         last_merged_word, merge_words = None, []  # don't alter spans while iterating
-        for word, next_word in self.iter_word_pairs(text_config):
-
+        for word, next_word, text, next_text in self.iter_adjoin_words_texts(text_config):
             if (not word) or (not next_word) or (id(word) == id(last_merged_word)):
                 continue
 
-            text = self._fix_text(word.text)
-
-            if not text:
+            if word.word_idx == next_word.word_idx:
                 continue
 
-            if self.is_mergeable(text, next_word, dictionary):
-                # self.lgr.debug(f'Merged: {word.text} {next_word.text}')
+            text = self.elim_punct(text)
+            if vocab.has_text(text):
+                continue
+
+            next_text = self.elim_punct(next_text)
+
+            if (not text) or (not next_text):
+                continue
+
+            merged_text = text + next_text
+            if vocab.has_text(merged_text, dist_cutoff):
+                print(f'\tMerging: {text} {next_text} -> {merged_text}')
                 merge_words.append((word, next_word))
-                merge_count += 1
                 last_merged_word = next_word
 
         [self.merge_word(word, next_word) for (word, next_word) in merge_words]
-        return merge_count
+        self.t = None
+        return len(merge_words)
 
-    def correct_words(self, dictionary, text_config=None):
-        correct_count = 0
-        replace_words = []  # don't alter spans while iterating
-        for text, word in self.iter_word_text(text_config):
-            text = self._fix_text(text)
-            if not word or not text:
+    # PAUSING THE MULTI MERGE THREAD as merging words with single letters is difficult
+    # as the words get eliminated in has_vocab_words example 'l' + 'azy', 'azy' is in
+    # dictionary so does not get merged lazy. Similar problems 'A' + 'q'
+
+    def merge_multi_words(self, vocab, adjoin_count, text_config=None, dist_cutoff=1):
+        def is_mergeable(info_list):
+            merge_text = "".join(info[1] for info in info_list)
+            return vocab.has_text(merge_text, dist_cutoff)
+
+        def has_vocab_words(info_list):
+            for info in info_list:
+                if vocab.has_text(info[1], dist_cutoff):
+                    print(f'\t\tIN VOCAB {info[1]}')
+                    return True
+            return False
+
+        merged_word_idxs, to_merge_words = set(), []
+        for word_info_list in self.iter_adjoin(adjoin_count, text_config):
+            print(f'Iterating: {", ".join(i[1] for i in word_info_list)}')
+
+            # remove words that are already merged
+            non_merged_word_list = []
+            for idx, word_info in enumerate(word_info_list):
+                if word_info[0].word_idx in merged_word_idxs:
+                    continue
+                else:
+                    non_merged_word_list = word_info_list[idx:]
+                    break
+
+            # Only keep words that have text
+            non_merged_word_list = [w for w in non_merged_word_list if w[1]]
+
+            if len(non_merged_word_list) < 2:
                 continue
 
-            if dictionary.check(text):
+            print(f'\tIterating-AfterRemoval: {", ".join(i[1] for i in non_merged_word_list)}')
+
+            # check if the words exist in vocab
+            for idx, word_info in enumerate(non_merged_word_list[:-1]):
+                merge_slice = slice(0, len(non_merged_word_list) - idx)
+                merge_list = non_merged_word_list[merge_slice]
+
+                if has_vocab_words(merge_list):
+                    # print(f'\tFound Vocab Word: {", ".join(i[1] for i in merge_list)}')
+                    continue
+
+                print(f'\tChecking: {", ".join(i[1] for i in merge_list)}')
+                if is_mergeable(merge_list):
+                    merge_words = [info[0] for info in merge_list]
+                    print(f'\t\tMulti-merge: {"".join(i[1] for i in merge_list)}')
+                    to_merge_words.append(merge_words)
+                    assert all(w.word_idx not in merged_word_idxs for w in merge_words)
+
+                    [merged_word_idxs.add(w.word_idx) for w in merge_words]
+
+        [self.edit_merge_words(words) for words in to_merge_words]
+
+    def correct_words(self, vocab, text_config=None, dist_cutoff=1):
+        OF_TEXTS = ("uf", "cf", "qf", "nf", "af", "bf")
+        replace_words = []  # don't alter spans while iterating
+        for word, text, _, _, o_spans in self.iter_word_text_idxs_span(text_config):
+
+            if text not in word.text:
+                # not contiguous
+                continue
+
+            text = self.elim_punct(text)
+            if not word or not text or text not in word.text:
+                continue
+
+            if vocab.has_text(text, dist_cutoff=0):
                 continue
 
             if len(text) <= 2:
-                if text in ("uf", "cf", "qf", "nf", "af", "bf"):
-                    replace_words.append((word, "of"))
-                    # self.lgr.debug(f"SpellCorrected {text} -> of")
-                    correct_count += 1
+                if text in OF_TEXTS:
+                    replace_words.append((word, 'of'))
                 else:
                     pass
-            elif self.is_correctable(text, dictionary):
-                suggestions = dictionary.suggest(text)
-                # self.lgr.debug(f"SpellCorrected {text} -> {suggestions[0]}")
-                replace_words.append((word, suggestions[0]))
-                correct_count += 1
             else:
-                pass
-                # self.lgr.debug(f"SpellNOTFOUND {text}")
+                matched_texts = vocab.find_texts(text, dist_cutoff)
+                if matched_texts:
+                    print(f'\tFound correction: {text} {matched_texts[0][0]}')
+                    new_text = word.text.replace(text, matched_texts[0][0])
+                    replace_words.append((word, new_text))
+
         [self.replace_word_text(w, "<all>", t) for (w, t) in replace_words]
-        return correct_count
-
-    def mark_regex(self, regexes, label, text_config=None):
-        line_text = self.line_text(text_config)
-        new_spans = []
-        for regex in regexes:
-            for m in re.finditer(regex, line_text):
-                new_spans.append(m.span())
-        new_spans.sort(reverse=True)
-        for (s, e) in new_spans:
-            self.add_span(s, e, label, text_config)
-
-    def print_color(self, error_type, color_config):
-        line_text = self.line_text()
-        color_text = Text(error_type + line_text)
-        elen = len(error_type)
-        for label, spans in self.label_spans.items():
-            color = color_config.get(label, None)
-            if color:
-                [color_text.stylize(color, s.start + elen, s.end + elen) for s in spans]
-        # end for
-        rprint(color_text)
-
-    def print_color_idx(self, color_config, width=90):
-        line_text, idx_text = self.line_text(), self.word_idxs_line_text()
-        wrap_texts = wrap(line_text, width=width, drop_whitespace=False)
-        wrap_spans, start_pos = [], 0
-
-        # flatten label->List[Spans] to label->Span
-        label_spans = [(lb, s) for lb, ss in self.label_spans.items() for s in ss]
-        for (line_idx, w_text) in enumerate(wrap_texts):
-            line_span = Span(start=start_pos, end=start_pos + len(w_text))
-            wrap_line_spans = []
-            for label, span in label_spans:
-                if line_span.overlaps(span):
-                    new_start = max(span.start - start_pos, 0)
-                    new_end = min(span.end - start_pos, len(w_text))
-                    wrap_line_spans.append((label, Span(start=new_start, end=new_end)))
-            wrap_spans.append(wrap_line_spans)
-            start_pos += len(w_text)
-        # end for
-
-        start_pos = 0
-        for (w_text, w_spans) in zip(wrap_texts, wrap_spans):
-            color_text = Text(w_text)
-            for label, w_span in w_spans:
-                color = color_config.get(label, None)
-                if color:
-                    color_text.stylize(color, w_span.start, w_span.end)
-            rprint(color_text)
-            print(idx_text[start_pos : start_pos + len(w_text)])  # noqa: E203
-            start_pos += len(w_text) + 1
+        self.t = None
+        return len(replace_words)
 
     def update_all_spans(self, text_idx, inc):
         [s.update(text_idx, inc) for spans in self.label_spans.values() for s in spans]
 
+    def merge_word(self, keep_word, elim_word):
+        self.t = None
+        assert len(keep_word) != 0 and len(elim_word) != 0
+        elim_span = self.get_word_span(elim_word)
+        keep_word.mergeWord(elim_word)
+        self.update_all_spans(elim_span.start, -1)
+
+    def edit_merge_words(self, words):
+        self.t = None
+        assert all(len(w) > 0 for w in words)
+        assert len(words) > 1
+
+        elim_span = self.get_word_span(words[1])
+        [words[0].mergeWord(w) for w in words[1:]]
+        inc = -1 * (len(words) - 1)
+        self.update_all_spans(elim_span.start, inc)
+
+    def replace_word_text(self, word, old_text, new_text):
+        # correct words and make ascii
+        old_text = word.text if old_text == "<all>" else old_text
+        inc = len(new_text) - len(old_text)
+        if inc != 0:
+            if new_text == "":
+                inc -= 1  # for space, as the word would be skipped.
+            word_span = self.get_word_span(word)
+            self.update_all_spans(word_span.start, inc)
+        word.replaceStr(old_text, new_text)
+
     def get_unlabeled_texts(self):
         line_text = self.line_text()
-        all_spans = Span.accumulate(list(chain(*self.label_spans.values())))
+        all_spans = Span.accumulate(list(flatten(self.label_spans.values())))
         ts = Span.unmatched_texts(all_spans, line_text)
         return [s for t in ts for s in t.strip().split()]
 
-    def merge_word(self, keep_word, elim_word):
-        assert len(keep_word) != 0 and len(elim_word) != 0
-
-        self.edits.append(MergeWordEdit.build(keep_word, elim_word))
-        elim_pos = self.get_start_pos_word(elim_word)
-        keep_word.mergeWord(elim_word)
-        self.update_all_spans(elim_pos, -1)
+    def get_word_span(self, word):
+        ws_iter = ((w, s) for w, s, _, _ in self.iter_word_span_idxs())
+        return first((s for (w, s) in ws_iter if w.word_idx == word.word_idx), None)

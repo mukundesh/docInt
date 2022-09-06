@@ -1,4 +1,3 @@
-import itertools as it
 import logging
 import re
 import string
@@ -6,7 +5,6 @@ import sys
 from pathlib import Path
 
 from enchant import request_pwl_dict
-from enchant.utils import levenshtein
 from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 
 from ..para import Para, TextConfig
@@ -117,114 +115,7 @@ class ParaFixer:
         self.lgr.removeHandler(self.file_handler)
         self.file_handler = None
 
-    def _fix_text(self, text):
-        if not text.isascii():
-            sys.stderr.write(f"{text}\n")
-        text = text.strip()
-        text = text.translate(self.punct_tbl).strip()
-        return text
-
-    def is_correctable(self, text):
-        suggestions = self.dictionary.suggest(text)
-        if not suggestions:
-            return False
-
-        top_suggestion = suggestions[0].lower()
-        lv_dist = levenshtein(top_suggestion, text.lower())
-        # print(f'\t{text}->{suggestions[0]} {lv_dist}')
-
-        if lv_dist <= self.lv_dist_cutoff or top_suggestion.startswith(text.lower()):
-            return True
-        else:
-            return False
-
-    def fix_unicode(self, list_item):
-        ignore_config = TextConfig(rm_labels=["ignore"], rm_nl=True)
-        for text, word in list_item.iter_word_text(ignore_config):
-            if not word.text.isascii():
-                u_text = word.text
-                if u_text in self.unicode_dict:
-                    a_text = self.unicode_dict[u_text]
-                    self.lgr.debug(f"UnicodeFixed: {u_text}->{a_text}")
-                    list_item.replace_word_text(word, "<all>", a_text)
-                else:
-                    sys.stderr.write(f"NOTFOUND: {u_text}\n")
-
-    def is_mergeable(self, text, next_word):
-        if next_word is None:
-            return False
-
-        next_text = self._fix_text(next_word.text)
-        if not next_text:
-            return False
-
-        merged_text = text + next_text
-        if self.dictionary.check(merged_text):
-            # self.lgr.debug(f"MergeFound >{text}+{next_text}<")
-            return True
-        elif self.is_correctable(merged_text):
-            # self.lgr.debug(f"MergeCorrected {merged_text}")
-            return True
-        else:
-            # print(f"Merge NotFound {merged_text}")
-            return False
-
-    def merge_words(self, list_item):
-        merge_count = 0
-        ignore_config = TextConfig(rm_labels=["ignore", "person"], rm_nl=True)
-
-        last_merged_word, merge_words = None, []  # don't alter spans while iterating
-        for word, next_word in list_item.iter_word_pairs(ignore_config):
-            text = self._fix_text(word.text)
-
-            if (
-                (not word)
-                or (not next_word)  # noqa: W503
-                or (not text)  # noqa: W503
-                or (id(word) == id(last_merged_word))  # noqa: W503
-            ):
-                continue
-
-            if self.is_mergeable(text, next_word):
-                self.lgr.debug(f"Merged: {word.text} {next_word.text}")
-                merge_words.append((word, next_word))
-                merge_count += 1
-                last_merged_word = next_word
-
-        [list_item.merge_word(word, next_word) for (word, next_word) in merge_words]
-        return merge_count
-
-    def correct_words(self, list_item):
-        correct_count = 0
-        ignore_config = TextConfig(rm_labels=["ignore", "person"], rm_nl=True)
-
-        replace_words = []  # don't alter spans while iterating
-        for text, word in list_item.iter_word_text(ignore_config):
-            text = self._fix_text(text)
-            if not word or not text:
-                continue
-
-            if self.dictionary.check(text):
-                continue
-
-            if len(text) <= 2:
-                if text in ("uf", "cf", "qf", "nf", "af", "bf"):
-                    replace_words.append((word, "of"))
-                    self.lgr.debug(f"SpellCorrected {text} -> of")
-                    correct_count += 1
-                else:
-                    pass
-            elif self.is_correctable(text):
-                suggestions = self.dictionary.suggest(text)
-                self.lgr.debug(f"SpellCorrected {text} -> {suggestions[0]}")
-                replace_words.append((word, suggestions[0]))
-                correct_count += 1
-            else:
-                self.lgr.debug(f"SpellNOTFOUND {text}")
-        [list_item.replace_word_text(w, "<all>", t) for (w, t) in replace_words]
-        return correct_count
-
-    def mark_names2(self, list_item):
+    def mark_names(self, list_item):
         ignore_config = TextConfig(rm_labels=["ignore"], rm_nl=True)
         line_text = list_item.line_text(ignore_config)
 
@@ -232,83 +123,8 @@ class ParaFixer:
         ner_results = [r for r in ner_results if r["entity"].endswith("-PER")]
         officer_spans = [Span(r["start"], r["end"]) for r in ner_results]
 
-        # FIX THIS
-        officer_spans = Span.reduce(officer_spans, line_text, " .,")
-
+        officer_spans = Span.accumulate(officer_spans, text=line_text, ignore_chars=" .,")
         list_item.add_spans(officer_spans, "officer", ignore_config)
-
-    def mark_names(self, list_item):
-        def get_person_spans(ner_results, line_text):
-            def is_mergeable(last_end, new_start):
-                if last_end == new_start:
-                    return True
-                elif line_text[last_end:new_start].strip(" .") == "":
-                    return True
-                else:
-                    return False
-
-            def merge_spans(spans, ner_result):
-                # first time, change spans
-                if isinstance(spans, dict):
-                    first_start, first_end = spans["start"], spans["end"]
-                    spans = [(first_start, first_end)]
-
-                last_start, last_end = spans[-1]
-                if is_mergeable(last_end, ner_result["start"]):
-                    spans[-1] = (last_start, ner_result["end"])
-                else:
-                    spans.append((ner_result["start"], ner_result["end"]))
-                return spans
-
-            person_spans = [r for r in ner_results if r["entity"].endswith("-PER")]
-            person_spans.sort(key=lambda r: r["start"])
-            if not person_spans:
-                return []
-            elif len(person_spans) == 1:
-                return [(person_spans[0]["start"], person_spans[0]["end"])]
-
-            *_, final_spans = it.accumulate(person_spans, func=merge_spans)
-            return final_spans
-
-        # correct_count = 0
-        ignore_config = TextConfig(rm_labels=["ignore"], rm_nl=True)
-        line_text = list_item.line_text(ignore_config)
-
-        ner_results = self.nlp(line_text)
-        # self.lgr.debug(ner_results)
-
-        # per_names = [r["word"] for r in ner_results if r["entity"].endswith("-PER")]
-        # self.lgr.debug(', '.join(per_names))
-
-        person_spans = get_person_spans(ner_results, line_text)
-        for start, end in person_spans:
-            start = min(start, 0) if start < 25 else start
-            list_item.add_span(start, end, "person", ignore_config)
-            # self.lgr.debug(f'PERSON {line_text[start:end]}')
-
-        person_spans = list_item.get_spans("person")
-        if not person_spans:
-            return
-
-        # TODO THIS IS ONLY FOR SENTENCES THAT START WITH NAME
-        # 1_Upload_2791 has the name in the middle !!!
-        # Mohd. Taslimuddin has two spans >Mohd.< and >d. Taslimuddin<
-
-        merged_spans = Span.accumulate(person_spans)
-        # move to word boundary
-        first_span = merged_spans[0]
-        boundary_char = line_text[first_span.end].translate(self.punct_tbl).strip()
-        if boundary_char and boundary_char != " ":
-            name = line_text[first_span.start : first_span.end]  # noqa: E203
-            try:
-                new_end = line_text.index(" ", first_span.end)
-                first_span.end = new_end
-                new_name = line_text[first_span.start : first_span.end]  # noqa: E203
-                self.lgr.debug(f"NameExpansion: {name}->{new_name}")
-            except Exception as e:  # noqa: F841
-                pass
-
-        list_item.label_spans["person"] = merged_spans
 
     def mark_manual_words(self, list_item):
         if list_item.get_spans("person"):

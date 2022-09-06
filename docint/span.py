@@ -3,8 +3,22 @@ import operator as op
 from itertools import chain
 from typing import List
 
-from more_itertools import pairwise
+from more_itertools import flatten, pairwise
 from pydantic import BaseModel
+
+
+def flatten_spans(span):
+    if isinstance(span, Span):
+        return [span]
+    elif isinstance(span, list):
+        if isinstance(span[0], Span):
+            return span
+        elif isinstance(span[0], SpanGroup):
+            return list(flatten(sg.spans for sg in span))
+    elif isinstance(span, SpanGroup):
+        return span.spans
+    else:
+        raise NotImplementedError(f'Unknow type of span: {type(span)}')
 
 
 class Span(BaseModel):
@@ -65,6 +79,7 @@ class Span(BaseModel):
 
     @classmethod
     def is_non_overlapping(cls, spans):
+        spans.sort(key=lambda s: s.start)  # TODO why sort these spans ?
         if len(spans) < 2:
             return True
 
@@ -108,6 +123,21 @@ class Span(BaseModel):
         spans.sort(key=lambda s: (s.start, len(s)))  # TODO why sort these spans ?
         new_spans = functools.reduce(merge_spans, spans, [])
         return new_spans
+
+    def get_non_overlapping(self, spans):
+        overlap_spans = [s for s in spans if self.overlaps(s)]
+        overlap_spans = Span.accumulate(overlap_spans)
+
+        span_start, non_overlapping_spans = self.start, []
+        for o_span in overlap_spans:
+            if span_start not in o_span:
+                non_overlapping_spans.append(Span(start=span_start, end=o_span.start))
+            span_start = o_span.end
+
+        if span_start < self.end:
+            non_overlapping_spans.append(Span(start=span_start, end=self.end))
+
+        return non_overlapping_spans
 
     @classmethod
     def find_first(self, text, span_str):
@@ -215,6 +245,13 @@ class Span(BaseModel):
 
         return lt_word_boundary and rt_word_boundary
 
+    def in_boundary(self, text, boundary_chars=" "):
+        s, e = self.start, self.end
+        assert 0 <= s < len(text) and 0 <= e < len(text)
+        start_in_boundary = False if s == 0 else text[s] in boundary_chars
+        end_in_boundary = text[e - 1] in boundary_chars
+        return start_in_boundary or end_in_boundary
+
 
 class SpanGroup(BaseModel):
     spans: List[Span]
@@ -296,3 +333,16 @@ class SpanGroup(BaseModel):
                 return "partial", Span(start=o_span.start, end=word_span.end)
             else:
                 return "partial", Span(start=word_span.start, end=o_span.end)
+
+    def overlap_type2(self, word_span):
+        overlap_spans = [s for s in self.spans if word_span.overlaps(s)]
+        if not overlap_spans:
+            return "none", []
+
+        non_overlap_spans = word_span.get_non_overlapping(overlap_spans)
+
+        if not non_overlap_spans:
+            return "full", [word_span]
+        else:
+            overlap_subsumed_spans = word_span.get_non_overlapping(non_overlap_spans)
+            return "partial", overlap_subsumed_spans

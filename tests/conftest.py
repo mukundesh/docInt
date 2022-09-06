@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 import docint
+from docint.vocab import Vocab
 
 
 def build_doc(file_name):
@@ -35,3 +36,37 @@ def two_lines_doc():
 @pytest.fixture
 def two_pages_doc():
     return build_doc("two_pages.pdf")
+
+
+@pytest.fixture
+def mis_spelt_doc():
+    return build_doc("mis_spelt.pdf")
+
+
+@pytest.fixture
+def paren_doc():
+    return build_doc("paren.pdf")
+
+
+@pytest.fixture
+def mis_spelt_multi_line_doc():
+    return build_doc("mis_spelt_multi_line.pdf")
+
+
+@pytest.fixture
+def multi_merge_doc():
+    return build_doc("multi_merge.pdf")
+
+
+@pytest.fixture
+def insensitive_vocab():
+    text = 'The quick brown fox jumped over the LAZY Fox.'
+    texts = [t.strip(' .').lower() for t in text.split()]
+    return Vocab(texts)
+
+
+@pytest.fixture
+def sensitive_vocab():
+    text = 'The quick brown fox jumped over the LAZY Fox.'
+    texts = [t.strip(' .') for t in text.split()]
+    return Vocab(texts, case_sensitive=True)
