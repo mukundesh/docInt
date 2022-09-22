@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Tuple
 import pdf2image
 import pdfplumber
 import pydantic
+from more_itertools import flatten
+from PIL import Image as PILImage
 from pydantic import BaseModel, parse_obj_as
 from wand.image import Image
 
@@ -206,6 +208,23 @@ class PageImage(BaseModel):
         else:
             return self.image_width, self.image_height
 
+    def to_pil_image(self, image_size=None):
+        image_path = self.page.doc.get_image_path(self.page.page_idx)
+        pil_image = PILImage.open(image_path)
+
+        if image_size:
+            if image_size[0] and image_size[1]:
+                pil_image = pil_image.resize(image_size)
+            else:
+                (cur_width, cur_height) = pil_image.size
+                if image_size[0]:
+                    scale = image_size[0] / cur_width
+                    pil_image = pil_image.resize((image_size[0], int(cur_height * scale)))
+                else:
+                    scale = image_size[1] / cur_height
+                    pil_image = pil_image.resize((int(cur_width * scale), image_size[1]))
+        return pil_image
+
 
 class PageInfo(BaseModel):
     width: float
@@ -382,8 +401,8 @@ class Doc(BaseModel):
     def add_extra_field(self, field_name, field_tuple):
         self.extra_fields[field_name] = field_tuple
 
-    @classmethod  # noqa: C901
-    def from_disk(cls, json_file):  # noqa: C901
+    @classmethod  # noqa C901
+    def from_dict(cls, doc_dict):  # noqa C901
         def get_extra_fields(obj):
             all_fields = set(obj.dict().keys())
             def_fields = set(obj.__fields__.keys())
@@ -402,14 +421,7 @@ class Doc(BaseModel):
             for region in inner_regions:
                 update_region_links(doc, region)
 
-        json_file = Path(json_file)
-        if json_file.suffix.lower() in (".json", ".jsn"):
-            doc_dict = json.loads(json_file.read_text())
-        else:
-            # doc_dict = msgpack.unpackb(json_file.read_bytes())
-            NotImplementedError(f'Unknown suffix: {json_file.suffix}')
         new_doc = Doc(**doc_dict)
-
         # need to supply the field_set, page has 'doc' field excluded
         # new_doc = Doc.construct(**doc_dict)
 
@@ -442,6 +454,13 @@ class Doc(BaseModel):
                     key_type = type(keys[0])
                     extra_attr_obj = parse_obj_as(Dict[key_type, cls], extra_attr_dict)
                     update_links(new_doc, list(extra_attr_obj.values()))
+            elif extra_type == "dict_list":
+                if extra_attr_dict:
+                    cls = getattr(import_module(module_name), class_name)
+                    keys = list(extra_attr_dict.keys())
+                    key_type = type(keys[0])
+                    extra_attr_obj = parse_obj_as(Dict[key_type, List[cls]], extra_attr_dict)
+                    update_links(new_doc, list(flatten(extra_attr_obj.values())))
             elif extra_type == "noparse":
                 continue
             else:
@@ -474,6 +493,13 @@ class Doc(BaseModel):
                         key_type = type(keys[0])
                         extra_attr_obj = parse_obj_as(Dict[key_type, cls], extra_attr_dict)
                         update_links(new_doc, list(extra_attr_obj.values()))
+                elif extra_type == "dict_list":
+                    if extra_attr_dict:
+                        cls = getattr(import_module(module_name), class_name)
+                        keys = list(extra_attr_dict.keys())
+                        key_type = type(keys[0])
+                        extra_attr_obj = parse_obj_as(Dict[key_type, List[cls]], extra_attr_dict)
+                        update_links(new_doc, list(flatten(extra_attr_obj.values())))
                 elif extra_type == "noparse":
                     continue
                 else:
@@ -482,6 +508,17 @@ class Doc(BaseModel):
                 # overwrite the attribute with new object
                 setattr(page, extra_field, extra_attr_obj)
         return new_doc
+
+    @classmethod  # noqa: C901
+    def from_disk(cls, json_file):  # noqa: C901
+        print(f'json_file: {json_file}')
+        json_file = Path(json_file)
+        if json_file.suffix.lower() in (".json", ".jsn"):
+            doc_dict = json.loads(json_file.read_text())
+        else:
+            # doc_dict = msgpack.unpackb(json_file.read_bytes())
+            NotImplementedError(f'Unknown suffix: {json_file.suffix}')
+        return Doc.from_dict(doc_dict)
 
     @property
     def doc(self):

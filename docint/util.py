@@ -206,3 +206,25 @@ def _pipe(
                 yield doc
             except Exception as e:
                 error_handler(name, proc, [doc], e)
+
+
+def generate_docker_src(pipeline_path, input_doc, output_doc):
+    s = 'import docint\n'
+    s += 'if __name__ == "__main__":\n'
+    s += f'    viz = docint.load("{str(pipeline_path)}")\n'
+    s += f'    doc = viz("{input_doc}")\n'
+    s += f'    doc.to_disk("{output_doc}")\n'
+    return s
+
+
+def generate_docker_src_pipe_all(pipeline_path, input_doc_paths, output_doc_paths):
+    assert len(input_doc_paths) == len(output_doc_paths)
+    all_input_paths_str = ", ".join(f"'{str(p)}'" for p in input_doc_paths)
+    all_output_paths_str = ", ".join(f"'{str(p)}'" for p in output_doc_paths)
+    s = 'import docint\n'
+    s += 'if __name__ == "__main__":\n'
+    s += f'    viz = docint.load("{str(pipeline_path)}")\n'
+    s += f'    docs = viz.pipe_all([{all_input_paths_str}])\n'
+    s += f'    for doc, output_doc_str in zip(docs, [{all_output_paths_str}]):\n'
+    s += '        doc.to_disk(output_doc_str)\n'
+    return s

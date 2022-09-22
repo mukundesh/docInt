@@ -38,7 +38,7 @@ class Box(Shape):
     bot: Coord
 
     @classmethod
-    def build(self, coords):
+    def build(cls, coords):
         assert len(coords) >= 2
         xmin, xmax = min(c.x for c in coords), max(c.x for c in coords)
         ymin, ymax = min(c.y for c in coords), max(c.y for c in coords)
@@ -53,6 +53,10 @@ class Box(Shape):
 
     def __str__(self):
         return f"[{self.top}, {self.bot}]"
+
+    @classmethod
+    def from_coords(cls, coords):
+        return cls.build(coords)
 
     @classmethod
     def check_coords(cls, top, bot):
@@ -169,6 +173,10 @@ class Poly(Shape):
         # TODO
         return True
 
+    @classmethod
+    def from_coords(coords):
+        return Poly(coords=coords)
+
     def update_coords(self, coords):
         self.coords = coords
         self.box_ = None
@@ -231,6 +239,10 @@ class Edge(Shape):
     coord1: Coord
     coord2: Coord
     orientation: str
+
+    @classmethod
+    def from_coords(cls, coords, orientation):
+        return Edge(coord1=coords[0], coord2=coords[1], orientation=orientation)
 
     @classmethod
     def build_v(cls, x1, y1, x2, y2):

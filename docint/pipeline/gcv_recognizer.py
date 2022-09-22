@@ -2,13 +2,14 @@ import io
 import json
 import pathlib
 
-from google.cloud import storage, vision_v1
-from google.protobuf.json_format import MessageToDict
-
 from ..page import Page
 from ..shape import Coord, Poly
 from ..vision import Vision
 from ..word import BreakType, Word
+
+# from google.cloud import storage, vision_v1
+# from google.protobuf.json_format import MessageToDict
+
 
 _break_type_dict = {
     "UNKNOW": BreakType.Unknown,
@@ -108,6 +109,9 @@ class CloudVisionRecognizer:
         return doc
 
     def run_sync_gcv(self, doc, output_path):
+        from google.cloud import vision_v1
+        from google.protobuf.json_format import MessageToDict
+
         if doc.num_pages > 5:
             raise ValueError("Only < 5 pages")
 
@@ -135,6 +139,8 @@ class CloudVisionRecognizer:
         # https://cloud.google.com/vision/docs/pdf
         # https://cloud.google.com/vision/docs/reference/rest/v1/OutputConfig
         # TODO: better handling of operation failure/network failure
+
+        from google.cloud import storage, vision_v1
 
         if doc.num_pages > 2000:
             raise ValueError("Only < 2000 pages")
@@ -195,6 +201,8 @@ class CloudVisionRecognizer:
             return output_path
 
     def run_gcv(self, doc, output_path):
+        from google.cloud import storage
+
         storage_client = storage.Client()
         cloud_output_dir_path = self.cloud_dir_path / pathlib.Path("output") / doc.pdf_stem
 

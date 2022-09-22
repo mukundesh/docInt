@@ -1,0 +1,5 @@
+docker_pipes: [ do_nothing_pipe ]
+
+pipeline:
+  - name: pdf_reader
+  - name: do_nothing_pipe

@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 from enchant import request_pwl_dict
-from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 
 from ..para import Para, TextConfig
 from ..region import DataError
@@ -83,6 +82,8 @@ class ParaFixer:
         self.unicode_dict = dict((u, a if a != "<ignore>" else "") for u, a in u_lines)
 
         # TODO PLEASE MOVE THIS TO OPTIONS
+        from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
+
         tokenizer = AutoTokenizer.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
         model = AutoModelForTokenClassification.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
 

@@ -1,11 +1,22 @@
 import functools
+import random
+import shutil
+import string
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
 from .doc import Doc
+from .docker_runner import DockerRunner
 from .errors import Errors
-from .util import SimpleFrozenDict, SimpleFrozenList, _pipe, get_arg_names, get_object_name, raise_error
+from .util import (
+    SimpleFrozenDict,
+    SimpleFrozenList,
+    generate_docker_src_pipe_all,
+    get_arg_names,
+    get_object_name,
+    raise_error,
+)
 
 # b  /Users/mukund/Software/docInt/docint/vision.py:208
 
@@ -32,10 +43,14 @@ class Vision:
 
     def __init__(self):
         self._components = []
+
         self.default_error_handler = raise_error
         self.images_dir = ".img"
         self.image_root = ".img"  # We should be using this
+        self.docker_dir = Path(".docker")
         self.ignore_docs = []
+        self.docker = DockerRunner()
+        self.docker_pipes = []
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
@@ -45,6 +60,9 @@ class Vision:
         Doc._image_root = viz.image_root
 
         viz.ignore_docs = config.get("ignore_docs", [])
+        viz.docker_pipes = config.get("docker_pipes", [])
+        viz.docker_dir = config.get("docker_dir", viz.docker_dir)
+
         for pipe_config in config.get("pipeline", []):
             print(f'Adding {pipe_config.get("name")}')
             viz.add_pipe(
@@ -79,10 +97,13 @@ class Vision:
         factory_meta = self.factories_meta[factory_name]
         default_config = factory_meta.default_config
         new_config = {**default_config, **pipe_config}
+
         pipe_component = self.factories[factory_name](**new_config)
 
         pipe_index = self._get_pipe_index(before, after, first, last)
+
         self._components.insert(pipe_index, (name, pipe_component))
+
         return pipe_component
 
     def _get_pipe_index(
@@ -135,11 +156,17 @@ class Vision:
         path: Path,
         component_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Doc:
-        path = Path(path)
-        if path.suffix.lower() in (".json", ".msgpack", ".jsn"):
-            doc = Doc.from_disk(path)
+
+        if isinstance(path, Doc):
+            doc = path
+        elif isinstance(path, str) or isinstance(path, Path):
+            path = Path(path)
+            if path.suffix.lower() in (".json", ".msgpack", ".jsn"):
+                doc = Doc.from_disk(path)
+            else:
+                doc = self.build_doc(path)
         else:
-            doc = self.build_doc(path)
+            raise NotImplementedError(f'unknown path: {type(path)}')
 
         if component_cfg is None:
             component_cfg = {}
@@ -154,7 +181,10 @@ class Vision:
                 error_handler = proc.get_error_handler()  # noqa: F841 todo
             try:
                 # doc = proc(doc, **component_cfg.get(name, {}))  # type: ignore[call-arg]
-                doc = proc(doc)  # type: ignore[call-arg]
+                if name in self.docker_pipes:
+                    doc = self.docker_pipe(name, doc)
+                else:
+                    doc = proc(doc)  # type: ignore[call-arg]
             except KeyError as e:
                 # This typically happens if a component is not initialized
                 raise ValueError(Errors.E109.format(name=name)) from e
@@ -169,16 +199,24 @@ class Vision:
         def get_pdf_name(path):
             path = Path(path)
             name = path.name
+            print(name)
             pdf_pos = name.lower().index(".pdf")
             return name[: pdf_pos + 4]
 
         print("INSIDE PIPE")
-
         pipes = []
         for name, proc in self.pipeline:
             kwargs = {}
+            # f = functools.partial(
+            #     _pipe,
+            #     proc=proc,
+            #     name=name,
+            #     kwargs=kwargs,
+            #     default_error_handler=self.default_error_handler,
+            # )
+
             f = functools.partial(
-                _pipe,
+                self.pipe_partial,
                 proc=proc,
                 name=name,
                 kwargs=kwargs,
@@ -196,6 +234,132 @@ class Vision:
             docs = pipe(docs)
         print("Leaving PIPE")
         return docs
+
+    def build_docker_task_dir(self, name, docs):
+        rand_sha = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+        pipe_dir = self.docker_dir / f'{name}-{rand_sha}'
+        pipe_dir = self.docker_dir / f'{name}'
+
+        task_dir = pipe_dir / 'task_'
+        if task_dir.exists():
+            print(f'Removing {task_dir}')
+            shutil.rmtree(task_dir)
+        task_dir.mkdir(parents=True)
+        [(task_dir / d).mkdir() for d in ['input', 'output', 'src', 'conf', 'logs', 'docint', '.img', '.model']]
+
+        input_short_paths, output_short_paths = [], []
+        for doc in docs:
+            input_path = task_dir / Path('input') / f'{doc.pdf_name}.doc.json'
+            doc.to_disk(input_path)
+
+            input_short_paths.append(Path('input') / f'{doc.pdf_name}.doc.json')
+            output_short_paths.append(Path('output') / f'{doc.pdf_name}.doc.json')
+
+        pipeline_path = task_dir / Path('src') / 'pipeline.yml'
+        pipeline_path.write_text(f'pipeline:\n  - name: {name}')
+        pipeline_short_path = Path('src') / 'pipeline.yml'
+
+        cmd_path = task_dir / Path('src') / 'cmd.py'
+        cmd_path.write_text(generate_docker_src_pipe_all(pipeline_short_path, input_short_paths, output_short_paths))
+        return pipe_dir
+
+    def pipe_partial(
+        self,
+        docs,
+        proc,
+        name: str,
+        default_error_handler,
+        kwargs: Mapping[str, Any],
+    ):
+        print(f"INSIDE PIPE_PARTIALS {proc}")
+        if hasattr(proc, "pipe"):
+            print(f"INSIDE _PIPE {proc}")
+            if name in self.docker_pipes:
+                yield from self.docker_pipe_all(name, docs)
+            else:
+                yield from proc.pipe(docs, **kwargs)
+        else:
+            # We added some args for pipe that __call__ doesn't expect.
+            kwargs = dict(kwargs)
+            error_handler = default_error_handler
+            if hasattr(proc, "get_error_handler"):
+                error_handler = proc.get_error_handler()
+            for arg in ["batch_size"]:
+                if arg in kwargs:
+                    kwargs.pop(arg)
+            for doc in docs:
+                try:
+                    if name in self.docker_pipes:
+                        doc = self.docker_pipe(name, doc)
+                        yield doc
+                    else:
+                        doc = proc(doc, **kwargs)  # type: ignore[call-arg]
+                        yield doc
+                except Exception as e:
+                    error_handler(name, proc, [doc], e)
+
+    def docker_pipe(self, name, doc):
+        docker_pipe_dir = self.build_docker_task_dir(name, [doc])
+        config_dir = {'docker_dir': docker_pipe_dir, 'tags': ['latest']}
+        image_name = name
+
+        default_python_packages = [
+            'PyYaml',
+            'pdf2image',
+            'pyenchant',
+            'rich',
+            'more-itertools',
+            'polyleven',
+            'pydantic',
+            'pdfplumber',
+            'python-dateutil',
+        ]  # , 'google-cloud-vision', 'google-cloud-storage']
+        os_packages = ['enchant-2'] + self.factories_meta[name].os_packages
+        python_packages = default_python_packages + self.factories_meta[name].packages
+
+        self.docker.build_image(
+            image_name, packages=os_packages, python_packages=python_packages, app_cmd="src/cmd.py", **config_dir
+        )
+
+        output_paths = self.docker.run(image_name)
+        output_docs = [Doc.from_disk(p) for p in output_paths]
+        assert len(output_docs) == 1
+        return output_docs[0]
+
+    def docker_pipe_all(self, name, docs):
+        print("INSIDE DOCKER _PIPE ALL")
+        docker_pipe_dir = self.build_docker_task_dir(name, docs)
+        config_dir = {'docker_dir': docker_pipe_dir, 'tags': ['latest']}
+        image_name = name
+
+        print(f'** TOP Packages: {self.factories_meta[name].os_packages}')
+
+        default_python_packages = [
+            'PyYaml',
+            'pdf2image',
+            'pyenchant',
+            'rich',
+            'more-itertools',
+            'polyleven',
+            'pydantic',
+            'pdfplumber',
+            'python-dateutil',
+        ]  # , 'google-cloud-vision', 'google-cloud-storage']
+        os_packages = ['enchant-2'] + self.factories_meta[name].os_packages
+        python_packages = default_python_packages + self.factories_meta[name].packages
+
+        print(f'** TOP Packages: {os_packages}')
+
+        self.docker.build_image(
+            image_name, packages=os_packages, python_packages=python_packages, app_cmd="src/cmd.py", **config_dir
+        )
+
+        output_paths = self.docker.run(image_name)
+        print("LEAVING DOCKER _PIPE ALL")
+
+        output_docs = [Doc.from_disk(p) for p in output_paths]
+        print(len(output_docs))
+        return output_docs
 
     @property
     def factory_names(self) -> List[str]:
@@ -280,7 +444,7 @@ class Vision:
                 assigns=assigns,
                 requires=requires,
                 packages=packages,
-                os_packages=packages,
+                os_packages=os_packages,
             )
 
             cls.factories_meta[name] = factory_meta

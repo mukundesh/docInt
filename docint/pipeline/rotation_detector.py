@@ -5,8 +5,6 @@ from collections import Counter
 from pathlib import Path
 from statistics import mean
 
-import numpy as np
-
 from ..shape import Poly
 from ..vision import Vision
 
@@ -62,6 +60,8 @@ class RotationDetector:
 
         y = [mx * page.width for mx in m_xdiffs]
         x = [my * page.height for my in m_ydiffs]
+
+        import numpy as np
 
         A = np.vstack([x, np.ones(len(x))]).T
         pinv = np.linalg.pinv(A)

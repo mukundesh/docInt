@@ -26,3 +26,6 @@ from .table_finder import TableFinder
 from .wordfreq_writer import WordfreqWriter
 from .words_arranger import WordsArranger
 from .para_fixer import ParaFixer
+from .height_calc import HeightCalculator
+from .learn_layoutlmv2 import LearnLayout
+from .do_nothing_pipe import DoNothingPipe

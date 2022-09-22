@@ -59,6 +59,31 @@ def multi_merge_doc():
 
 
 @pytest.fixture
+def numbered_list_doc():
+    return build_doc("numbered_list.pdf")
+
+
+@pytest.fixture
+def layout_docs():
+    return [build_doc(f'layout{i}.pdf') for i in range(1, 6)]
+
+
+@pytest.fixture
+def layout_more_docs():
+    return [build_doc(f'layout{i}.pdf') for i in range(1, 11)]
+
+
+@pytest.fixture
+def layout_paths():
+    return [Path('tests') / Path(f'layout{i}.pdf') for i in range(1, 6)]
+
+
+@pytest.fixture
+def layout_more_paths():
+    return [Path('tests') / Path(f'layout{i}.pdf') for i in range(1, 11)]
+
+
+@pytest.fixture
 def insensitive_vocab():
     text = 'The quick brown fox jumped over the LAZY Fox.'
     texts = [t.strip(' .').lower() for t in text.split()]

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 # from .doc import Doc
 from .region import Region
-from .shape import Box, Coord, Poly, Shape
+from .shape import Box, Coord, Edge, Poly, Shape
 from .word import BreakType, Word
 
 
@@ -89,6 +89,31 @@ class Page(BaseModel):
         page_image = self.doc.page_images[self.page_idx]
         page_image.page = self
         return page_image
+
+    def get_image_coord(self, coord, img_size=None):
+        def get_scale(img_size):
+            assert img_size[0] is None or img_size[1] is None
+            if img_size[0]:
+                return img_size[0] / self.page_image.image_width
+            else:
+                return img_size[1] / self.page_image.image_width
+
+        coord = self.page_image.get_image_coord(coord)
+        if img_size:
+            scale = get_scale(img_size)
+            coord.x *= scale
+            coord.y *= scale
+        return coord
+
+    def get_image_shape(self, shape, img_size=None):
+        def conv(page_coords):
+            return [self.get_image_coord(c, img_size) for c in page_coords]
+
+        # please make VerticalEdge and HorizontalEdge
+        if isinstance(shape, Edge):
+            return Edge.from_coords(conv(shape.coords), shape.orientation)
+        else:
+            return type(shape).from_coords(conv(shape.coords))
 
     # def get_doc_x_val(self, img_x):
     #     # should operate on coords
