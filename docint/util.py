@@ -1,5 +1,7 @@
 import inspect
 import os
+import random
+import string
 from pathlib import Path
 from typing import Any, Callable, List, Mapping
 
@@ -228,3 +230,41 @@ def generate_docker_src_pipe_all(pipeline_path, input_doc_paths, output_doc_path
     s += f'    for doc, output_doc_str in zip(docs, [{all_output_paths_str}]):\n'
     s += '        doc.to_disk(output_doc_str)\n'
     return s
+
+
+# https://stackoverflow.com/a/2257449/18159079
+#
+def get_uniq_str(size=6, chars=string.ascii_uppercase + string.digits, randomize=False):
+    if randomize:
+        return ''.join(random.SystemRandom().choice(chars) for _ in range(size))
+    else:
+        return ''.join(random.choice(chars) for _ in range(size))
+
+
+# https://stackoverflow.com/a/13790289/18159079
+#
+def tail(file_path, lines=1, _buffer=4098):
+    """Tail a file and get X lines from the end"""
+    # place holder for the lines found
+    lines_found = []
+
+    # block counter will be multiplied by buffer
+    # to get the block size from the end
+    block_counter = -1
+
+    with file_path.open() as f:
+        # loop until we find X lines
+        while len(lines_found) <= lines:
+            try:
+                f.seek(block_counter * _buffer, os.SEEK_END)
+            except IOError:  # either file is too small, or too many lines requested
+                f.seek(0)
+                lines_found = f.readlines()
+                break
+
+            lines_found = f.readlines()
+            # decrement the block counter to get the
+            # next X bytes
+            block_counter -= 1
+
+    return lines_found[-lines:]

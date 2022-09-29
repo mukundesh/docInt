@@ -1,5 +1,4 @@
 import platform
-from pathlib import Path
 
 from ..vision import Vision
 
@@ -16,6 +15,4 @@ class DoNothing:
 
     def __call__(self, doc):
         print(f'*** Running do_nothing {platform.system()}-{platform.release()}')
-        sys_out_path = Path("output") / "system.out"
-        sys_out_path.write_text(f'*** Running do_nothing {platform.system()}-{platform.release()}\n')
         return doc

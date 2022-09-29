@@ -33,3 +33,10 @@ class Errors:
     )
 
     E020 = "{line_num}: No function {function} found in doc."
+
+    E030 = "docker build timeout expired, check: {image_dir}"
+    E031 = "docker build failed with exit code: {exit_code} check: {image_dir}"
+    E032 = "docker build failed multiple docker images given: {images}"
+    E033 = "docker pip --version failed with exit code: {exit_code}"
+    E034 = "docker pip --dry-run failed error: {err_str}"
+    E035 = "docker run failed check: {log_path} exit_code:{exit_code} err_str: {err_str}"

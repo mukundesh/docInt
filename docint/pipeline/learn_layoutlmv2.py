@@ -13,7 +13,7 @@ MAX_IMAGE_HEIGHT = 1000
 @Vision.factory(
     "learn_layoutlmv2",
     requires="labels_dict",
-    packages=["transformers[torch]", "git+https://github.com/facebookresearch/detectron2.git", "seqeval", "datasets"],
+    depends=["transformers[torch]", "git+https://github.com/facebookresearch/detectron2.git", "seqeval", "datasets"],
     default_config={
         "mode": "cross_validation",
         "num_folds": 3,

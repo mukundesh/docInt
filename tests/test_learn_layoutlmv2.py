@@ -4,7 +4,7 @@ import docint
 from docint.doc import Doc
 
 
-# @pytest.mark.skip(reason="need to implement this inside docker as datasets.py has lot of dependencies")
+@pytest.mark.skip(reason="need to implement this inside docker as datasets.py has lot of dependencies")
 def test_learn_layout(layout_paths):
     ppl = docint.empty(config={'docker_pipes': ['learn_layoutlmv2']})
     # ppl = docint.empty()
