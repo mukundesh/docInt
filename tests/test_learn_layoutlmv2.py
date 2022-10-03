@@ -6,10 +6,32 @@ from docint.doc import Doc
 
 @pytest.mark.skip(reason="need to implement this inside docker as datasets.py has lot of dependencies")
 def test_learn_layout(layout_paths):
-    ppl = docint.empty(config={'docker_pipes': ['learn_layoutlmv2']})
+    docker_config = {
+        'pre_install_lines': ['RUN pip install transformers[torch]'],
+        'post_intall_lines': ['ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION python'],
+        'do_dry_run': False,
+    }
+
+    ppl = docint.empty(config={'docker_pipes': ['learn_layoutlmv2'], 'docker_config': docker_config})
     # ppl = docint.empty()
     ppl.add_pipe('pdf_reader')
     ppl.add_pipe('learn_layoutlmv2', pipe_config={'num_folds': 3})
+    docs = ppl.pipe_all(layout_paths)
+    docs = list(docs)
+
+
+@pytest.mark.skip(reason="need to implement this inside docker as datasets.py has lot of dependencies")
+def test_learn_layout_one_fold(layout_paths):
+    docker_config = {
+        'pre_install_lines': ['RUN pip install transformers[torch]'],
+        'post_intall_lines': ['ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION python'],
+        'do_dry_run': False,
+    }
+
+    ppl = docint.empty(config={'docker_pipes': ['learn_layoutlmv2'], 'docker_config': docker_config})
+    # ppl = docint.empty()
+    ppl.add_pipe('pdf_reader')
+    ppl.add_pipe('learn_layoutlmv2', pipe_config={'num_folds': 1, 'max_steps': 3})
     docs = ppl.pipe_all(layout_paths)
     docs = list(docs)
 

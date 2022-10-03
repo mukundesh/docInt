@@ -9,30 +9,36 @@ from ..vision import Vision
 
 MAX_IMAGE_HEIGHT = 1000
 
+# TODO: 1. Model save options locally, huggingface cloud
+# TODO: 2 Save the results and verify the model is correct
+
 
 @Vision.factory(
     "learn_layoutlmv2",
     requires="labels_dict",
     depends=["transformers[torch]", "git+https://github.com/facebookresearch/detectron2.git", "seqeval", "datasets"],
     default_config={
-        "mode": "cross_validation",
         "num_folds": 3,
-        "max_steps": 5,
+        "max_steps": 100,
         "warmup_ratio": 0.1,
         "publish_name": "",
         "conf_stub": "learn_layout",
+        "model_name": "microsoft/layoutlmv2-base-uncased",
     },
 )
 class LearnLayout:
-    def __init__(self, mode, num_folds, max_steps, warmup_ratio, publish_name, conf_stub):
-        self.mode = mode
+    def __init__(self, num_folds, max_steps, warmup_ratio, publish_name, conf_stub, model_name):
         self.num_folds = num_folds
         self.max_steps = max_steps
         self.warmup_ratio = warmup_ratio
         self.publish_name = publish_name
         self.conf_stub = conf_stub
+        self.model_name = model_name
+
         self.conf_dir = Path('conf')
         self.model_dir = Path('.model')
+
+        print(f'num_folds: {self.num_folds}')
 
         self.lgr = logging.getLogger(__name__)
         self.lgr.setLevel(logging.INFO)
@@ -69,12 +75,13 @@ class LearnLayout:
         assert all(len(t) == len(b) == len(n) for (t, b, n) in zip_iter)
 
         max_val = MAX_IMAGE_HEIGHT
+        for page_id, example in zip(data_dict['id'], data_dict['bboxes']):
+            for idx, box in enumerate(example):
+                for coord_val in box:
+                    assert 0 <= coord_val <= max_val, f'incorrect coord_val: {coord_val} {page_id} word: {idx}'
+
         assert all(0 <= c <= max_val for e in data_dict['bboxes'] for b in e for c in b)
         assert all(len(b) == 4 for e in data_dict['bboxes'] for b in e)
-
-        for img in data_dict['pil_images']:
-            print(img.size)
-
         assert all(i.size[0] <= i.size[1] == max_val for i in data_dict['pil_images'])
 
     def generate_dataset(self, learn_pages):
@@ -135,11 +142,22 @@ class LearnLayout:
         sorted_class_labels = sorted(class_labels)
         hf_dataset = hf_dataset.cast_column('ner_tags', Sequence(ClassLabel(names=sorted_class_labels)))
 
-        processor = LayoutLMv2Processor.from_pretrained(
-            "microsoft/layoutlmv2-base-uncased",
-            revision="no_ocr",
-            # return_offsets_mapping=True,
-        )
+        model_path = self.model_dir / Path(self.model_name).name
+
+        if model_path.exists():
+            print('MODEL PATH FOUND')
+            processor = LayoutLMv2Processor.from_pretrained(
+                model_path,
+                revision="no_ocr",
+                # return_offsets_mapping=True,
+            )
+        else:
+            processor = LayoutLMv2Processor.from_pretrained(
+                "microsoft/layoutlmv2-base-uncased",
+                revision="no_ocr",
+                # return_offsets_mapping=True,
+            )
+
         features = Features(
             {
                 "image": Array3D(dtype="int64", shape=(3, 224, 224)),
@@ -157,7 +175,9 @@ class LearnLayout:
         return pt_dataset, sorted_class_labels, ner_tags
 
     def get_folds(self, num_examples):
-        assert num_examples >= self.num_folds and self.num_folds >= 1
+        assert (
+            num_examples >= self.num_folds and self.num_folds >= 1
+        ), f'num_examples: {num_examples} folds: {self.num_folds}'
         assert isinstance(num_examples, int)
 
         if self.num_folds == 1:
@@ -261,8 +281,13 @@ class LearnLayout:
             metric = load_metric("seqeval")
             return_entity_level_metrics = True
 
+            model_path = self.model_dir / Path(self.model_name).name
             pretrained = LayoutLMv2ForTokenClassification.from_pretrained
-            model = pretrained("microsoft/layoutlmv2-base-uncased", num_labels=len(class_labels))
+            if model_path.exists():
+                print('MODEL PATH FOUND')
+                model = pretrained(model_path, num_labels=len(class_labels))
+            else:
+                model = pretrained("microsoft/layoutlmv2-base-uncased", num_labels=len(class_labels))
 
             trainer = build_trainer(model, train_dataset, test_dataset)
 
@@ -277,6 +302,7 @@ class LearnLayout:
                 doc_labels = [ner_tags[idx] for idx in test_idxs]
                 self.print_results(test_idxs, doc_labels, labeled_predictions)
             else:
+                assert not test_idxs
                 trainer.save_model(self.model_dir)
             print(f'DONE fold:{fold_idx}')
 
@@ -293,20 +319,6 @@ class LearnLayout:
 
         hf_dataset, class_labels, ner_tags = self.generate_dataset(learn_pages)
 
-        if self.mode == "cross_validation":
-            self.run_cross_validation(learn_pages, hf_dataset, class_labels, ner_tags)
-        else:
-            trainer = self.learn(hf_dataset)
-            trainer.save_model(self.model_dir)
-            if self.hub_model_id:
-                trainer.push_to_hub(self.hub_model_id)
+        self.run_cross_validation(learn_pages, hf_dataset, class_labels, ner_tags)
         print(f'Docs: {len(docs)}')
         return docs
-
-        # features = Features({'id': Value(dtype='string'),
-        #                      'texts': Sequence(feature=Value(dtype='string')),
-        #                      'bboxes': Sequence(Sequence(Value("int64"))),
-        #                      "ner_tags": Sequence(ClassLabel(names=sorted_class_labels)),
-        #                      #"images": Array3D(dtype="int64", shape=(3, 224, 224)),
-        #                      }
-        #                     )

@@ -4,6 +4,7 @@ from pathlib import Path
 from subprocess import TimeoutExpired, run
 from types import GeneratorType  # TODO: move this to iterable
 
+import yaml
 from more_itertools import first
 
 from .doc import Doc
@@ -97,7 +98,7 @@ class DockerRunner:
         docker_lines.append("WORKDIR /usr/src/app/task_")
         return "\n".join(docker_lines), reqs_txt
 
-    def write_dockerfile(self, image_dir, dockerfile_str, reqs_str):
+    def write_dockerfile(self, image_dir, dockerfile_str, reqs_str, docker_config):
         reqs_file = image_dir / 'reqs.txt'
         reqs_file.write_text(reqs_str)
 
@@ -108,13 +109,13 @@ class DockerRunner:
 
         pip_version = completed_process.stdout.split(' ')[1]
         pip_major_version = int(pip_version.split('.')[0])
-        if pip_major_version >= 22:
+        if pip_major_version >= 22 and docker_config.get('do_dry_run', True):
             completed_process = run(
                 ["pip", "install", "-r", str(reqs_file), "--dry-run"], capture_output=True, text=True
             )
             if completed_process.returncode != 0:
                 err_str = completed_process.stderr
-                raise RuntimeError(Errors.E034.format(err_str=err_str))
+                raise RuntimeError(Errors.E034.format(err_str=err_str, image_dir=image_dir))
 
         # TODO: raise a warning if dry run is not done
 
@@ -157,7 +158,7 @@ class DockerRunner:
             image_name = f'{name}-{get_uniq_str()}'.lower()
             image_dir = self.docker_dir / image_name
             image_dir.mkdir()
-            self.write_dockerfile(image_dir, dockerfile_str, reqs_str)
+            self.write_dockerfile(image_dir, dockerfile_str, reqs_str, docker_config)
 
         if not image_loaded:
             docker_cmds = ["docker", "build", "--tag", image_name, str(image_dir)]
@@ -186,7 +187,7 @@ class DockerRunner:
         s += '        doc.to_disk(output_doc_str)\n'
         return s
 
-    def build_task_dir(self, image_dir, name, docs, docker_config):
+    def build_task_dir(self, image_dir, name, docs, pipe_config, docker_config):
         task_dir = image_dir / f'task_-{get_uniq_str(4)}'.lower()
         task_dir.mkdir()
 
@@ -203,7 +204,9 @@ class DockerRunner:
             output_ctnr_paths.append(Path('output') / f'{doc.pdf_name}.doc.json')
 
         ppln_path = task_dir / Path('src') / 'pipeline.yml'
-        ppln_path.write_text(f'pipeline:\n  - name: {name}')
+        ppln_dict = {'pipeline': [{'name': name, 'config': pipe_config}]}
+        ppln_path.write_text(yaml.dump(ppln_dict))
+
         ppln_ctnr_path = Path('src') / 'pipeline.yml'
 
         cmd_path = task_dir / Path('src') / 'cmd.py'
@@ -231,11 +234,11 @@ class DockerRunner:
         mnts += ["-v", f"{str(conf_dir)}:{str(task_ctnr_dir / 'conf')}"]
         return mnts
 
-    def pipe(self, name, input_docs, depends, *, docker_config={}):
+    def pipe(self, name, input_docs, depends, pipe_config, *, docker_config={}):
         docs = list(input_docs) if isinstance(input_docs, (list, GeneratorType)) else [input_docs]
         image_name, image_dir = self.build_image(name, depends, docker_config)
 
-        task_dir = self.build_task_dir(image_dir, name, docs, docker_config)
+        task_dir = self.build_task_dir(image_dir, name, docs, pipe_config, docker_config)
 
         container_name = task_dir.name
 
@@ -264,7 +267,8 @@ class DockerRunner:
             raise RuntimeError(Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines))
 
         output_docs = [Doc.from_disk(d) for d in output_paths]
-        shutil.rmtree(task_dir)
+        if docker_config.get('delete_container_dir', True):
+            shutil.rmtree(task_dir)
         return output_docs if isinstance(input_docs, (list, GeneratorType)) else output_docs[0]
 
 

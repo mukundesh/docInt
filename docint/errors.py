@@ -38,5 +38,5 @@ class Errors:
     E031 = "docker build failed with exit code: {exit_code} check: {image_dir}"
     E032 = "docker build failed multiple docker images given: {images}"
     E033 = "docker pip --version failed with exit code: {exit_code}"
-    E034 = "docker pip --dry-run failed error: {err_str}"
+    E034 = "docker pip --dry-run failed {image_dir} error: {err_str}"
     E035 = "docker run failed check: {log_path} exit_code:{exit_code} err_str: {err_str}"

@@ -40,6 +40,7 @@ class Vision:
         self.ignore_docs = []
         self.docker = DockerRunner(self.docker_dir)
         self.docker_pipes = []
+        self.all_pipe_config = {}
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
@@ -51,9 +52,9 @@ class Vision:
         viz.ignore_docs = config.get("ignore_docs", [])
         viz.docker_pipes = config.get("docker_pipes", [])
         viz.docker_dir = config.get("docker_dir", viz.docker_dir)
+        viz.docker_config = config.get("docker_config", {})
 
         for pipe_config in config.get("pipeline", []):
-            print(f'Adding {pipe_config.get("name")}')
             viz.add_pipe(
                 pipe_config.get("name"),
                 pipe_config=pipe_config.get("config", {}),
@@ -86,6 +87,7 @@ class Vision:
         factory_meta = self.factories_meta[factory_name]
         default_config = factory_meta.default_config
         new_config = {**default_config, **pipe_config}
+        self.all_pipe_config[name] = new_config
 
         pipe_component = self.factories[factory_name](**new_config)
 
@@ -172,7 +174,8 @@ class Vision:
                 # doc = proc(doc, **component_cfg.get(name, {}))  # type: ignore[call-arg]
                 if name in self.docker_pipes:
                     depends = self.factories_meta[name].depends
-                    doc = self.docker.pipe(name, doc, depends)
+                    pipe_config = self.all_pipe_config[name]
+                    doc = self.docker.pipe(name, doc, depends, pipe_config, docker_config=self.docker_config)
                 else:
                     doc = proc(doc)  # type: ignore[call-arg]
             except KeyError as e:
@@ -238,7 +241,8 @@ class Vision:
             print(f"INSIDE _PIPE {proc}")
             if name in self.docker_pipes:
                 depends = self.factories_meta[name].depends
-                yield from self.docker.pipe(name, docs, depends)
+                pipe_config = self.all_pipe_config[name]
+                yield from self.docker.pipe(name, docs, depends, pipe_config, docker_config=self.docker_config)
             else:
                 yield from proc.pipe(docs, **kwargs)
         else:
@@ -254,7 +258,8 @@ class Vision:
                 try:
                     if name in self.docker_pipes:
                         depends = self.factories_meta[name].depends
-                        doc = self.docker.pipe(name, doc, depends)
+                        pipe_config = self.all_pipe_config[name]
+                        doc = self.docker.pipe(name, doc, depends, pipe_config, docker_config=self.docker_config)
                         yield doc
                     else:
                         doc = proc(doc, **kwargs)  # type: ignore[call-arg]

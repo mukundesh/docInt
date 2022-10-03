@@ -96,7 +96,7 @@ class Page(BaseModel):
             if img_size[0]:
                 return img_size[0] / self.page_image.image_width
             else:
-                return img_size[1] / self.page_image.image_width
+                return img_size[1] / self.page_image.image_height
 
         coord = self.page_image.get_image_coord(coord)
         if img_size:

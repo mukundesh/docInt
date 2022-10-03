@@ -8,6 +8,7 @@ def get_markers(doc):
 # TODO
 # 1. page_idxs is incorrect it should be skip_page_idx
 # 2. min_marker should min_marker_count
+# 3. separate out the tests
 
 
 def get_markers_val(doc):

@@ -64,6 +64,11 @@ def numbered_list_doc():
 
 
 @pytest.fixture
+def numbered_list_path():
+    return Path("tests/numbered_list.pdf")
+
+
+@pytest.fixture
 def layout_docs():
     return [build_doc(f'layout{i}.pdf') for i in range(1, 6)]
 
