@@ -18,6 +18,9 @@ from ..table import TableEdges
 from ..util import load_config
 from ..vision import Vision
 
+# TODO 1: test with skew threshold
+# TODO 2: remove unnecessary options
+
 
 class MismatchColumnEdges(DataError):
     exp_cols: int
@@ -195,149 +198,6 @@ class TableEdgeFinder:
             one_ranges = functools.reduce(merge_ranges, one_ranges, [])
         return one_ranges
 
-    def find_table_edges(self, page, conf):
-        if not page.num_markers:
-            return []
-
-        # split the markers in to tables
-        start_idx, table_markers_list = 0, []
-        for idx, marker in enumerate(page.num_markers):
-            if marker.num_val == 1 and idx != 0:
-                table_markers_list.append(page.num_markers[start_idx:idx])
-                start_idx = idx
-
-        table_markers_list.append(page.num_markers[start_idx:])
-        table_edges_list = []
-        self.lgr.info(f">Page: {page.page_idx}")
-
-        for table_markers in table_markers_list:
-            if page.page_idx == 9:
-                print("Found it")
-
-            if not table_markers:
-                continue
-
-            ymin = table_markers[0].ymin - self.ygutter
-            ymax = table_markers[-1].ymin  # does not include last row
-
-            table_words = page.words_in_yrange((ymin, ymax), partial=True)
-            xmax = max(w.xmax for w in table_words) + self.xgutter
-            xmin = min(m.xmin for m in table_markers) - self.xgutter
-
-            img_xmin = 0  # page.get_image_x_val(xmin)
-            img_ymin = page.get_image_y_val(ymin)
-            img_ymax = page.get_image_y_val(ymax)
-
-            col_ranges = self.find_column_ranges(page, conf, img_xmin, img_ymin, img_ymax)
-            col_img_xs = [int((x2 + x1) / 2) for (x1, x2) in col_ranges]
-
-            col_xs = [page.get_doc_x_val(img_x) for img_x in col_img_xs]
-            # print(col_xs)
-            if not col_xs:
-                continue
-
-            # FILL ROW EDGES
-            xmin = col_xs[0]
-            xmax = col_xs[-1]
-            row_edges = [Edge.build_h(xmin, m.ymin - self.ygutter, xmax, m.ymin - self.ygutter) for m in table_markers]
-            avg_row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(table_markers))
-            ymax += avg_row_ht
-            botom_edge = Edge.build_h(xmin, ymax, xmax, ymax)
-            row_edges.append(botom_edge)
-
-            col_edges = [Edge.build_v(x, ymin, x, ymax) for x in col_xs]
-            table_edges_list.append(TableEdges(row_edges=row_edges, col_edges=col_edges))
-
-        # end for
-        return table_edges_list
-
-    def find_table_edges2(self, page, conf):
-        def split_markers_in_tables(num_markers):
-            start_idx, table_markers_list = 0, []
-            for idx, marker in enumerate(num_markers):
-                if marker.num_val == 1 and idx != 0:
-                    table_markers_list.append(num_markers[start_idx:idx])
-                    start_idx = idx
-            table_markers_list.append(page.num_markers[start_idx:])
-            table_markers_list = [t for t in table_markers_list if t]
-            return table_markers_list
-
-        def build_row_edge(img_xmin, img_xmax, ymin):
-            lt_img_ymin = page_image.get_image_coord(Coord(x=0.0, y=ymin))
-            # rt_img_ymin = page_image.get_image_coord(Coord(x=1.0, y=ymin))
-
-            lt_ymin = page_image.get_doc_coord(Coord(x=img_xmin, y=lt_img_ymin.y))
-            rt_ymin = page_image.get_doc_coord(Coord(x=col_img_xs[-1], y=lt_img_ymin.y))
-            row_edge = Edge.build_h(lt_ymin.x, lt_ymin.y, rt_ymin.x, rt_ymin.y)
-            return row_edge
-
-        def build_col_edge(img_xmin, img_xmax, img_x, top_edge, bot_edge):
-            len_percent = (img_x - img_xmin) / (img_xmax - img_xmin)
-            top_coord = top_edge.get_coord(len_percent)
-            bot_coord = bot_edge.get_coord(len_percent)
-            return Edge.build_v(top_coord.x, top_coord.y, bot_coord.x, bot_coord.y)
-
-        self.lgr.debug(f"> Page: {page.page_idx}")
-        if not page.num_markers:
-            return []
-
-        page_image, table_edges_list = page.page_image, []
-        table_markers_list = split_markers_in_tables(page.num_markers)
-
-        print(f"> Page: {page.page_idx}")
-
-        # b /Users/mukund/Software/docInt/docint/pipeline/table_edge_finder.py:302
-        for row_markers in table_markers_list:
-            row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))
-            ymin = row_markers[0].ymin - self.ygutter
-            ymax = row_markers[-1].ymin + (row_ht * 1.1)
-
-            if (ymax - ymin) * 100 < conf.crop_threshold:
-                print(f"\tCropping Image {(ymax-ymin)*100} {conf.crop_threshold}")
-                top_y, bot_y = ymin - self.crop_gutter, ymax + (self.crop_gutter)
-                top_y, bot_y = max(0.0, top_y), min(1.0, bot_y)
-
-                top, bot = Coord(x=0.0, y=top_y), Coord(x=1.0, y=bot_y)
-                page_image.crop(top, bot)
-            else:
-                top, bot = Coord(x=0.0, y=0.0), Coord(x=1.0, y=1.0)
-
-            v_skew_angle = page_image.get_skew_angle("v")
-            h_skew_angle = page_image.get_skew_angle("h")
-            print(f"\tv_skew_angle: {v_skew_angle} h_skew_angle: {h_skew_angle}")
-
-            if abs(v_skew_angle) > conf.skew_threshold:
-                print("\tRotating Image")
-                page_image.rotate(v_skew_angle)
-
-            col_ranges = self.find_column_ranges(page_image, conf)
-            # print(col_ranges)
-            col_img_xs = [int((x2 + x1) / 2) for (x1, x2) in col_ranges]
-
-            if conf.rm_column_atidxs:
-                print(f"\t\tRemoving columns: {conf.rm_column_atidxs}")
-                col_img_xs = [img_xs for idx, img_xs in enumerate(col_img_xs) if idx not in conf.rm_column_atidxs]
-
-            if conf.add_column_atpos:
-                col_img_xs.extend(conf.add_column_atpos)
-                col_img_xs.sort()
-                print(f"\t\tAdding columns: {conf.add_column_atpos}")
-
-            print(f"> {page.page_idx} Column img_xs[{len(col_img_xs)}]: {col_img_xs}")
-
-            img_xmin, img_xmax = col_img_xs[0], col_img_xs[-1]
-
-            row_edges = [build_row_edge(img_xmin, img_xmax, m.ymin) for m in row_markers]
-            row_edges.append(build_row_edge(img_xmin, img_xmax, ymax))
-
-            top_edge, bot_edge = row_edges[0], row_edges[-1]
-            col_edges = [build_col_edge(img_xmin, img_xmax, x, top_edge, bot_edge) for x in col_img_xs]
-
-            table_edges = TableEdges(row_edges=row_edges, col_edges=col_edges)
-            table_edges_list.append(table_edges)
-            page_image.clear_transforms()
-        return table_edges_list
-
     def get_column_edges(self, page_image, crop_coords, conf):
         page_image.clear_transforms()
 
@@ -419,7 +279,7 @@ class TableEdgeFinder:
 
         return row_edges
 
-    def find_table_edges3(self, page, conf):
+    def find_table_edges(self, page, conf):
         def split_markers_in_tables(num_markers):
             start_idx, table_markers_list = 0, []
             for idx, marker in enumerate(num_markers):
@@ -539,7 +399,7 @@ class TableEdgeFinder:
 
         total_tables, errors = 0, []
         for page, page_config in zip(doc.pages, self.page_configs):
-            page.table_edges_list = self.find_table_edges3(page, page_config)
+            page.table_edges_list = self.find_table_edges(page, page_config)
             page.edges = list(chain(*(t.row_edges for t in page.table_edges_list)))
             page.edges += list(chain(*(t.col_edges for t in page.table_edges_list)))
             errors += self.test(page, page.table_edges_list)

@@ -29,3 +29,4 @@ from .para_fixer import ParaFixer
 from .height_calc import HeightCalculator
 from .learn_layoutlmv2 import LearnLayout
 from .do_nothing_pipe import DoNothingPipe
+from .infer_layoutlmv2 import InferLayoutLMv2

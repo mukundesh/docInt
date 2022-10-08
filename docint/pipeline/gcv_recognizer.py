@@ -7,8 +7,12 @@ from ..shape import Coord, Poly
 from ..vision import Vision
 from ..word import BreakType, Word
 
-# from google.cloud import storage, vision_v1
-# from google.protobuf.json_format import MessageToDict
+# TODO 1: add config option wheter to save the output
+# TODO 2: it fails the first time and once ocr is created then it is file
+#         AttributeError: 'NoneType' object has no attribute 'read_bytes'
+#         def get_ocr_pages(): ...
+#             ...
+#             ocr_doc = json.loads(o_path.read_bytes())
 
 
 _break_type_dict = {
@@ -245,8 +249,8 @@ class CloudVisionRecognizer:
 
         output_paths = self.output_dir_path.glob(f"{doc.pdf_name}.{self.output_stub}*json")
         output_paths = list(output_paths)
-        print(output_paths)
         if output_paths:
+            # print(f'Reading output_paths')
             return self.read_gcv(doc, output_paths)
         else:
             # imports are expensive

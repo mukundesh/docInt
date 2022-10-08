@@ -511,7 +511,6 @@ class Doc(BaseModel):
 
     @classmethod  # noqa: C901
     def from_disk(cls, json_file):  # noqa: C901
-        print(f'json_file: {json_file}')
         json_file = Path(json_file)
         if json_file.suffix.lower() in (".json", ".jsn"):
             doc_dict = json.loads(json_file.read_text())

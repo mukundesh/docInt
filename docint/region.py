@@ -121,6 +121,11 @@ class Region(BaseModel):
         }
 
     @classmethod
+    def from_words(cls, words):
+        word_idxs = [w.word_idx for w in words]
+        return Region(words=words, word_idxs=word_idxs, page_idx_=words[0].page_idx)
+
+    @classmethod
     def build(cls, words, page_idx):
         word_idxs = [w.word_idx for w in words]
         return Region(words=words, word_idxs=word_idxs, page_idx_=page_idx)

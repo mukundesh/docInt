@@ -10,11 +10,20 @@ from ..table import Cell, Row, Table
 from ..util import load_config
 from ..vision import Vision
 
+# TODO 1: rename body_rows to rows, keep header_rows as it is
+# TODO 2: don't add heading detection in this, it should be a separate component
+# TODO 3: explore if skip_rows_with_merged_cells can be moved to a separate component
+# TODO 4: rename num_columns to expected_columns
+# TODO 5: Figure out a way of testing tables by standardizing on table_test_config
+
 
 @Vision.factory(
     "pdftable_finder",
     default_config={
-        "pdfplumber_config": {"strategy": "lines"},
+        "pdfplumber_config": {
+            "vertical_strategy": "lines",
+            "horizontal_strategy": "lines",
+        },
         "edit_doc": True,
         "skip_row_with_merged_cells": True,
         "header_row": "first_page_first_row",
@@ -69,13 +78,7 @@ class PDFTableFinder:
         self.lgr.removeHandler(self.file_handler)
         self.file_handler = None
 
-    def words_inxyrange(self, words, box):
-        xrange, yrange = (box.top.x, box.bot.x), (box.top.y, box.bot.y)
-        words = [w for w in words if w.box.in_xrange(xrange)]
-        words = [w for w in words if w.box.in_yrange(yrange)]
-        return words
-
-    def words_inxyrange2(self, words, box, overlap_percent=80):
+    def words_inxyrange(self, words, box, overlap_percent=80):
         words = [w for w in words if w.shape.overlaps(box, overlap_percent)]
         return words
 
@@ -137,13 +140,11 @@ class PDFTableFinder:
             tables = []
             pdf_size = (pdf_page.width, pdf_page.height)
             for (table_idx, pdf_table) in enumerate(table_finder.tables):
-                # table_box = build_box(pdf_table.bbox, pdf_size)
-                # table_words = self.words_inxyrange2(page.words, table_box)
 
                 body_rows, header_rows, row_idx = [], [], 0
                 for pdf_row in pdf_table.rows:
                     row_box = build_box(pdf_row.bbox, pdf_size)
-                    row_words = self.words_inxyrange2(page.words, row_box)
+                    row_words = self.words_inxyrange(page.words, row_box)
 
                     cells, cell_texts = [], []
                     for pdf_cell in pdf_row.cells:
@@ -151,7 +152,7 @@ class PDFTableFinder:
                             continue
 
                         cell_box = build_box(pdf_cell, pdf_size)
-                        cell_words = self.words_inxyrange2(row_words, cell_box)
+                        cell_words = self.words_inxyrange(row_words, cell_box)
                         cells.append(Cell.build(cell_words))
                         cell_texts.append(" ".join(w.text for w in cell_words))
                         # print(', '.join(w.text for w in cell_words))

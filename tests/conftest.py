@@ -100,3 +100,18 @@ def sensitive_vocab():
     text = 'The quick brown fox jumped over the LAZY Fox.'
     texts = [t.strip(' .') for t in text.split()]
     return Vocab(texts, case_sensitive=True)
+
+
+@pytest.fixture
+def images_path():
+    return Path('tests') / 'images.pdf'
+
+
+@pytest.fixture
+def table_path():
+    return Path('tests') / 'table.pdf'
+
+
+@pytest.fixture
+def table_nolines_path():
+    return Path('tests') / 'table_nolines.pdf'

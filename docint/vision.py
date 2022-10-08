@@ -59,8 +59,6 @@ class Vision:
                 pipe_config.get("name"),
                 pipe_config=pipe_config.get("config", {}),
             )
-        print('Done creating pipeline')
-
         return viz
 
     def build_doc(self, pdf_path):
@@ -161,8 +159,6 @@ class Vision:
 
         if component_cfg is None:
             component_cfg = {}
-
-        print("Inside __call__")
 
         for name, proc in self.pipeline:
             if not hasattr(proc, "__call__"):
