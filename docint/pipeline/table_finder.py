@@ -124,6 +124,8 @@ class TableFinder:
 
             if list_item.marker and list_item.marker.num_val == 1:
 
+                ## TODO better handling of this, need a way to detect headings and then remove it.
+
                 marker_word = list_item.marker.words[0]
                 yrange = (marker_word.ymin - 0.05, marker_word.ymin)
                 title_words = page.words_in_yrange(yrange, partial=True)

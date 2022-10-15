@@ -11,6 +11,7 @@ def float_eq(a, b):
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
         return len(a) == len(b) and all(isclose(a1, b1, rel_tol=REL_TOL) for (a1, b1) in zip(a, b))
     else:
+        print(a, b)
         return isclose(a, b, rel_tol=REL_TOL)
 
 

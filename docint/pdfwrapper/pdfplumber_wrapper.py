@@ -20,9 +20,9 @@ class Word(pdf.Word):
 
     @property
     def bounding_box(self):
-        x0, x1 = self._word["x0"], self._word["x1"]
-        y0, y1 = self._word["top"], self._word["bottom"]
-        return [x0, y0, x1, y1]
+        x0, x1 = float(self._word["x0"]), float(self._word["x1"])
+        y0, y1 = float(self._word["top"]), float(self._word["bottom"])
+        return (x0, y0, x1, y1)
 
 
 class Image(pdf.Image):
@@ -52,7 +52,7 @@ class Image(pdf.Image):
     @property
     def bounding_box(self):
         fields = ['x0', 'top', 'x1', 'bottom']
-        return [self._image[f] for f in fields]
+        return [float(self._image[f]) for f in fields]
 
     @property
     def get_image_type(self):
@@ -67,7 +67,7 @@ class Image(pdf.Image):
                 return 'RGB'
             elif colorspace == 'DeviceGray':
                 return '1'
-            else:  # TBD PLEASE CHECK THIS ?
+            else:  # TODO Please check colorspace option in pdf
                 return '1'
 
         pdfStream = self._image['stream']

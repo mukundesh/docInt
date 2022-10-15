@@ -11,7 +11,7 @@ from .doc import Doc
 from .errors import Errors
 from .util import get_uniq_str, tail
 
-PYTHON_VERSION = 3.7
+PYTHON_VERSION = '3.7'  # TODO should be using slim
 WORK_DIR = Path("/usr/src/app")
 REPORT_LAST_LINES_COUNT = 3
 DEFAULT_OS_PACKAGES = ['enchant-2']  # TODO remove this
@@ -32,15 +32,16 @@ DEFAULT_PY_PACKAGES = [
 #     python_version: ConSoftwareVersion(min='3.7', max='4.0') = '3.7'
 #     pre_install_lines: List[str] = []
 #     post_intall_lines: List[str] = []
-
+#
+# 2. Currently default is slim but need a way to move to full
 
 # Directory Layout:
 
-#     do_nothing-6slz67                     # image_dir
+#     do_nothing-6slz67                     # image_dir - name of the image
 #     |-- Dockerfile                        # both Dockerfile and reqs.txt are compared
-#     |-- reqs.txt
-#     |-- task_-e4db                        # directory mounted per container run
-#     |   |-- conf                          # deleted after running
+#     |-- reqs.txt                          # to identify image_dir
+#     |-- task_-e4db                        # directory mounted per run of container
+#     |   |-- conf                          # deleted after running, dir name = name
 #     |   |-- docint
 #     |   |-- input
 #     |   |   `-- one_line.pdf.doc.json

@@ -63,6 +63,7 @@ class Page(ABC):
     def images(self):
         raise NotImplementedError('implement width')
 
+    @property
     def has_one_large_image(self):
         def area(obj):
             return obj.width * obj.height
@@ -90,3 +91,19 @@ class PDF(ABC):
 
     def get_iterator(self):
         return self.__iter__()
+
+    def get_info(self):
+        page_infos = []
+        for page in self.pages:
+            width, height, words, images = page.width, page.height, page.words, page.images
+            page_info = {'width': width, 'height': height, 'num_words': len(words), 'num_images': len(images)}
+            page_info['has_one_large_image'] = page.has_one_large_image
+
+            image_infos = []
+            for image in page.images:
+                image_infos.append(
+                    {'width': image.width, 'height': image.height, 'bounding_box': list(image.bounding_box)}
+                )
+            page_info['image_infos'] = image_infos
+            page_infos.append(page_info)
+        return {'page_infos': page_infos}
