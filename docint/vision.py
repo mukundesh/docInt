@@ -24,6 +24,7 @@ class FactoryMeta:
     assigns: Iterable[str] = tuple()
     requires: Iterable[str] = tuple()
     depends: Iterable[str] = tuple()
+    is_recognizer: bool = False
 
 
 class Vision:
@@ -155,7 +156,7 @@ class Vision:
             else:
                 doc = self.build_doc(path)
         else:
-            raise NotImplementedError(f'unknown path: {type(path)}')
+            raise NotImplementedError(f"unknown path: {type(path)}")
 
         if component_cfg is None:
             component_cfg = {}
@@ -170,8 +171,16 @@ class Vision:
                 # doc = proc(doc, **component_cfg.get(name, {}))  # type: ignore[call-arg]
                 if name in self.docker_pipes:
                     depends = self.factories_meta[name].depends
+                    is_recognizer = self.factories_meta[name].is_recognizer
                     pipe_config = self.all_pipe_config[name]
-                    doc = self.docker.pipe(name, doc, depends, pipe_config, docker_config=self.docker_config)
+                    doc = self.docker.pipe(
+                        name,
+                        doc,
+                        depends,
+                        is_recognizer,
+                        pipe_config,
+                        docker_config=self.docker_config,
+                    )
                 else:
                     doc = proc(doc)  # type: ignore[call-arg]
             except KeyError as e:
@@ -237,8 +246,16 @@ class Vision:
             print(f"INSIDE _PIPE {proc}")
             if name in self.docker_pipes:
                 depends = self.factories_meta[name].depends
+                is_recognizer = self.factories_meta[name].is_recognizer
                 pipe_config = self.all_pipe_config[name]
-                yield from self.docker.pipe(name, docs, depends, pipe_config, docker_config=self.docker_config)
+                yield from self.docker.pipe(
+                    name,
+                    docs,
+                    depends,
+                    is_recognizer,
+                    pipe_config,
+                    docker_config=self.docker_config,
+                )
             else:
                 yield from proc.pipe(docs, **kwargs)
         else:
@@ -254,8 +271,16 @@ class Vision:
                 try:
                     if name in self.docker_pipes:
                         depends = self.factories_meta[name].depends
+                        is_recognizer = self.factories_meta[name].is_recognizer
                         pipe_config = self.all_pipe_config[name]
-                        doc = self.docker.pipe(name, doc, depends, pipe_config, docker_config=self.docker_config)
+                        doc = self.docker.pipe(
+                            name,
+                            doc,
+                            depends,
+                            is_recognizer,
+                            pipe_config,
+                            docker_config=self.docker_config,
+                        )
                         yield doc
                     else:
                         doc = proc(doc, **kwargs)  # type: ignore[call-arg]
@@ -329,6 +354,7 @@ class Vision:
         assigns: Iterable[str] = SimpleFrozenList(),
         requires: Iterable[str] = SimpleFrozenList(),
         depends: Iterable[str] = SimpleFrozenList(),
+        is_recognizer: bool = False,
         func: Optional[Callable] = None,
     ) -> Callable:
         if not isinstance(name, str):
@@ -345,6 +371,7 @@ class Vision:
                 assigns=assigns,
                 requires=requires,
                 depends=depends,
+                is_recognizer=is_recognizer,
             )
 
             cls.factories_meta[name] = factory_meta

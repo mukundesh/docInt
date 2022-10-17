@@ -15,8 +15,8 @@ def parse_range(astr):
     if isinstance(astr, list):
         return astr
 
-    for part in astr.split(','):
-        x = part.split('-')
+    for part in astr.split(","):
+        x = part.split("-")
         result.update(range(int(x[0]), int(x[-1]) + 1))
     return sorted(result)
 
@@ -166,7 +166,7 @@ class NonumberListFinder:
 
     def find_markers(self, page, word_lines):
         ws = page.words_in_xrange(self.x_range, partial=True)
-        print(f'x_range: {self.x_range} {len(ws)}')
+        print(f"x_range: {self.x_range} {len(ws)}")
         ws = [w for w in ws if w.box.in_yrange(self.y_range, partial=False)]
 
         ws = [w for w in ws if len(w.text) >= 1 and not w.text.isupper()]
@@ -272,12 +272,12 @@ class NonumberListFinder:
         self.footer_height_multiple = doc_config.get("footer_height_multiple", old_fhm)
 
         old_page_idxs = self.page_idxs
-        self.page_idxs = doc_config.get('page_idxs', self.page_idxs)
+        self.page_idxs = doc_config.get("page_idxs", self.page_idxs)
         self.page_idxs = parse_range(self.page_idxs)
-        print('Page_idxs: {self.page_idxs}')
+        print("Page_idxs: {self.page_idxs}")
 
         old_y_range = self.y_range
-        self.y_range = doc_config.get('y_range', self.y_range)
+        self.y_range = doc_config.get("y_range", self.y_range)
 
         rotation_config = self.get_rotation_config(doc_config)
 
@@ -297,7 +297,7 @@ class NonumberListFinder:
 
             # Move this to the top and save some words lines methods
             word_markers = self.find_markers(page, word_lines)
-            print(f'Page {page_idx}: {len(word_markers)}')
+            print(f"Page {page_idx}: {len(word_markers)}")
             page.list_items = self.find_inpage(word_lines, word_markers, page.page_idx)
 
         self.footer_height_multiple = old_fhm

@@ -1,5 +1,5 @@
 def block(ch):
-    '''
+    """
     Return the Unicode block name for ch, or None if ch has no block.
 
     >>> block(u'a')
@@ -8,7 +8,7 @@ def block(ch):
     'Tamil'
     >>> block(unichr(0xe0080))
 
-    '''
+    """
 
     assert isinstance(ch, str) and len(ch) == 1, repr(ch)
     cp = ord(ch)
@@ -22,7 +22,7 @@ def _initBlocks(text):
     _blocks = []
     import re
 
-    pattern = re.compile(r'([0-9A-F]+)\.\.([0-9A-F]+);\ (\S.*\S)')
+    pattern = re.compile(r"([0-9A-F]+)\.\.([0-9A-F]+);\ (\S.*\S)")
     for line in text.splitlines():
         m = pattern.match(line)
         if m:
@@ -32,7 +32,7 @@ def _initBlocks(text):
 
 # retrieved from http://unicode.org/Public/UNIDATA/Blocks.txt
 _initBlocks(
-    '''
+    """
 # Blocks-15.0.0.txt
 # Date: 2022-01-28, 20:58:00 GMT [KW]
 # © 2022 Unicode®, Inc.
@@ -396,5 +396,5 @@ F0000..FFFFF; Supplementary Private Use Area-A
 100000..10FFFF; Supplementary Private Use Area-B
 
 # EOF
-'''
+"""
 )

@@ -11,20 +11,18 @@ from .doc import Doc
 from .errors import Errors
 from .util import get_uniq_str, tail
 
-PYTHON_VERSION = '3.7'  # TODO should be using slim
+PYTHON_VERSION = "3.7"  # TODO should be using slim
 WORK_DIR = Path("/usr/src/app")
 REPORT_LAST_LINES_COUNT = 3
-DEFAULT_OS_PACKAGES = ['enchant-2']  # TODO remove this
+DEFAULT_OS_PACKAGES = []  # TODO remove this
 DEFAULT_PY_PACKAGES = [
-    'PyYaml',
-    'pdf2image',
-    'pyenchant',
-    'rich',
-    'more-itertools',
-    'polyleven',
-    'pydantic',
-    'pdfplumber',
-    'python-dateutil',
+    "PyYaml",
+    "more-itertools",
+    "polyleven",
+    "pydantic",
+    "pdfplumber",
+    "python-dateutil",
+    "pypdfium2",
 ]
 
 # TODO: define docker_options
@@ -60,47 +58,47 @@ DEFAULT_PY_PACKAGES = [
 class DockerRunner:
     def __init__(self, docker_dir):
         self.docker_dir = docker_dir
-        self.docint_dir = '/Users/mukund/Software/docInt/docint'  # TODO: remove this
+        self.docint_dir = "/Users/mukund/Software/swap_pdf/docint"  # TODO: remove this
 
     def generate_dockerfile(self, depends, docker_config):
         def is_python_package(d):
-            return not d.startswith('apt:') and not d.startswith('docker:')
+            return not d.startswith("apt:") and not d.startswith("docker:")
 
-        docker_depends = [d for d in depends if d.startswith('docker:')]
+        docker_depends = [d for d in depends if d.startswith("docker:")]
         if len(docker_depends) > 1:
             raise ValueError(Errors.E032, images=",".join(docker_depends))
 
         if docker_depends:
-            docker_image = docker_depends[0][len('docker:') :]
+            docker_image = docker_depends[0][len("docker:") :]
             docker_lines = [f"FROM {docker_image}"]
         else:
-            py_version = docker_config.get('python_version', PYTHON_VERSION)
+            py_version = docker_config.get("python_version", PYTHON_VERSION)
             docker_lines = [f"FROM python:{py_version}"]
 
         docker_lines.append("WORKDIR /usr/src/app")
 
-        docker_lines.extend(docker_config.get('pre_install_lines', []))
+        docker_lines.extend(docker_config.get("pre_install_lines", []))
 
-        apt_depends = DEFAULT_OS_PACKAGES + [d for d in depends if d.startswith('apt:')]
+        apt_depends = DEFAULT_OS_PACKAGES + [d for d in depends if d.startswith("apt:")]
         if apt_depends:
             packages = " ".join(apt_depends)
-            docker_lines.append(f'RUN apt-get update && apt-get install {packages} -y')
+            docker_lines.append(f"RUN apt-get update && apt-get install {packages} -y")
 
         py_depends = [d for d in depends if is_python_package(d)]
 
-        reqs_txt = '\n'.join(DEFAULT_PY_PACKAGES + py_depends)
+        reqs_txt = "\n".join(DEFAULT_PY_PACKAGES + py_depends)
         if reqs_txt:
             docker_lines.append("COPY reqs.txt /usr/src/app/")
-            docker_lines.append('RUN pip install --no-cache-dir -r reqs.txt')
+            docker_lines.append("RUN pip install --no-cache-dir -r reqs.txt")
 
-        docker_lines.extend(docker_config.get('post_install_lines', []))
+        docker_lines.extend(docker_config.get("post_install_lines", []))
 
         docker_lines.append("ENV PYTHONPATH .")
         docker_lines.append("WORKDIR /usr/src/app/task_")
         return "\n".join(docker_lines), reqs_txt
 
     def write_dockerfile(self, image_dir, dockerfile_str, reqs_str, docker_config):
-        reqs_file = image_dir / 'reqs.txt'
+        reqs_file = image_dir / "reqs.txt"
         reqs_file.write_text(reqs_str)
 
         completed_process = run(["pip", "--version"], capture_output=True, text=True)
@@ -108,11 +106,13 @@ class DockerRunner:
             exit_code = completed_process.returncode
             raise RuntimeError(Errors.E033.format(exit_code=exit_code))
 
-        pip_version = completed_process.stdout.split(' ')[1]
-        pip_major_version = int(pip_version.split('.')[0])
-        if pip_major_version >= 22 and docker_config.get('do_dry_run', True):
+        pip_version = completed_process.stdout.split(" ")[1]
+        pip_major_version = int(pip_version.split(".")[0])
+        if pip_major_version >= 22 and docker_config.get("do_dry_run", True):
             completed_process = run(
-                ["pip", "install", "-r", str(reqs_file), "--dry-run"], capture_output=True, text=True
+                ["pip", "install", "-r", str(reqs_file), "--dry-run"],
+                capture_output=True,
+                text=True,
             )
             if completed_process.returncode != 0:
                 err_str = completed_process.stderr
@@ -120,7 +120,7 @@ class DockerRunner:
 
         # TODO: raise a warning if dry run is not done
 
-        dockerfile = image_dir / 'Dockerfile'
+        dockerfile = image_dir / "Dockerfile"
         dockerfile.write_text(dockerfile_str)
 
     def get_image_info(self, name, dockerfile_str, reqs_str):
@@ -128,9 +128,9 @@ class DockerRunner:
             if not image_dir.is_dir():
                 return False
 
-            dockerfile = image_dir / 'Dockerfile'
-            reqs_file = image_dir / 'reqs.txt'
-            image_reqs_str = reqs_file.read_text() if reqs_file.exists() else ''
+            dockerfile = image_dir / "Dockerfile"
+            reqs_file = image_dir / "reqs.txt"
+            image_reqs_str = reqs_file.read_text() if reqs_file.exists() else ""
             if dockerfile.exists():
                 return dockerfile.read_text() == dockerfile_str and image_reqs_str == reqs_str
             else:
@@ -140,7 +140,7 @@ class DockerRunner:
             completed_process = run(["docker", "image", "inspect", "--format", " ", image_name])
             return completed_process.returncode == 0
 
-        image_dirs = self.docker_dir.glob(f'{name}-*')
+        image_dirs = self.docker_dir.glob(f"{name}-*")
         image_dir = first((d for d in image_dirs if file_match(d, dockerfile_str, reqs_str)), None)
 
         if image_dir is None:
@@ -156,7 +156,7 @@ class DockerRunner:
 
         # print(f'** image: {image_name} loaded: {image_loaded} image_dir: {image_dir}')
         if image_name is None:
-            image_name = f'{name}-{get_uniq_str()}'.lower()
+            image_name = f"{name}-{get_uniq_str()}".lower()
             image_dir = self.docker_dir / image_name
             image_dir.mkdir()
             self.write_dockerfile(image_dir, dockerfile_str, reqs_str, docker_config)
@@ -169,8 +169,8 @@ class DockerRunner:
                 raise RuntimeError(Errors.E030.format(image_dir=str(image_dir))) from e
 
             if completed_process.returncode != 0:
-                (image_dir / 'stderr.out').write_text(completed_process.stderr)
-                (image_dir / 'stdout.out').write_text(completed_process.stdout)
+                (image_dir / "stderr.out").write_text(completed_process.stderr)
+                (image_dir / "stdout.out").write_text(completed_process.stdout)
                 exit_code = completed_process.returncode
                 raise RuntimeError(Errors.E031.format(exit_code=exit_code, image_dir=str(image_dir)))
 
@@ -180,43 +180,56 @@ class DockerRunner:
         assert len(input_paths) == len(output_paths)
         all_input_paths_str = ", ".join(f"'{str(p)}'" for p in input_paths)
         all_output_paths_str = ", ".join(f"'{str(p)}'" for p in output_paths)
-        s = 'import docint\n'
+        s = "import docint\n"
         s += 'if __name__ == "__main__":\n'
         s += f'    viz = docint.load("{str(ppln_path)}")\n'
-        s += f'    docs = viz.pipe_all([{all_input_paths_str}])\n'
-        s += f'    for doc, output_doc_str in zip(docs, [{all_output_paths_str}]):\n'
-        s += '        doc.to_disk(output_doc_str)\n'
+        s += f"    docs = viz.pipe_all([{all_input_paths_str}])\n"
+        s += f"    for doc, output_doc_str in zip(docs, [{all_output_paths_str}]):\n"
+        s += "        doc.to_disk(output_doc_str)\n"
         return s
 
-    def build_task_dir(self, image_dir, name, docs, pipe_config, docker_config):
-        task_dir = image_dir / f'task_-{get_uniq_str(4)}'.lower()
+    def build_task_dir(self, image_dir, name, docs, is_recognizer, pipe_config, docker_config):
+        task_dir = image_dir / f"task_-{get_uniq_str(4)}".lower()
         task_dir.mkdir()
 
         # TODO: 1. docint should be imported not mounted
         # TODO: 2. we should be mounting only 1 .docint cache directory
-        sub_dirs = ['input', 'output', 'src', 'conf', 'logs', 'docint', '.img', '.model']
+        sub_dirs = [
+            "input",
+            "output",
+            "src",
+            "conf",
+            "logs",
+            "docint",
+            ".img",
+            ".model",
+        ]
         [(task_dir / d).mkdir() for d in sub_dirs]
 
         input_ctnr_paths, output_ctnr_paths = [], []
         for doc in docs:
-            doc.to_disk(task_dir / Path('input') / f'{doc.pdf_name}.doc.json')
+            if is_recognizer:
+                doc.copy_pdf(task_dir / Path("input") / f"{doc.pdf_name}")
+                input_ctnr_paths.append(Path("input") / f"{doc.pdf_name}")
+            else:
+                doc.to_disk(task_dir / Path("input") / f"{doc.pdf_name}.doc.json")
+                input_ctnr_paths.append(Path("input") / f"{doc.pdf_name}.doc.json")
 
-            input_ctnr_paths.append(Path('input') / f'{doc.pdf_name}.doc.json')
-            output_ctnr_paths.append(Path('output') / f'{doc.pdf_name}.doc.json')
+            output_ctnr_paths.append(Path("output") / f"{doc.pdf_name}.doc.json")
 
-        ppln_path = task_dir / Path('src') / 'pipeline.yml'
-        ppln_dict = {'pipeline': [{'name': name, 'config': pipe_config}]}
+        ppln_path = task_dir / Path("src") / "pipeline.yml"
+        ppln_dict = {"pipeline": [{"name": name, "config": pipe_config}]}
         ppln_path.write_text(yaml.dump(ppln_dict))
 
-        ppln_ctnr_path = Path('src') / 'pipeline.yml'
+        ppln_ctnr_path = Path("src") / "pipeline.yml"
 
-        cmd_path = task_dir / Path('src') / 'cmd.py'
+        cmd_path = task_dir / Path("src") / "cmd.py"
         cmd_str = self.cmd_src(ppln_ctnr_path, input_ctnr_paths, output_ctnr_paths)
         cmd_path.write_text(cmd_str)
         return task_dir
 
     def get_mounts(self, task_dir, cache_dir, conf_dir, log_dir):
-        task_ctnr_dir = WORK_DIR / 'task_'
+        task_ctnr_dir = WORK_DIR / "task_"
         mnts = []
         task_dir = task_dir.resolve()
 
@@ -230,22 +243,26 @@ class DockerRunner:
 
         mnts += ["-v", f"{str(cache_dir / '.model')}:{str(task_ctnr_dir / '.model')}"]
         mnts += ["-v", f"{str(cache_dir / '.img')}:{str(task_ctnr_dir / '.img')}"]
+        mnts += [
+            "-v",
+            f"{str(cache_dir / '.secrets')}:{str(task_ctnr_dir / '.secrets')}",
+        ]
 
         mnts += ["-v", f"{str(log_dir)}:{str(task_ctnr_dir / 'logs')}"]
         mnts += ["-v", f"{str(conf_dir)}:{str(task_ctnr_dir / 'conf')}"]
         return mnts
 
-    def pipe(self, name, input_docs, depends, pipe_config, *, docker_config={}):
+    def pipe(self, name, input_docs, depends, is_recognizer, pipe_config, *, docker_config={}):
         docs = list(input_docs) if isinstance(input_docs, (list, GeneratorType)) else [input_docs]
         image_name, image_dir = self.build_image(name, depends, docker_config)
 
-        task_dir = self.build_task_dir(image_dir, name, docs, pipe_config, docker_config)
+        task_dir = self.build_task_dir(image_dir, name, docs, is_recognizer, pipe_config, docker_config)
 
         container_name = task_dir.name
 
         cache_dir = Path(os.getcwd())
-        log_dir = cache_dir / 'logs'
-        conf_dir = cache_dir / 'conf'
+        log_dir = cache_dir / "logs"
+        conf_dir = cache_dir / "conf"
 
         docker_cmds = ["docker", "run"]
         docker_cmds += self.get_mounts(task_dir, cache_dir, conf_dir, log_dir)
@@ -253,22 +270,22 @@ class DockerRunner:
         docker_cmds += [image_name]
         docker_cmds += ["/bin/sh", "-c", "python src/cmd.py > output/pipe.log 2>&1"]
 
-        # print(docker_cmds)
+        print(docker_cmds)
         completed_process = run(docker_cmds)
 
-        output_dir = task_dir / 'output'
+        output_dir = task_dir / "output"
         if completed_process.returncode != 0:
             exit_code = completed_process.returncode
-            log_path = output_dir / 'pipe.log'
+            log_path = output_dir / "pipe.log"
             last_lines = tail(log_path, 3) if log_path.exists() else "No file created"
             raise RuntimeError(Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines))
 
-        output_paths = list(output_dir.glob('*.doc.json'))
+        output_paths = list(output_dir.glob("*.doc.json"))
         if len(output_paths) != len(docs):
             raise RuntimeError(Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines))
 
         output_docs = [Doc.from_disk(d) for d in output_paths]
-        if docker_config.get('delete_container_dir', True):
+        if docker_config.get("delete_container_dir", True):
             shutil.rmtree(task_dir)
         return output_docs if isinstance(input_docs, (list, GeneratorType)) else output_docs[0]
 

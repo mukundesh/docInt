@@ -39,6 +39,7 @@ class EdgeFinderPageConfig:
 
 @Vision.factory(
     "table_edge_finder",
+    depends=["opencv-python-headless", "numpy"],
     default_config={
         "doc_confdir": "conf",
         "pre_edit": True,
@@ -78,7 +79,7 @@ class TableEdgeFinder:
         self.lgr.setLevel(logging.DEBUG)
 
         stream_handler = logging.StreamHandler(sys.stdout)
-        stream_handler.setLevel(logging.INFO)
+        stream_handler.setLevel(logging.DEBUG)
         self.lgr.addHandler(stream_handler)
         self.file_handler = None
 
@@ -108,26 +109,25 @@ class TableEdgeFinder:
 
         return self.image_root / page.doc.pdf_stem / img_filename
 
-    def find_column_ranges(self, page, conf, xmin=None, ymin=None, ymax=None):
+    def save_image(self, cv_img, stub, page_idx, work_dir=".tmp/"):
+        img_file_name = Path(work_dir) / f"{stub}-{page_idx}.png"  # TODO FIX THIS.
+        img_pil = Image.fromarray(cv_img)
+        img_pil.save(img_file_name)
+
+    def find_column_ranges(self, page, page_idx, conf, xmin=None, ymin=None, ymax=None):
         import cv2
         import numpy as np
-
-        def save_image(cv_img, stub, work_dir=".tmp/"):
-            img_file_name = Path(work_dir) / f"{stub}-{page.page.page_idx}.png"
-            img_pil = Image.fromarray(cv_img)
-            img_pil.save(img_file_name)
 
         if isinstance(page, Page):
             image_path = self.get_image_path(page)
             img = cv2.imread(str(image_path), 0)
         else:
             page_image = page
-            wand_image = page_image.wimage
-            img_buffer = np.asarray(bytearray(wand_image.make_blob()), dtype=np.uint8)
-            img = cv2.imdecode(img_buffer, cv2.IMREAD_GRAYSCALE)
+            img_buffer = np.asarray(page_image.to_pil_image())
+            img = cv2.cvtColor(img_buffer, cv2.COLOR_BGR2GRAY)
             # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # save_image(img, 'orig')
+        # self.save_image(img, 'find_column_ranges-orig', page_idx)
 
         # thresholding the image to a binary image
         thresh, img_bin = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
@@ -198,12 +198,15 @@ class TableEdgeFinder:
             one_ranges = functools.reduce(merge_ranges, one_ranges, [])
         return one_ranges
 
-    def get_column_edges(self, page_image, crop_coords, conf):
+    def get_column_edges(self, page, crop_coords, conf):
+        page_image = page.page_image
         page_image.clear_transforms()
 
         if crop_coords:
+            print(f"Crop Coords: {crop_coords}")
             top, bot = crop_coords
             page_image.crop(top, bot)
+            # self.save_image(np.asarray(page_image.to_pil_image()), 'first-crop', page.page_idx)
 
         v_skew_angle = page_image.get_skew_angle("v")
 
@@ -213,7 +216,7 @@ class TableEdgeFinder:
 
         img_xmax, img_ymax = page_image.curr_size
 
-        col_ranges = self.find_column_ranges(page_image, conf)
+        col_ranges = self.find_column_ranges(page_image, page.page_idx, conf)
         col_img_xs = [int((x2 + x1) / 2) for (x1, x2) in col_ranges]
 
         if conf.rm_column_atidxs:
@@ -225,8 +228,7 @@ class TableEdgeFinder:
             col_img_xs.sort()
             self.lgr.info(f"\t\tAdding columns: {conf.add_column_atpos}")
 
-        page_idx = page_image.page.page_idx
-        self.lgr.info(f"> Page {page_idx} Column img_xs[{len(col_img_xs)}]: {col_img_xs}")
+        self.lgr.info(f"> Page {page.page_idx} Column img_xs[{len(col_img_xs)}]: {col_img_xs}")
 
         col_top_img_coords = [Coord(x=img_x, y=0) for img_x in col_img_xs]
         col_bot_img_coords = [Coord(x=img_x, y=img_ymax) for img_x in col_img_xs]
@@ -240,7 +242,8 @@ class TableEdgeFinder:
 
         return col_edges, col_img_xs
 
-    def get_row_edges(self, page_image, row_markers, crop_coords, conf):
+    def get_row_edges(self, page, row_markers, crop_coords, conf):
+        page_image = page.page_image
         page_image.clear_transforms()
         if len(row_markers) > 1:
             row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))
@@ -294,7 +297,7 @@ class TableEdgeFinder:
         if not page.num_markers:
             return []
 
-        page_image, table_edges_list = page.page_image, []
+        table_edges_list = []
         table_markers_list = split_markers_in_tables(page.num_markers)
         for row_markers in table_markers_list:
             if len(row_markers) > 1:
@@ -316,8 +319,8 @@ class TableEdgeFinder:
             else:
                 top, bot = Coord(x=0.0, y=0.0), Coord(x=1.0, y=1.0)
 
-            col_edges, col_img_xs = self.get_column_edges(page_image, crop_coords, conf)
-            row_edges = self.get_row_edges(page_image, row_markers, crop_coords, conf)
+            col_edges, col_img_xs = self.get_column_edges(page, crop_coords, conf)
+            row_edges = self.get_row_edges(page, row_markers, crop_coords, conf)
 
             table_edges = TableEdges(row_edges=row_edges, col_edges=col_edges, col_img_xs=col_img_xs)
             table_edges_list.append(table_edges)

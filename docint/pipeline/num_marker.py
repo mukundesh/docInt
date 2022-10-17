@@ -307,7 +307,7 @@ class FindNumMarker:
         self.min_marker = doc_config.get("min_marker", self.min_marker)
         self.include_zero = doc_config.get("include_zero", self.include_zero)
 
-        print(f'INCLUDE ZERO: {self.include_zero}')
+        print(f"INCLUDE ZERO: {self.include_zero}")
 
         edits = doc_config.get("edits", [])
         if edits:

@@ -2,8 +2,6 @@ import logging
 import sys
 from pathlib import Path
 
-import pdfplumber
-
 from ..region import DataError
 from ..shape import Box, Coord
 from ..table import Cell, Row, Table
@@ -116,6 +114,8 @@ class PDFTableFinder:
         return errors
 
     def __call__(self, doc):
+        import pdfplumber
+
         def build_box(pdf_bbox, pdf_size):
             [x0, y0, x1, y1] = pdf_bbox
             (w, h) = pdf_size

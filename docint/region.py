@@ -6,15 +6,15 @@ from string import punctuation
 from textwrap import wrap
 from typing import Any, Dict, Iterable, List
 
-from enchant.utils import levenshtein
 from more_itertools import flatten
 from pydantic import BaseModel
-from rich import print as rprint
-from rich.text import Text
 
 from .shape import Box, Coord, Shape
 from .span import Span, SpanGroup
 from .word import Word
+
+# from rich import print as rprint
+# from rich.text import Text
 
 
 class DataError(BaseModel):
@@ -249,7 +249,7 @@ class Region(BaseModel):
         for word, word_span, line_idx, pos_idx in self.iter_word_span_idxs():
             o_type, o_span = rm_span_group.overlap_type(word_span)
             if o_type == "none":
-                print(f'  {word.text} {str(word_span)}')
+                print(f"  {word.text} {str(word_span)}")
                 yield word, word.text, line_idx, pos_idx, word_span
 
             elif o_type == "partial":
@@ -372,10 +372,10 @@ class Region(BaseModel):
 
     def get_words_in_spans_with_config(self, spans, text_config):
         full_spans = list(flatten(self.get_full_spans(s, text_config) for s in spans))
-        print(f'Spans: {Span.str_spans(full_spans)}')
+        print(f"Spans: {Span.str_spans(full_spans)}")
         overlap_words = []
         for word, _, _, _, word_span in self.iter_word_text_idxs_span(text_config):
-            print(f'Text: {word.text} Span: {str(word_span)}')
+            print(f"Text: {word.text} Span: {str(word_span)}")
             if word_span.overlaps_any(full_spans):
                 print(f"\t*MATCHED Span: {str(word_span)} text: {word.text}*")
                 overlap_words.append(word)
@@ -524,7 +524,7 @@ class Region(BaseModel):
         lv_dist_cutoff = 1
 
         top_suggestion = suggestions[0].lower()
-        lv_dist = levenshtein(top_suggestion, text.lower())
+        lv_dist = 0.0  # levenshtein(top_suggestion, text.lower())
         # print(f'\t{text}->{suggestions[0]} {lv_dist}')
 
         if lv_dist <= lv_dist_cutoff or top_suggestion.startswith(text.lower()):
@@ -618,14 +618,14 @@ class Region(BaseModel):
 
     def print_color(self, error_type, color_config):
         line_text = self.line_text()
-        color_text = Text(error_type + line_text)
+        color_text = line_text  # Text(error_type + line_text)
         elen = len(error_type)
         for label, spans in self.label_spans.items():
             color = color_config.get(label, None)
             if color:
                 [color_text.stylize(color, s.start + elen, s.end + elen) for s in spans]
         # end for
-        rprint(color_text)
+        # rprint(color_text)
 
     def print_color_idx(self, color_config, width=90):
         line_text, idx_text = self.line_text(), self.word_idxs_line_text()
@@ -648,12 +648,12 @@ class Region(BaseModel):
 
         start_pos = 0
         for (w_text, w_spans) in zip(wrap_texts, wrap_spans):
-            color_text = Text(w_text)
+            color_text = ""  # Text(w_text)
             for label, w_span in w_spans:
                 color = color_config.get(label, None)
                 if color:
                     color_text.stylize(color, w_span.start, w_span.end)
-            rprint(color_text)
+            # rprint(color_text)
             print(idx_text[start_pos : start_pos + len(w_text)])  # noqa: E203
             start_pos += len(w_text) + 1
 

@@ -14,5 +14,5 @@ class DoNothing:
         self.nothing = nothing
 
     def __call__(self, doc):
-        print(f'*** Running do_nothing {platform.system()}-{platform.release()}')
+        print(f"*** Running do_nothing {platform.system()}-{platform.release()}")
         return doc

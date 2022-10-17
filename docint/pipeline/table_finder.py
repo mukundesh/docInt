@@ -129,38 +129,38 @@ class TableFinder:
                 marker_word = list_item.marker.words[0]
                 yrange = (marker_word.ymin - 0.05, marker_word.ymin)
                 title_words = page.words_in_yrange(yrange, partial=True)
-                title_words = [w for w in title_words if (w.text.isupper() or w.text in '()') and '.' not in w.text]
+                title_words = [w for w in title_words if (w.text.isupper() or w.text in "()") and "." not in w.text]
                 # remove these title words
 
                 if body_rows:
-                    prev_title_text = title.raw_text() if title else 'None'
+                    prev_title_text = title.raw_text() if title else "None"
                     self.lgr.info(
-                        f'page {page.page_idx} list {idx}: Building table title: {prev_title_text} [{len(body_rows)}]'
+                        f"page {page.page_idx} list {idx}: Building table title: {prev_title_text} [{len(body_rows)}]"
                     )
 
                     [body_rows[-1].remove_word(w) for w in title_words]
                     tables.append(Table.build(body_rows, title=title))
                     body_rows = []
 
-                title_text = ' '.join(w.text for w in title_words)
+                title_text = " ".join(w.text for w in title_words)
                 if title_text:
                     title = Region.build(title_words, page.page_idx)
-                    self.lgr.info(f'page {page.page_idx} setting Title >{title_text}<')
+                    self.lgr.info(f"page {page.page_idx} setting Title >{title_text}<")
 
-            strategy = ''
+            strategy = ""
             if path in boundary_words:
                 boundary_word_path = boundary_words[path]
                 boundary_word = page.doc.get_word(boundary_word_path)
                 x_range = (boundary_word.xmin - 0.05, boundary_word.xmin)
-                strategy = 'user_boundary_words'
+                strategy = "user_boundary_words"
             else:
                 boundary_word = self.get_boundary_word(list_item, boundary_texts)
                 if boundary_word is not None:
                     x_range = (boundary_word.xmin - 0.05, boundary_word.xmin)
-                    strategy = 'conf_boundary_words'
+                    strategy = "conf_boundary_words"
                 else:
                     x_range = self.find_cell_boundary(list_item, path)
-                    strategy = f'cell_boundary {self.x_range}'
+                    strategy = f"cell_boundary {self.x_range}"
 
             if not x_range:
                 self.lgr.info(f"> {path} ** No boundary, skipping >{list_item.raw_text()}<")

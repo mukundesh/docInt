@@ -8,7 +8,7 @@ def set_library(library_name: str):
     _PDFImpl = load_impl(library_name)
 
 
-def open(pdf_path, *, password=None, library_name="pdfplumber"):
+def open(pdf_path, *, password=None, library_name="pypdfium2"):
     set_library(library_name)
 
     if password:
@@ -18,4 +18,4 @@ def open(pdf_path, *, password=None, library_name="pdfplumber"):
 
 
 def load_impl(library_name):
-    return import_module(f'docint.pdfwrapper.{library_name}_wrapper')
+    return import_module(f"docint.pdfwrapper.{library_name}_wrapper")

@@ -51,11 +51,11 @@ class Image(pdf.Image):
         return (self.width, self.height)
 
     @property
-    def width_resolution(self):
+    def width_dpi(self):
         return self._metadata.horizontal_dpi
 
     @property
-    def height_resolution(self):
+    def height_dpi(self):
         return self._metadata.vertical_dpi
 
     @property
@@ -75,13 +75,16 @@ class Image(pdf.Image):
         else:
             _bitmap = pdfium.FPDFImageObj_GetBitmap(self.lib_image.raw)
             buffer_start = pdfium.FPDFBitmap_GetBuffer(_bitmap)
-            buffer = ctypes.cast(buffer_start, ctypes.POINTER(ctypes.c_ubyte * (self.width * self.height * 3)))
+            buffer = ctypes.cast(
+                buffer_start,
+                ctypes.POINTER(ctypes.c_ubyte * (self.width * self.height * 3)),
+            )
             self._pil_image = PIL.Image.frombuffer(
                 "RGB", (self.width, self.height), buffer.contents, "raw", "RGB", 0, 1
             )
             return self._pil_image
 
-    def write(self, file_path):
+    def save(self, file_path):
         self.to_pil().save(file_path)
 
 
@@ -124,7 +127,7 @@ class Page(pdf.Page):
             return "-".join(get_char(c) for c in range(char_start, char_end))
 
         def to_str(rects):
-            return '|'.join(','.join(f'{c:.1f}' for c in rect) for rect in rects)
+            return "|".join(",".join(f"{c:.1f}" for c in rect) for rect in rects)
 
         def get_text(r):
             rect = r
@@ -139,7 +142,7 @@ class Page(pdf.Page):
             return text
 
         def to_texts(rects):
-            return '|'.join(get_text(r) for r in rects)
+            return "|".join(get_text(r) for r in rects)
 
         def normalize(rect):
             (lft, bot, rgt, top) = rect
@@ -163,11 +166,11 @@ class Page(pdf.Page):
 
         page_text = self.extract_text(lib_textpage)
         count_chars = lib_textpage.count_chars()
-        assert count_chars == len(page_text), f'count_chars mismatch {count_chars} {len(page_text)}\n{page_text}'
+        assert count_chars == len(page_text), f"count_chars mismatch {count_chars} {len(page_text)}\n{page_text}"
 
         words = []
-        page_text = page_text.replace(chr(65534), ' ')
-        for match in re.finditer(r'\S+', page_text):
+        page_text = page_text.replace(chr(65534), " ")
+        for match in re.finditer(r"\S+", page_text):
             (s_index, e_index), text = match.span(), match.group()
             rects = list(lib_textpage.get_rectboxes(s_index, e_index - s_index))
             rect = merge_rects(rects) if len(rects) > 1 else rects[0]
@@ -176,7 +179,7 @@ class Page(pdf.Page):
                 char_text = get_chars(s_index, e_index)
                 assert (
                     text == rect_text
-                ), f'MERGED: {self.page_idx}[{s_index}:{e_index}] {text} + {to_texts(rects)} -> {rect_text} char: {char_text}\n{to_str(rects)}\n{to_str([rect])}'
+                ), f"MERGED: {self.page_idx}[{s_index}:{e_index}] {text} + {to_texts(rects)} -> {rect_text} char: {char_text}\n{to_str(rects)}\n{to_str([rect])}"
 
             x0, y0, x1, y1 = rect
             bottom, top = self.height - y0, self.height - y1
@@ -203,15 +206,17 @@ class Page(pdf.Page):
     def rotation(self):
         return self.lib_page.get_rotation()
 
-    @property
-    def page_image(self):
-        if self.has_one_large_image():
-            return self._images[0]
-        else:
-            w_res = max(i.width_resolution for i in self._images)
-            h_res = max(i.height_resolution for i in self._images)
-            res = max(w_res, h_res)
-            return self.lib_page.render_to(scale=res / 72.0)
+    def page_image_to_pil(self, *, dpi=144):
+        w_res = max((i.width_dpi for i in self._images), default=dpi)
+        h_res = max((i.height_dpi for i in self._images), default=dpi)
+        res = max(w_res, h_res)
+        return self.lib_page.render_to(pdfium.BitmapConv.pil_image, scale=res / 72.0)
+
+    def page_image_save(self, file_path, *, dpi=144):
+        page_image = self.page_image_to_pil(dpi=dpi)
+        (width, height) = page_image.size
+        page_image.save(file_path)
+        return (width, height)
 
 
 class PDF(pdf.PDF):
@@ -221,7 +226,7 @@ class PDF(pdf.PDF):
         elif isinstance(file_or_buffer, Path):
             pdf_path = str(file_or_buffer)
         else:
-            raise NotImplementedError('Incorrect input {type(file_or_buffer)}')
+            raise NotImplementedError("Incorrect input {type(file_or_buffer)}")
 
         self.lib_pdf = pdfium.PdfDocument(pdf_path)
         self._pages = [Page(p, idx) for idx, p in enumerate(self.lib_pdf)]

@@ -70,48 +70,48 @@ def numbered_list_path():
 
 @pytest.fixture
 def layout_docs():
-    return [build_doc(f'layout{i}.pdf') for i in range(1, 6)]
+    return [build_doc(f"layout{i}.pdf") for i in range(1, 6)]
 
 
 @pytest.fixture
 def layout_more_docs():
-    return [build_doc(f'layout{i}.pdf') for i in range(1, 11)]
+    return [build_doc(f"layout{i}.pdf") for i in range(1, 11)]
 
 
 @pytest.fixture
 def layout_paths():
-    return [Path('tests') / Path(f'layout{i}.pdf') for i in range(1, 6)]
+    return [Path("tests") / Path(f"layout{i}.pdf") for i in range(1, 6)]
 
 
 @pytest.fixture
 def layout_more_paths():
-    return [Path('tests') / Path(f'layout{i}.pdf') for i in range(1, 11)]
+    return [Path("tests") / Path(f"layout{i}.pdf") for i in range(1, 11)]
 
 
 @pytest.fixture
 def insensitive_vocab():
-    text = 'The quick brown fox jumped over the LAZY Fox.'
-    texts = [t.strip(' .').lower() for t in text.split()]
+    text = "The quick brown fox jumped over the LAZY Fox."
+    texts = [t.strip(" .").lower() for t in text.split()]
     return Vocab(texts)
 
 
 @pytest.fixture
 def sensitive_vocab():
-    text = 'The quick brown fox jumped over the LAZY Fox.'
-    texts = [t.strip(' .') for t in text.split()]
+    text = "The quick brown fox jumped over the LAZY Fox."
+    texts = [t.strip(" .") for t in text.split()]
     return Vocab(texts, case_sensitive=True)
 
 
 @pytest.fixture
 def images_path():
-    return Path('tests') / 'images.pdf'
+    return Path("tests") / "images.pdf"
 
 
 @pytest.fixture
 def table_path():
-    return Path('tests') / 'table.pdf'
+    return Path("tests") / "table.pdf"
 
 
 @pytest.fixture
 def table_nolines_path():
-    return Path('tests') / 'table_nolines.pdf'
+    return Path("tests") / "table_nolines.pdf"

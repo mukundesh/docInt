@@ -10,12 +10,12 @@ from ..util import load_config
 from ..vision import Vision
 from ..word_line import words_in_lines
 from .num_marker import NumMarker, NumType
-from .words_fixer import OfficerMisalignedError, OfficerMultipleError
+from .para_fixer import OfficerMisalignedError, OfficerMultipleError
 
 
 class ListItem(Region):
     marker: "NumMarker" = None
-    list_errors: List[Union[OfficerMisalignedError, OfficerMultipleError]] = []
+    list_errors: List[Union["OfficerMisalignedError", "OfficerMultipleError"]] = []
 
     @classmethod
     def build(cls, marker, item_word_lines):

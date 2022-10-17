@@ -1,229 +1,23 @@
 import json
-import math
 import shlex
-import subprocess
-from base64 import b64encode
+import shutil
 from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
-# import msgpack
-import pdf2image
-import pdfplumber
 import pydantic
 from more_itertools import flatten
-from PIL import Image as PILImage
 from pydantic import BaseModel, parse_obj_as
-from wand.image import Image
 
+from . import pdfwrapper
 from .errors import Errors
 from .page import Page
+from .page_image import PageImage
 from .region import Region
 from .shape import Box, Coord, Shape
 
 # A container for tracking the document from a pdf/image to extracted information.
-
-
-class PageImage(BaseModel):
-    image_width: float
-    image_height: float
-    image_path: str
-    image_box: Box
-    image_type: str
-    page: Page = None  # A better solution is to save page_width, page_height ## TODO
-    wimage: Any = None
-    transformations: List[Tuple] = []
-
-    class Config:
-        fields = {
-            "page": {"exclude": True},
-            "wimage": {"exclude": True},
-            "transformations": {"exclude": True},
-        }
-
-    def transform_rotate(self, image_coord, angle, prev_size, curr_size):
-        angle_rad = math.radians(-1 * angle)
-
-        prev_width, prev_height = prev_size
-        curr_width, curr_height = curr_size
-
-        image_x_centre, image_y_centre = prev_width / 2.0, prev_height / 2.0
-        centre_x = image_coord.x - prev_width + image_x_centre
-        centre_y = prev_height - image_coord.y - image_y_centre
-
-        rota_centre_x = (centre_x * math.cos(angle_rad)) - (centre_y * math.sin(angle_rad))
-        rota_centre_y = (centre_y * math.cos(angle_rad)) + (centre_x * math.sin(angle_rad))
-
-        rota_image_x, rota_image_y = (
-            rota_centre_x + curr_width / 2,
-            curr_height / 2 - rota_centre_y,
-        )
-
-        rota_image_x = min(max(0, rota_image_x), curr_width)
-        rota_image_y = min(max(0, rota_image_y), curr_height)
-        image_coord = Coord(x=round(rota_image_x), y=round(rota_image_y))
-        return image_coord
-
-    def transform(self, image_coord):
-        for trans_tuple in self.transformations:
-            if trans_tuple[0] == "crop":
-                top, bot = trans_tuple[1], trans_tuple[2]
-                if not image_coord.inside(top, bot):
-                    assert False, f"coord: {image_coord} outside [{top}, {bot}]"
-                    raise ValueError(f"coord: {image_coord} outside crop_area [{top}, {bot}]")
-                image_coord = Coord(x=image_coord.x - top.x, y=image_coord.y - top.y)
-            elif trans_tuple[0] == "rotate":
-                angle, prev_size, curr_size = (
-                    trans_tuple[1],
-                    trans_tuple[2],
-                    trans_tuple[3],
-                )
-                image_coord = self.transform_rotate(image_coord, angle, prev_size, curr_size)
-        return image_coord
-
-    def inverse_transform(self, image_coord):
-        # print(f'\t>inverse_transform image_coord: {image_coord}')
-        for trans_tuple in reversed(self.transformations):
-            if trans_tuple[0] == "crop":
-                top, bot = trans_tuple[1], trans_tuple[2]
-                cur_w, cur_h = (bot.x - top.x), (bot.y - top.y)
-                if not image_coord.inside(Coord(x=0, y=0), Coord(x=cur_w, y=cur_h)):
-                    assert False, f"coord: {image_coord} outside [{cur_w}, {cur_h}]"
-                    raise ValueError(f"coord: {image_coord} outside [{cur_w}, {cur_h}]")
-                image_coord = Coord(x=top.x + image_coord.x, y=top.y + image_coord.y)
-                # print(f'\t>inverse_crop image_coord: {image_coord}')
-            else:
-                angle, prev_size, curr_size = (
-                    trans_tuple[1],
-                    trans_tuple[2],
-                    trans_tuple[3],
-                )
-                image_coord = self.transform_rotate(image_coord, -angle, curr_size, prev_size)
-                # print(f'\t>inverse_rotate image_coord: {image_coord}')
-        return image_coord
-
-    def get_image_coord(self, doc_coord):
-        page_x = round(doc_coord.x * self.page.width)
-        page_y = round(doc_coord.y * self.page.height)
-
-        image_x_scale = self.image_width / (self.image_box.bot.x - self.image_box.top.x)
-        image_y_scale = self.image_height / (self.image_box.bot.y - self.image_box.top.y)
-
-        image_x = round((page_x - self.image_box.top.x) * image_x_scale)
-        image_y = round((page_y - self.image_box.top.y) * image_y_scale)
-
-        image_x = min(max(0, image_x), self.image_width)
-        image_y = min(max(0, image_y), self.image_height)
-
-        image_coord = self.transform(Coord(x=image_x, y=image_y))
-        return image_coord
-
-    def get_doc_coord(self, image_coord):
-        # print(f'>get_doc_coord image_coord: {image_coord}')
-        image_coord = self.inverse_transform(image_coord)
-        # print(f'>after_inv_trans image_coord: {image_coord}')
-
-        page_x_scale = (self.image_box.bot.x - self.image_box.top.x) / self.image_width
-        page_y_scale = (self.image_box.bot.y - self.image_box.top.y) / self.image_height
-
-        page_x, page_y = image_coord.x * page_x_scale, image_coord.y * page_y_scale
-        # ADDED THIS LATER <<<
-        page_x, page_y = page_x + self.image_box.top.x, page_y + self.image_box.top.y
-        doc_coord = Coord(x=page_x / self.page.width, y=page_y / self.page.height)
-        return doc_coord
-
-    def _init_image(self):
-        if self.wimage is None:
-            image_path = self.page.doc.get_image_path(self.page.page_idx)
-            self.wimage = Image(filename=image_path)
-
-    def get_skew_angle(self, orientation):
-        self._init_image()
-        if orientation == "h":
-            hor_image = self.wimage.clone()
-            hor_image.deskew(0.8 * self.wimage.quantum_range)
-            angle = float(hor_image.artifacts["deskew:angle"])
-        else:
-            ver_image = self.wimage.clone()
-            ver_image.rotate(90)
-            ver_image.deskew(0.8 * ver_image.quantum_range)
-            angle = float(ver_image.artifacts["deskew:angle"])
-        return angle
-
-    def rotate(self, angle, background="white"):
-        if not self.wimage:
-            self._init_image()
-
-        prev_size = (self.wimage.width, self.wimage.height)
-        self.wimage.rotate(angle, background=background)
-        curr_size = (self.wimage.width, self.wimage.height)
-        # print(f'\tRotate prev_size: {prev_size} curr_size: {curr_size} angle: {angle}')
-        self.transformations.append(("rotate", angle, prev_size, curr_size))
-
-    def crop(self, top, bot):
-        if not self.wimage:
-            self._init_image()
-        img_top, img_bot = self.get_image_coord(top), self.get_image_coord(bot)
-        self.wimage.crop(
-            left=round(img_top.x),
-            top=round(img_top.y),
-            right=round(img_bot.x),
-            bottom=round(img_bot.y),
-        )
-
-        # print(f'\tCrop top: {top} bot: {bot} img_top: {img_top} img_bot: {img_bot}')
-        self.transformations.append(("crop", img_top, img_bot))
-
-        # todo rotate
-
-    def get_base64_image(self, top, bot, format="png", height=50):
-        if not self.wimage:
-            self._init_image()
-
-        img_top, img_bot = self.get_image_coord(top), self.get_image_coord(bot)
-        with self.wimage[
-            int(img_top.x) : int(img_bot.x),
-            int(img_top.y) : int(img_bot.y),  # noqa: E203
-        ] as cropped:
-            if height:
-                cw, ch = cropped.size
-                width = int((cw * height) / ch)
-                cropped.resize(width=width, height=height)
-
-            img_bin = cropped.make_blob(format)
-            img_str = f"data:image/{format};base64," + b64encode(img_bin).decode()
-        return img_str
-
-    def clear_transforms(self):
-        if self.wimage:
-            self.wimage.destroy()
-            self.wimage = None
-        self.transformations.clear()
-
-    @property
-    def curr_size(self):
-        if self.wimage is not None:
-            return self.wimage.width, self.wimage.height
-        else:
-            return self.image_width, self.image_height
-
-    def to_pil_image(self, image_size=None):
-        image_path = self.page.doc.get_image_path(self.page.page_idx)
-        pil_image = PILImage.open(image_path)
-
-        if image_size:
-            if image_size[0] and image_size[1]:
-                pil_image = pil_image.resize(image_size)
-            else:
-                (cur_width, cur_height) = pil_image.size
-                if image_size[0]:
-                    scale = image_size[0] / cur_width
-                    pil_image = pil_image.resize((image_size[0], int(cur_height * scale)))
-                else:
-                    scale = image_size[1] / cur_height
-                    pil_image = pil_image.resize((int(cur_width * scale), image_size[1]))
-        return pil_image
 
 
 class PageInfo(BaseModel):
@@ -285,53 +79,15 @@ class Doc(BaseModel):
     # move this to document factory
     @classmethod
     def build_doc(cls, pdf_path, image_dirs_path):
-        def rasterize_page(pdf_path, image_dir_path, page_idx):
-            page_num = page_idx + 1
-            output_filename = f"orig-{page_num:03d}-000"
-
-            images = pdf2image.convert_from_path(
-                pdf_path=pdf_path,
-                output_folder=image_dir_path,
-                dpi=300,
-                first_page=page_num,
-                last_page=page_num,
-                fmt="png",
-                single_file=True,
-                output_file=output_filename,
-                # paths_only=True,
-            )
-            # assert len(images) == 1 TODO  NEED TO PUT THIS IN TRY BLOCK
-            (width, height) = images[0].size
-            return f"{output_filename}.png", width, height
-
-        def extract_image(pdf_path, image_dir_path, page_idx):
-            pdf_path = str(pdf_path)
-            image_root = f"{str(image_dir_path)}/orig"
-            page_num = page_idx + 1
-            output_path = f"orig-{page_num:03d}-000.png"
-            subprocess.check_call(
-                [
-                    "pdfimages",
-                    "-f",
-                    str(page_num),
-                    "-l",
-                    str(page_num),
-                    "-p",
-                    "-png",
-                    pdf_path,
-                    image_root,
-                ]
-            )
-            return output_path
-
-        pdf_path = Path(pdf_path)
-        image_dir_name = pdf_path.name[:-4]
-
-        image_dirs_path = cls.image_dirs_path if not image_dirs_path else image_dirs_path
-        image_dirs_path = Path(image_dirs_path)
-        image_dir_path = image_dirs_path / image_dir_name
+        def get_image_path(pdf_path, image_dirs_path, page_idx):
+            image_dirs_path = cls.image_dirs_path if not image_dirs_path else image_dirs_path
+            image_name = f"orig-{page_idx+1:03d}-000.png"
+            image_path = Path(image_dirs_path) / pdf_path.name[:-4] / Path(image_name)
+            return image_path
 
         doc = Doc(pdffile_path=pdf_path)
+        image_dirs_path = cls.image_dirs_path if not image_dirs_path else image_dirs_path
+        image_dir_path = Path(image_dirs_path) / pdf_path.name[:-4]
         pdf_info_path = image_dir_path / (doc.pdf_name + ".pdfinfo.json")
 
         if image_dir_path.exists() and pdf_info_path.exists():
@@ -341,37 +97,34 @@ class Doc(BaseModel):
             return doc
 
         image_dir_path.mkdir(exist_ok=True, parents=True)
-        pdf = pdfplumber.open(pdf_path)
+        pdf = pdfwrapper.open(pdf_path, library_name="pypdfium2")
         for (page_idx, page) in enumerate(pdf.pages):
             doc.page_infos.append(PageInfo(width=page.width, height=page.height, num_images=len(page.images)))
 
-            # TODO: check the shape of page image and extract only if it covers full page
-            if len(page.images) == 1:
-                img = page.images[0]
-                width, height = tuple(map(int, img["srcsize"]))
-                x0, y0, x1, y1 = img["x0"], img["y0"], img["x1"], img["y1"]
-
-                if img["top"] != y0 or img["bottom"] != y1:
-                    print("Warning: misaligned image_box")
-                    y0, y1 = img["top"], img["bottom"]
-
+            image_path = get_image_path(pdf_path, image_dirs_path, page_idx)
+            if page.has_one_large_image:
+                image = page.images[0]
+                width, height = image.width, image.height
+                x0, y0, x1, y1 = image.bounding_box
                 top, bot = Coord(x=x0, y=y0), Coord(x=x1, y=y1)
-
                 image_box = Box(top=top, bot=bot)
-                image_path = extract_image(pdf_path, image_dir_path, page_idx)
                 image_type = "original"
+                image.save(image_path)
             else:
-                image_path, width, height = rasterize_page(pdf_path, image_dir_path, page_idx)
-                [x0, y0, x1, y1] = page.bbox
+                width, height = page.page_image_save(image_path)
+                [x0, y0, x1, y1] = [0, 0, page.width, page.height]
                 top, bot = Coord(x=x0, y=y0), Coord(x=x1, y=y1)
                 image_box = Box(top=top, bot=bot)
                 image_type = "raster"
+
             page_image = PageImage(
                 image_width=width,
                 image_height=height,
-                image_path=image_path,
+                image_path=str(image_path),
                 image_box=image_box,
                 image_type=image_type,
+                page_width=page.width,
+                page_height=page.height,
             )
             doc.page_images.append(page_image)
         # end
@@ -382,18 +135,17 @@ class Doc(BaseModel):
     def to_json(self):
         return self.json(exclude_defaults=True)  # removed indent, models_as_dict=False
 
-    def to_msgpack(self):
-        # import msgpack
-        # return msgpack.packb(json.loads(self.to_json()))
-        raise NotImplementedError('to_msgpack is not supported')
-
     def to_disk(self, disk_file, format="json"):
         disk_file = Path(disk_file)
         if format == "json":
             disk_file.write_text(self.to_json())
         else:
-            raise NotImplementedError(f'Unknown format: {format}')
+            raise NotImplementedError(f"Unknown format: {format}")
             # disk_file.write_bytes(self.to_msgpack())
+
+    def copy_pdf(self, file_path):
+        file_path = Path(file_path)
+        shutil.copy(self.pdf_path, file_path)
 
     def add_extra_page_field(self, field_name, field_tuple):
         self.extra_page_fields[field_name] = field_tuple
@@ -516,7 +268,7 @@ class Doc(BaseModel):
             doc_dict = json.loads(json_file.read_text())
         else:
             # doc_dict = msgpack.unpackb(json_file.read_bytes())
-            NotImplementedError(f'Unknown suffix: {json_file.suffix}')
+            NotImplementedError(f"Unknown suffix: {json_file.suffix}")
         return Doc.from_dict(doc_dict)
 
     @property
@@ -620,8 +372,8 @@ class Doc(BaseModel):
             word = doc.get_word(path)
             page = doc.get_page(path)
 
-            assert direction in ('left', 'right')
-            assert len(word), 'the word given does not have any text'
+            assert direction in ("left", "right")
+            assert len(word), "the word given does not have any text"
 
             word_width = word.xmax - word.xmin
             char_width = word_width / len(word)
@@ -634,7 +386,7 @@ class Doc(BaseModel):
                 xmin = word.xmax + 0.02
                 xmax = xmin + new_word_width
 
-            print(f'Word: {word.xmin} - {word.xmax} New: {xmin}-{xmax}')
+            print(f"Word: {word.xmin} - {word.xmax} New: {xmin}-{xmax}")
 
             box = Shape.build_box([xmin, word.ymin, xmax, word.ymax])
             new_word = page.add_word(text, box)

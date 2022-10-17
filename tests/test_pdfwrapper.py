@@ -15,7 +15,7 @@ def float_eq(a, b):
         return isclose(a, b, rel_tol=REL_TOL)
 
 
-@pytest.mark.parametrize("library_name", ["pdfplumber", "pypdfium2"])
+@pytest.mark.parametrize("library_name", ["pypdfium2"])
 def test_page(images_path, library_name):
 
     pdf = pdfwrapper.open(images_path, library_name=library_name)
@@ -27,7 +27,7 @@ def test_page(images_path, library_name):
     assert len(pdf.pages[0].images) == 2
 
 
-@pytest.mark.parametrize("library_name", ["pdfplumber", "pypdfium2"])
+@pytest.mark.parametrize("library_name", ["pypdfium2"])
 def test_image(images_path, library_name):
     pdf = pdfwrapper.open(images_path, library_name=library_name)
 
@@ -40,9 +40,9 @@ def test_image(images_path, library_name):
     assert image.to_pil().size == (640, 546)
 
 
-@pytest.mark.parametrize("library_name", ["pdfplumber", "pypdfium2"])
+@pytest.mark.parametrize("library_name", ["pypdfium2"])
 def test_word(images_path, library_name):
     pdf = pdfwrapper.open(images_path, library_name=library_name)
     word = pdf.pages[0].words[7]
-    assert word.text == 'by'
+    assert word.text == "by"
     assert float_eq(word.bounding_box, [103.97247200000001, 734.228, 115.71327200000002, 746.228])

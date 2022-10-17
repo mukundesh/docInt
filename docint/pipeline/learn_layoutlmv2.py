@@ -14,28 +14,28 @@ MAX_IMAGE_HEIGHT = 1000
 
 
 def check_datset(data_dict):
-    num_examples = len(data_dict['id'])
+    num_examples = len(data_dict["id"])
     assert all(len(v) == num_examples for v in data_dict.values())
 
-    zip_iter = zip(data_dict['texts'], data_dict['bboxes'], data_dict['ner_tags'])
+    zip_iter = zip(data_dict["texts"], data_dict["bboxes"], data_dict["ner_tags"])
     assert all(len(t) == len(b) == len(n) for (t, b, n) in zip_iter)
 
     max_val = MAX_IMAGE_HEIGHT
-    for page_id, example in zip(data_dict['id'], data_dict['bboxes']):
+    for page_id, example in zip(data_dict["id"], data_dict["bboxes"]):
         for idx, box in enumerate(example):
             for coord_val in box:
-                assert 0 <= coord_val <= max_val, f'incorrect coord_val: {coord_val} {page_id} word: {idx}'
+                assert 0 <= coord_val <= max_val, f"incorrect coord_val: {coord_val} {page_id} word: {idx}"
 
-    assert all(0 <= c <= max_val for e in data_dict['bboxes'] for b in e for c in b)
-    assert all(len(b) == 4 for e in data_dict['bboxes'] for b in e)
-    assert all(i.size[0] <= i.size[1] == max_val for i in data_dict['pil_images'])
+    assert all(0 <= c <= max_val for e in data_dict["bboxes"] for b in e for c in b)
+    assert all(len(b) == 4 for e in data_dict["bboxes"] for b in e)
+    assert all(i.size[0] <= i.size[1] == max_val for i in data_dict["pil_images"])
 
 
 def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
     class_labels = set()
 
     def get_ner_tags(page):
-        ner_tags = ['O'] * len(page.words)
+        ner_tags = ["O"] * len(page.words)
         if not has_labels:
             class_labels.update(ner_tags)
             return ner_tags
@@ -43,9 +43,9 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
         lr_items = page.word_labels.items()
         label_region_iter = ((lab, r.words) for lab, rs in lr_items for r in rs)
         for (label, words) in label_region_iter:
-            ner_tags[words[0].word_idx] = f'B-{label}'.replace('_', '').upper()
+            ner_tags[words[0].word_idx] = f"B-{label}".replace("_", "").upper()
             for w in words[1:]:
-                ner_tags[w.word_idx] = f'I-{label}'.replace('_', '').upper()
+                ner_tags[w.word_idx] = f"I-{label}".replace("_", "").upper()
 
         class_labels.update(ner_tags)
         return ner_tags
@@ -55,10 +55,10 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
         return [box.top.x, box.top.y, box.bot.x, box.bot.y]
 
     def preprocess_data(examples):
-        images = examples['pil_images']
-        words = examples['texts']
-        boxes = examples['bboxes']
-        word_labels = examples['ner_tags']
+        images = examples["pil_images"]
+        words = examples["texts"]
+        boxes = examples["bboxes"]
+        word_labels = examples["ner_tags"]
 
         encoded_inputs = processor(
             images,
@@ -73,17 +73,17 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
         return encoded_inputs
 
     img_size = (None, MAX_IMAGE_HEIGHT)  # All heights have to be fixed
-    data_dict = {'id': [], 'texts': [], 'bboxes': [], 'ner_tags': [], 'pil_images': []}
+    data_dict = {"id": [], "texts": [], "bboxes": [], "ner_tags": [], "pil_images": []}
     for page in learn_pages:
-        data_dict['id'].append(f'{page.doc.pdf_name}-{page.page_idx}')
-        data_dict['texts'].append([w.text for w in page.words])
-        data_dict['bboxes'].append([get_bbox(page, w) for w in page.words])
-        data_dict['ner_tags'].append(get_ner_tags(page))
-        data_dict['pil_images'].append(page.page_image.to_pil_image(img_size).convert("RGB"))
+        data_dict["id"].append(f"{page.doc.pdf_name}-{page.page_idx}")
+        data_dict["texts"].append([w.text for w in page.words])
+        data_dict["bboxes"].append([get_bbox(page, w) for w in page.words])
+        data_dict["ner_tags"].append(get_ner_tags(page))
+        data_dict["pil_images"].append(page.page_image.to_pil_image(img_size).convert("RGB"))
 
     check_datset(data_dict)
 
-    ner_tags = data_dict['ner_tags']
+    ner_tags = data_dict["ner_tags"]
 
     from datasets import Array2D, Array3D, ClassLabel, Dataset, Features, Sequence, Value
     from transformers import LayoutLMv2Processor
@@ -91,12 +91,12 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
     hf_dataset = Dataset.from_dict(mapping=data_dict)
 
     sorted_class_labels = sorted(class_labels)
-    hf_dataset = hf_dataset.cast_column('ner_tags', Sequence(ClassLabel(names=sorted_class_labels)))
+    hf_dataset = hf_dataset.cast_column("ner_tags", Sequence(ClassLabel(names=sorted_class_labels)))
 
     model_path = model_dir / Path(model_name).name
 
     if model_path.exists():
-        print('MODEL PATH FOUND')
+        print("MODEL PATH FOUND")
         processor = LayoutLMv2Processor.from_pretrained(
             model_path,
             revision="no_ocr",
@@ -120,7 +120,10 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
         }
     )
     pt_dataset = hf_dataset.map(
-        preprocess_data, batched=True, remove_columns=hf_dataset.column_names, features=features
+        preprocess_data,
+        batched=True,
+        remove_columns=hf_dataset.column_names,
+        features=features,
     )
     pt_dataset.set_format(type="torch")
     return pt_dataset, sorted_class_labels, ner_tags
@@ -129,7 +132,12 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
 @Vision.factory(
     "learn_layoutlmv2",
     requires="labels_dict",
-    depends=["transformers[torch]", "git+https://github.com/facebookresearch/detectron2.git", "seqeval", "datasets"],
+    depends=[
+        "transformers[torch]",
+        "git+https://github.com/facebookresearch/detectron2.git",
+        "seqeval",
+        "datasets",
+    ],
     default_config={
         "num_folds": 3,
         "max_steps": 100,
@@ -148,10 +156,10 @@ class LearnLayout:
         self.conf_stub = conf_stub
         self.model_name = model_name
 
-        self.conf_dir = Path('conf')
-        self.model_dir = Path('.model')
+        self.conf_dir = Path("conf")
+        self.model_dir = Path(".model")
 
-        print(f'num_folds: {self.num_folds}')
+        print(f"num_folds: {self.num_folds}")
 
         self.lgr = logging.getLogger(__name__)
         self.lgr.setLevel(logging.INFO)
@@ -165,30 +173,30 @@ class LearnLayout:
 
         doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
         if not doc_config:
-            print(f'NO CONFIG found {self.conf_dir} {doc.pdf_name} {self.conf_stub}')
+            print(f"NO CONFIG found {self.conf_dir} {doc.pdf_name} {self.conf_stub}")
             return
 
         doc.add_extra_page_field("word_labels", ("dict_list", "docint.region", "Region"))
-        for label, word_paths_lists in doc_config['word_labels'].items():
+        for label, word_paths_lists in doc_config["word_labels"].items():
             wpl = word_paths_lists
             word_paths_list = [wpl] if isinstance(wpl[0], str) else wpl
             label_regions = [build_region(wps) for wps in word_paths_list]
 
             page = doc[label_regions[0].page_idx]
-            if not getattr(page, 'word_labels', {}):
+            if not getattr(page, "word_labels", {}):
                 page.word_labels = {}
             page.word_labels[label] = label_regions
 
         pwl = doc[0].word_labels
-        print('---------')
+        print("---------")
         for label, regions in pwl.items():
             print(f'{label}: {"|".join(r.raw_text() for r in regions)}')
-        print('')
+        print("")
 
     def get_folds(self, num_examples):
         assert (
             num_examples >= self.num_folds and self.num_folds >= 1
-        ), f'num_examples: {num_examples} folds: {self.num_folds}'
+        ), f"num_examples: {num_examples} folds: {self.num_folds}"
         assert isinstance(num_examples, int)
 
         if self.num_folds == 1:
@@ -206,7 +214,7 @@ class LearnLayout:
     def print_results(self, test_idxs, actuals, predictions):
         for page_idx, page_actuals, page_predicts in zip(test_idxs, actuals, predictions):
             page_correct = len([(a, t) for (a, t) in zip(page_actuals, page_predicts)])
-            print(f'*** {page_idx}: {page_correct} {len(page_actuals)}')
+            print(f"*** {page_idx}: {page_correct} {len(page_actuals)}")
 
     def run_cross_validation(self, dataset, class_labels, ner_tags):
         import numpy as np
@@ -267,10 +275,10 @@ class LearnLayout:
             )
             return trainer
 
-        print(f'Cross Validaton: {self.num_folds}')
+        print(f"Cross Validaton: {self.num_folds}")
 
         args = TrainingArguments(
-            output_dir=self.model_dir / 'checkpoints',
+            output_dir=self.model_dir / "checkpoints",
             max_steps=self.max_steps,  # we train for a maximum of 1,000 batches #80
             warmup_ratio=self.warmup_ratio,  # we warmup a bit
             fp16=False,  # we use mixed precision (less memory consumption)
@@ -282,8 +290,8 @@ class LearnLayout:
         label2id = {k: v for v, k in enumerate(class_labels)}
 
         for fold_idx, (train_idxs, test_idxs) in enumerate(self.get_folds(len(dataset))):
-            print(f'Test[{fold_idx}]: {test_idxs}')
-            print(f'Train[{fold_idx}]: {train_idxs}')
+            print(f"Test[{fold_idx}]: {test_idxs}")
+            print(f"Train[{fold_idx}]: {train_idxs}")
 
             train_dataset = dataset.select(train_idxs)
             test_dataset = dataset.select(test_idxs)
@@ -295,7 +303,7 @@ class LearnLayout:
             model_path = self.model_dir / Path(self.model_name).name
             pretrained = LayoutLMv2ForTokenClassification.from_pretrained
             if model_path.exists():
-                print('MODEL PATH FOUND')
+                print("MODEL PATH FOUND")
                 model = pretrained(model_path, num_labels=len(class_labels))
             else:
                 model = pretrained("microsoft/layoutlmv2-base-uncased", num_labels=len(class_labels))
@@ -317,21 +325,21 @@ class LearnLayout:
                 print(metrics)
                 assert not test_idxs
                 trainer.save_model(self.model_dir)
-            print(f'DONE fold:{fold_idx}')
+            print(f"DONE fold:{fold_idx}")
 
     def pipe(self, docs, **kwargs):
         self.lgr.info("> infer_layoutlm.pipe")
-        print('INSIDE LEARN LAYOUT')
+        print("INSIDE LEARN LAYOUT")
         docs = list(docs)
 
         for d in docs:
             self.read_word_labels(d)
 
-        learn_pages = [p for d in docs for p in d.pages if hasattr(p, 'word_labels')]
-        print(f'LEARN PAGES: {len(learn_pages)}')
+        learn_pages = [p for d in docs for p in d.pages if hasattr(p, "word_labels")]
+        print(f"LEARN PAGES: {len(learn_pages)}")
 
         hf_dataset, class_labels, ner_tags = generate_dataset(learn_pages, self.model_dir, self.model_name)
 
         self.run_cross_validation(hf_dataset, class_labels, ner_tags)
-        print(f'Docs: {len(docs)}')
+        print(f"Docs: {len(docs)}")
         return docs

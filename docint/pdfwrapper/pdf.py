@@ -15,18 +15,18 @@ class Word(ABC):
 class Image(ABC):
     @abstractproperty
     def width(self):
-        raise NotImplementedError('implement width')
+        raise NotImplementedError("implement width")
 
     @abstractproperty
     def height(self):
-        raise NotImplementedError('implement width')
+        raise NotImplementedError("implement width")
 
     @abstractproperty
-    def width_resolution(self):
+    def width_dpi(self):
         pass
 
     @abstractproperty
-    def height_resolution(self):
+    def height_dpi(self):
         pass
 
     @abstractmethod
@@ -38,30 +38,30 @@ class Image(ABC):
         pass
 
     @abstractmethod
-    def write(file_path):
-        raise NotImplementedError('implement width')
+    def save(file_path):
+        raise NotImplementedError("implement width")
 
     @abstractmethod
     def to_pil(self):
-        raise NotImplementedError('implement width')
+        raise NotImplementedError("implement width")
 
 
 class Page(ABC):
     @abstractproperty
     def width(self):
-        raise NotImplementedError('implement width')
+        raise NotImplementedError("implement width")
 
     @abstractproperty
     def height(self):
-        raise NotImplementedError('implement width')
+        raise NotImplementedError("implement width")
 
     @abstractproperty
     def words(self):
-        raise NotImplementedError('implement width')
+        raise NotImplementedError("implement width")
 
     @abstractproperty
     def images(self):
-        raise NotImplementedError('implement width')
+        raise NotImplementedError("implement width")
 
     @property
     def has_one_large_image(self):
@@ -71,14 +71,18 @@ class Page(ABC):
         return len(self.images) == 1 and area(self.images[0]) >= 0.9 * area(self)
 
     @abstractmethod
-    def page_image(self, resolution):
-        raise NotImplementedError('implement width')
+    def page_image_to_pil(self, *, dpi=144):
+        raise NotImplementedError("implement width")
+
+    @abstractmethod
+    def page_image_save(self, file_path, *, dpi=144):
+        pass
 
 
 class PDF(ABC):
     @abstractproperty
     def pages(self) -> List[Page]:
-        raise NotImplementedError('implement __iter__ method')
+        raise NotImplementedError("implement __iter__ method")
 
     def __len__(self):
         return len(self.pages)
@@ -95,15 +99,29 @@ class PDF(ABC):
     def get_info(self):
         page_infos = []
         for page in self.pages:
-            width, height, words, images = page.width, page.height, page.words, page.images
-            page_info = {'width': width, 'height': height, 'num_words': len(words), 'num_images': len(images)}
-            page_info['has_one_large_image'] = page.has_one_large_image
+            width, height, words, images = (
+                page.width,
+                page.height,
+                page.words,
+                page.images,
+            )
+            page_info = {
+                "width": width,
+                "height": height,
+                "num_words": len(words),
+                "num_images": len(images),
+            }
+            page_info["has_one_large_image"] = page.has_one_large_image
 
             image_infos = []
             for image in page.images:
                 image_infos.append(
-                    {'width': image.width, 'height': image.height, 'bounding_box': list(image.bounding_box)}
+                    {
+                        "width": image.width,
+                        "height": image.height,
+                        "bounding_box": list(image.bounding_box),
+                    }
                 )
-            page_info['image_infos'] = image_infos
+            page_info["image_infos"] = image_infos
             page_infos.append(page_info)
-        return {'page_infos': page_infos}
+        return {"page_infos": page_infos}

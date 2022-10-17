@@ -18,6 +18,8 @@ def test_properties(one_word_doc):
 
 def test_words(one_word_doc):
     doc = one_word_doc
+    one_word = doc.pages[0].words[0]
+    print(one_word.shape)
     assert doc.pages[0].words[0].text == "One"
     assert doc[0][0].text == "One"
 

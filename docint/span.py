@@ -18,7 +18,7 @@ def flatten_spans(span):
     elif isinstance(span, SpanGroup):
         return span.spans
     else:
-        raise NotImplementedError(f'Unknow type of span: {type(span)}')
+        raise NotImplementedError(f"Unknow type of span: {type(span)}")
 
 
 class Span(BaseModel):

@@ -3,7 +3,7 @@ from ..vision import Vision
 
 @Vision.factory(
     "height_calc",
-    default_config={"conf_dir": "conf", "dependencies": ['numpy']},
+    default_config={"conf_dir": "conf", "dependencies": ["numpy"]},
 )
 class HeightCalculator:
     def __init__(self, conf_dir, dependencies):

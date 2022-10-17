@@ -38,9 +38,9 @@ class Para(Region):
         )
 
     def __str__(self):
-        s = f'Text: {self.text}\n'
+        s = f"Text: {self.text}\n"
         for label, spans in self.label_spans.items():
-            s += f'\t{label}: {Span.to_str(self.text, spans)}\n'
+            s += f"\t{label}: {Span.to_str(self.text, spans)}\n"
         return s
 
     @property
@@ -62,7 +62,7 @@ class Para(Region):
     def iter_word_text_idxs_span(self, text_config):
         # will include partial text, but not empty word
         rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
-        rm_spans = Span.accumulate(rm_spans, text=self.text, ignore_chars=' ')
+        rm_spans = Span.accumulate(rm_spans, text=self.text, ignore_chars=" ")
         rm_span_group = SpanGroup(spans=rm_spans, text="")
 
         for word, word_span, line_idx, pos_idx in self.iter_word_span_idxs():
@@ -72,7 +72,7 @@ class Para(Region):
 
             elif o_type == "partial":
                 non_o_spans = word_span.get_non_overlapping(o_spans)
-                non_o_text = ''.join(self.text[s.slice()] for s in non_o_spans)
+                non_o_text = "".join(self.text[s.slice()] for s in non_o_spans)
                 yield word, non_o_text, line_idx, pos_idx, non_o_spans
 
     def iter_adjoin_words_texts(self, text_config):
@@ -136,7 +136,7 @@ class Para(Region):
 
     def get_base_spans(self, span, text_config):
         rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
-        rm_spans = Span.accumulate(rm_spans, text=self.text, ignore_chars=' ')
+        rm_spans = Span.accumulate(rm_spans, text=self.text, ignore_chars=" ")
         start, end = span.start, span.end
 
         base_spans, spanning_existing_span = [], False
@@ -168,7 +168,7 @@ class Para(Region):
         outside_spans = [s for s in base_spans if s.in_boundary(self.text)]
         if outside_spans:
             o_span_str = Span.to_str(self.text, outside_spans)
-            raise ValueError(f'Spans start/end in > < Spans: {o_span_str}')
+            raise ValueError(f"Spans start/end in > < Spans: {o_span_str}")
 
         for new_span in base_spans:
             self.label_spans.setdefault(label, []).append(new_span)
@@ -212,7 +212,7 @@ class Para(Region):
             for _, text, _, _, _ in self.iter_word_text_idxs_span(text_config):
                 if text:
                     word_texts.append(text)
-            return ' '.join(word_texts)
+            return " ".join(word_texts)
 
     def word_idxs_line_text(self, text_config=None):
         def idx_text(word, text):
@@ -227,17 +227,17 @@ class Para(Region):
             if text:
                 idx_texts.append(idx_text(word, text))
 
-        return ' '.join(idx_texts)
+        return " ".join(idx_texts)
 
     def elim_punct(self, text):
         punct_tbl = str.maketrans(punctuation, " " * len(punctuation))
         text = text.translate(punct_tbl).strip()
         return text
 
-    def check_language(self, text, language='en'):
-        assert language == 'en'
+    def check_language(self, text, language="en"):
+        assert language == "en"
         if not text.isascii():
-            sys.stderr.write(f'Unicode: {text}\n')
+            sys.stderr.write(f"Unicode: {text}\n")
             return False
         return True
 
@@ -261,7 +261,7 @@ class Para(Region):
 
             merged_text = text + next_text
             if vocab.has_text(merged_text, dist_cutoff):
-                print(f'\tMerging: {text} {next_text} -> {merged_text}')
+                print(f"\tMerging: {text} {next_text} -> {merged_text}")
                 merge_words.append((word, next_word))
                 last_merged_word = next_word
 
@@ -281,7 +281,7 @@ class Para(Region):
         def has_vocab_words(info_list):
             for info in info_list:
                 if vocab.has_text(info[1], dist_cutoff):
-                    print(f'\t\tIN VOCAB {info[1]}')
+                    print(f"\t\tIN VOCAB {info[1]}")
                     return True
             return False
 
@@ -344,13 +344,13 @@ class Para(Region):
 
             if len(text) <= 2:
                 if text in OF_TEXTS:
-                    replace_words.append((word, 'of'))
+                    replace_words.append((word, "of"))
                 else:
                     pass
             else:
                 matched_texts = vocab.find_texts(text, dist_cutoff)
                 if matched_texts:
-                    print(f'\tFound correction: {text} {matched_texts[0][0]}')
+                    print(f"\tFound correction: {text} {matched_texts[0][0]}")
                     new_text = word.text.replace(text, matched_texts[0][0])
                     replace_words.append((word, new_text))
 

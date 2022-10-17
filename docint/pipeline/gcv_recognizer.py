@@ -27,6 +27,8 @@ _break_type_dict = {
 
 @Vision.factory(
     "gcv_recognizer",
+    depends=["google-cloud-vision", "google-cloud-storage"],
+    is_recognizer=True,
     default_config={
         "bucket": "orgpedia",
         "cloud_dir_path": "recognizer",
@@ -138,6 +140,7 @@ class CloudVisionRecognizer:
         responsesDict = MessageToDict(response._pb)
         responseDict = responsesDict["responses"][0]
         output_path.write_text(json.dumps(responseDict))
+        return output_path
 
     def run_async_gcv(self, doc, output_path):
         # https://cloud.google.com/vision/docs/pdf
@@ -193,9 +196,9 @@ class CloudVisionRecognizer:
             output_paths = []
             for blob in json_blobs:
                 name = blob.name
-                mid_fix = name[name.index('jsonoutput') + len('jsonoutput') + 1 : -5]
+                mid_fix = name[name.index("jsonoutput") + len("jsonoutput") + 1 : -5]
 
-                output_name = f'{output_path.stem}-{mid_fix}-{output_path.suffix}'
+                output_name = f"{output_path.stem}-{mid_fix}-{output_path.suffix}"
                 o_path = output_path.parent / output_name
                 o_path.write_bytes(blob.download_as_string())
                 output_paths.append(o_path)
@@ -223,9 +226,9 @@ class CloudVisionRecognizer:
                 output_paths = []
                 for blob in json_blobs:
                     name = blob.name
-                    mid_fix = name[name.index('jsonoutput') + len('jsonoutput') + 1 : -5]
+                    mid_fix = name[name.index("jsonoutput") + len("jsonoutput") + 1 : -5]
 
-                    output_name = f'{output_path.stem}-{mid_fix}{output_path.suffix}'
+                    output_name = f"{output_path.stem}-{mid_fix}{output_path.suffix}"
                     o_path = output_path.parent / output_name
                     o_path.write_bytes(blob.download_as_string())
                     output_paths.append(o_path)
@@ -253,6 +256,7 @@ class CloudVisionRecognizer:
             # print(f'Reading output_paths')
             return self.read_gcv(doc, output_paths)
         else:
+            print("INSIDE GCV RECOGNIZER")
             # imports are expensive
             # from google.protobuf.json_format import MessageToDict
             # from google.cloud import vision_v1

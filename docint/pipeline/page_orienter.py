@@ -15,7 +15,7 @@ from ..vision import Vision
 class OrientPage:
     def __init__(self, min_word_len, images_dir):
         self.min_word_len = min_word_len
-        self.images_dir = Path(images_dir) if images_dir else ''
+        self.images_dir = Path(images_dir) if images_dir else ""
 
     def needs_reorientation(self, page):
         horz_score = sum([1 if w.box.is_horz else 0 for w in page.words])

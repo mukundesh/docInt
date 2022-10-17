@@ -13,7 +13,12 @@ def iob2label(label):
 
 @Vision.factory(
     "infer_layoutlmv2",
-    depends=["transformers[torch]", "git+https://github.com/facebookresearch/detectron2.git", "seqeval", "datasets"],
+    depends=[
+        "transformers[torch]",
+        "git+https://github.com/facebookresearch/detectron2.git",
+        "seqeval",
+        "datasets",
+    ],
     default_config={
         "page_idx": 0,
         "batch_size": 10,
@@ -115,7 +120,7 @@ class InferLayoutLMv2:
             doc.add_extra_page_field("word_labels", ("dict", "docint.region", "Region"))
 
         for (word_labels, page) in zip(word_labels_list, infer_pages):
-            print(f'{page.doc.pdf_name} words: {len(page.words)} labels: {len(word_labels)} -----------')
+            print(f"{page.doc.pdf_name} words: {len(page.words)} labels: {len(word_labels)} -----------")
             label_word_dict = {}
             for (word_idx, label) in enumerate(word_labels[: len(page.words)]):
                 label_word_dict.setdefault(iob2label(label), []).append(page[word_idx])
@@ -124,6 +129,6 @@ class InferLayoutLMv2:
             page.word_labels = dict((l, Region.from_words(ws)) for (l, ws) in lw_iter)
 
             for label, region in page.word_labels.items():
-                print(f'{label}: {region.raw_text()}')
-            print('')
+                print(f"{label}: {region.raw_text()}")
+            print("")
         return docs

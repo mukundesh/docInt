@@ -46,7 +46,7 @@ def test_properties():
 
 
 def test_multi_span():
-    text = 'The quick brown fox jumped over the lazy fox.'
+    text = "The quick brown fox jumped over the lazy fox."
 
     s1 = S(0, 3)
     s2 = S(4, 9)
@@ -61,10 +61,10 @@ def test_multi_span():
     spans = Span.accumulate([s1, s2, s3])
     assert len(spans) == 3
 
-    spans = Span.accumulate([s1, s2, s3], text=text, ignore_chars='')
+    spans = Span.accumulate([s1, s2, s3], text=text, ignore_chars="")
     assert len(spans) == 3
 
-    spans = Span.accumulate([s1, s2, s3], text=text, ignore_chars=' ')
+    spans = Span.accumulate([s1, s2, s3], text=text, ignore_chars=" ")
     assert len(spans) == 1 and spans[0].start == 0 and spans[0].end == 15
 
     assert Span.is_non_overlapping([s1, s2, s3])

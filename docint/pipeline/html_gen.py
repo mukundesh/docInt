@@ -158,7 +158,7 @@ class HtmlGenerator:
         def get_svg(shape, jpath, color, alt_text):
             alt_text = html.escape(alt_text)
             # color_str = f'stroke="{color}" fill="transparent" stroke-width="1"'
-            color_str = ''
+            color_str = ""
             if shape.is_box():
                 box = shape
                 img_top = page.page_image.get_image_coord(box.top)

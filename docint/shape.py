@@ -184,6 +184,9 @@ class Poly(Shape):
     def is_box(self):
         return False
 
+    def __str__(self):
+        return ", ".join(str(c) for c in self.coords)
+
     def _get_min(self, axis):
         if axis == "x":
             return min([c.x for c in self.coords])

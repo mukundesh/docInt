@@ -4,8 +4,6 @@ import string
 import sys
 from pathlib import Path
 
-from enchant import request_pwl_dict
-
 from ..para import Para, TextConfig
 from ..region import DataError
 from ..span import Span
@@ -89,8 +87,6 @@ class ParaFixer:
 
         self.nlp = pipeline("ner", model=model, tokenizer=tokenizer)
         # self.nlp = pipeline("ner")
-
-        self.dictionary = request_pwl_dict(str(self.dict_file))
 
         self.test_doc = True
 

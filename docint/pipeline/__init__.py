@@ -1,5 +1,4 @@
 # isort: skip_file
-from .words_fixer import WordsFixer
 from .body_marker import FindBodyMarker
 from .do_nothing import DoNothing
 

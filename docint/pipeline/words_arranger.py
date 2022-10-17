@@ -25,7 +25,15 @@ from ..word_line import words_in_lines
 )
 class WordsArranger:
     def __init__(
-        self, rotate_page, merge_word_len, num_slots, newline_height_multiple, para_indent, is_page, conf_stub, conf_dir
+        self,
+        rotate_page,
+        merge_word_len,
+        num_slots,
+        newline_height_multiple,
+        para_indent,
+        is_page,
+        conf_stub,
+        conf_dir,
     ):
         self.rotate_page = rotate_page
         self.merge_word_len = merge_word_len

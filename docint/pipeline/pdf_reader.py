@@ -1,7 +1,6 @@
-import pdfplumber
-
+from .. import pdfwrapper
 from ..page import Page
-from ..shape import Box, Coord
+from ..shape import Shape
 from ..vision import Vision
 from ..word import BreakType, Word
 
@@ -18,34 +17,31 @@ class PDFReader:
         self.x_tol = x_tol
         self.y_tol = y_tol
 
-    def build_word(self, doc, page_idx, word_idx, pdf_page, pdf_word):
-        x0, x1 = pdf_word["x0"] / pdf_page.width, pdf_word["x1"] / pdf_page.width
-        y0, y1 = pdf_word["top"] / pdf_page.height, pdf_word["bottom"] / pdf_page.height
-
-        box = Box(top=Coord(x=x0, y=y0), bot=Coord(x=x1, y=y1))
-        text = pdf_word["text"]
-        return Word(
-            doc=doc,
-            page_idx=page_idx,
-            word_idx=word_idx,
-            text_=text,
-            break_type=BreakType.Space,
-            shape_=box,
-        )
-
     def __call__(self, doc):
-        pdf = pdfplumber.open(doc.pdf_path)
-
-        for page_idx, pdf_page in enumerate(pdf.pages):
-            pdf_page = pdf_page.dedupe_chars(tolerance=1)
-
-            pdf_words = pdf_page.extract_words(x_tolerance=self.x_tol, y_tolerance=self.y_tol)
-            pdf_words = [p_word for p_word in pdf_words if p_word["text"]]
-
-            words = [
-                self.build_word(doc, page_idx, idx, pdf_page, pdf_word) for (idx, pdf_word) in enumerate(pdf_words)
+        def to_doc_coords(bbox, page):
+            x0, y0, x1, y1 = bbox
+            return [
+                x0 / page.width,
+                y0 / page.height,
+                x1 / page.width,
+                y1 / page.height,
             ]
 
+        def build_word(word, word_idx, page):
+            doc_bbox = to_doc_coords(word.bounding_box, page)
+            box = Shape.build_box(doc_bbox)
+            return Word(
+                doc=doc,
+                page_idx=page_idx,
+                word_idx=word_idx,
+                text_=word.text,
+                break_type=BreakType.Space,
+                shape_=box,
+            )
+
+        pdf = pdfwrapper.open(doc.pdf_path)
+        for page_idx, pdf_page in enumerate(pdf.pages):
+            words = [build_word(w, idx, pdf_page) for (idx, w) in enumerate(pdf_page.words)]
             page = Page(
                 doc=doc,
                 page_idx=page_idx,

@@ -17,7 +17,7 @@ from docint import pdfwrapper
 
 def test_info_directory(library_name, directory):
     actual_infos = []
-    for pdf_path in directory.glob('*.pdf'):
+    for pdf_path in directory.glob("*.pdf"):
         print(pdf_path.name)
         pdf = pdfwrapper.open(pdf_path, library_name=library_name)
         actual_infos.append((pdf_path.name, pdf.get_info()))
@@ -27,8 +27,8 @@ def test_info_directory(library_name, directory):
 
 
 PDF_DIRS = [
-    ('cabsec', '/Users/mukund/Orgpedia/cabsec2/flow/doOCR_/input'),
-    ('rajpol', '/Users/mukund/Orgpedia/rajpol/flow/analyzeInput_/input'),
+    ("cabsec", "/Users/mukund/Orgpedia/cabsec2/flow/doOCR_/input"),
+    ("rajpol", "/Users/mukund/Orgpedia/rajpol/flow/analyzeInput_/input"),
     #    ('rajpol-text', '/Users/mukund/Orgpedia/rajpol/flow/R.P.S/text/readPDF_/input'),
 ]
 
@@ -45,16 +45,25 @@ def float_eq(a, b):
 
 def check(val1, val2, path, field):
     if not float_eq(val1, val2):
-        print(f'Mismatch: {path}>{field} {val1} {val2}')
+        print(f"Mismatch: {path}>{field} {val1} {val2}")
 
 
 def cmp(pdf_name, info1, info2):
-    for idx, (p1, p2) in enumerate(zip(info1['page_infos'], info2['page_infos'])):
-        p_path = f'{pdf_name}:pa{idx}'
-        [check(p1[f], p2[f], p_path, f) for f in ['width', 'height', 'num_words', 'num_images', 'has_one_large_image']]
-        for idx, (i1, i2) in enumerate(zip(p1['image_infos'], p2['image_infos'])):
-            i_path = f'{p_path}.im{idx}'
-            [check(i1[f], i2[f], i_path, f) for f in ['width', 'height', 'bounding_box']]
+    for idx, (p1, p2) in enumerate(zip(info1["page_infos"], info2["page_infos"])):
+        p_path = f"{pdf_name}:pa{idx}"
+        [
+            check(p1[f], p2[f], p_path, f)
+            for f in [
+                "width",
+                "height",
+                "num_words",
+                "num_images",
+                "has_one_large_image",
+            ]
+        ]
+        for idx, (i1, i2) in enumerate(zip(p1["image_infos"], p2["image_infos"])):
+            i_path = f"{p_path}.im{idx}"
+            [check(i1[f], i2[f], i_path, f) for f in ["width", "height", "bounding_box"]]
 
 
 if len(sys.argv) > 2:
@@ -71,12 +80,12 @@ elif len(sys.argv) > 1:
     # compare an individual pdf file across different libraries
 
     pdf_path = Path(sys.argv[1])
-    pdf1 = pdfwrapper.open(pdf_path, library_name='pdfplumber')
-    pdf2 = pdfwrapper.open(pdf_path, library_name='pypdfium2')
+    pdf1 = pdfwrapper.open(pdf_path, library_name="pdfplumber")
+    pdf2 = pdfwrapper.open(pdf_path, library_name="pypdfium2")
 
     for page1, page2 in zip(pdf1.pages, pdf2.pages):
-        print(f'#Words: {len(page1.words)} {len(page2.words)}')
-        print(f'#Word Lengths: {sum([len(w.text) for w in page1.words])} {sum([len(w.text) for w in page2.words])}')
+        print(f"#Words: {len(page1.words)} {len(page2.words)}")
+        print(f"#Word Lengths: {sum([len(w.text) for w in page1.words])} {sum([len(w.text) for w in page2.words])}")
 
     # This is expensive operation aligns the sequences of strs
     # a = ' '.join(w.text for w in page1.words)
@@ -91,5 +100,5 @@ else:
     # generate the info files.
 
     for (name, pdf_dir) in PDF_DIRS:
-        pdf_infos = test_info_directory('pypdfium2', Path(pdf_dir))
-        Path(f'{name}.info.json').write_text(json.dumps(pdf_infos))
+        pdf_infos = test_info_directory("pypdfium2", Path(pdf_dir))
+        Path(f"{name}.info.json").write_text(json.dumps(pdf_infos))

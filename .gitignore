@@ -135,3 +135,5 @@ dmypy.json
 .docker
 .model
 .docint
+.tmp
+.secrets

@@ -30,7 +30,7 @@ class Page(BaseModel):
             return Region.build(self.words[idx], self.page_idx)
         elif isinstance(idx, int):  # should I return a region ?
             if idx >= len(self.words):
-                print(f'Unknown idx: {idx}')
+                print(f"Unknown idx: {idx}")
             return self.words[idx]
         else:
             raise TypeError("Unknown type {type(idx)} this method can handle")
@@ -87,7 +87,6 @@ class Page(BaseModel):
     @property
     def page_image(self):
         page_image = self.doc.page_images[self.page_idx]
-        page_image.page = self
         return page_image
 
     def get_image_coord(self, coord, img_size=None):

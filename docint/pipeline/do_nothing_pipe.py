@@ -14,5 +14,5 @@ class DoNothingPipe:
         self.nothing = nothing
 
     def pipe(self, docs):
-        print(f'*** Running do_nothing_pipe {platform.system()}-{platform.release()}')
+        print(f"*** Running do_nothing_pipe {platform.system()}-{platform.release()}")
         return docs

@@ -497,7 +497,7 @@ class Hierarchy:
 
     def find_match(self, text, match_options):
         lgr.debug(f"find_match: {text}")
-        print(f'Hierarchy: {text}')
+        print(f"Hierarchy: {text}")
 
         if self._match_options and self._match_options != match_options:
             lgr.debug("New match options, clearing names")
