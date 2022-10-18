@@ -115,3 +115,8 @@ def table_path():
 @pytest.fixture
 def table_nolines_path():
     return Path("tests") / "table_nolines.pdf"
+
+
+@pytest.fixture
+def table_rota_path():
+    return Path("tests") / "table-rota3_1.pdf"

@@ -4,8 +4,8 @@ import string
 import sys
 from pathlib import Path
 
+from ..data_error import DataError
 from ..para import Para, TextConfig
-from ..region import DataError
 from ..span import Span
 from ..util import load_config
 from ..vision import Vision

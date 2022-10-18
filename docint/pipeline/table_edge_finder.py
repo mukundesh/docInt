@@ -11,8 +11,8 @@ from typing import List
 from more_itertools import pairwise
 from PIL import Image
 
+from ..data_error import DataError
 from ..page import Page
-from ..region import DataError
 from ..shape import Coord, Edge
 from ..table import TableEdges
 from ..util import load_config

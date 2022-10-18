@@ -3,7 +3,8 @@ from typing import List
 
 from pydantic import BaseModel
 
-from .region import DataError, Region
+from .data_error import DataError
+from .region import Region
 from .shape import Edge
 
 

@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
-from ..region import DataError
+from ..data_error import DataError
 from ..shape import Box, Coord
 from ..table import Cell, Row, Table
 from ..util import load_config

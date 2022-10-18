@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from .region import Region
 from .span import Span, SpanGroup, flatten_spans
+from .word import Word
 
 
 class TextConfig(BaseModel):
@@ -20,8 +21,18 @@ class TextConfig(BaseModel):
 
 
 class Para(Region):
+    word_lines_idxs: List[List[int]] = None
+    word_lines: List[List[Word]] = None
+
     label_spans: Dict[str, List[Span]] = {}
+
     t: str = None
+
+    class Config:
+        fields = {
+            "t": {"exclude": True},
+            "word_lines": {"exclude": True},
+        }
 
     @classmethod
     def build_with_lines(cls, words, word_lines):
@@ -58,6 +69,10 @@ class Para(Region):
                 end_pos = start_pos + len(word)
                 yield word, Span(start=start_pos, end=end_pos), line_idx, pos_idx
                 start_pos += len(word) + 1
+
+    def iter_word_text(self, text_config=None):
+        for word, word_text, _, _, _ in self.iter_word_text_idxs_span(text_config):
+            yield word_text, word
 
     def iter_word_text_idxs_span(self, text_config):
         # will include partial text, but not empty word

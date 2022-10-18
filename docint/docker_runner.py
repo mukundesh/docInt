@@ -11,16 +11,16 @@ from .doc import Doc
 from .errors import Errors
 from .util import get_uniq_str, tail
 
-PYTHON_VERSION = "3.7"  # TODO should be using slim
+PYTHON_VERSION = "3.7-slim"
 WORK_DIR = Path("/usr/src/app")
 REPORT_LAST_LINES_COUNT = 3
-DEFAULT_OS_PACKAGES = []  # TODO remove this
-DEFAULT_PY_PACKAGES = [
+DEFAULT_OS_PACKAGES = []
+DEFAULT_PY_PACKAGES = [  # move this to docint
     "PyYaml",
     "more-itertools",
     "polyleven",
     "pydantic",
-    "pdfplumber",
+    "Pillow",
     "python-dateutil",
     "pypdfium2",
 ]
@@ -31,7 +31,6 @@ DEFAULT_PY_PACKAGES = [
 #     pre_install_lines: List[str] = []
 #     post_intall_lines: List[str] = []
 #
-# 2. Currently default is slim but need a way to move to full
 
 # Directory Layout:
 
@@ -68,18 +67,21 @@ class DockerRunner:
         if len(docker_depends) > 1:
             raise ValueError(Errors.E032, images=",".join(docker_depends))
 
+        has_git_dependency = any("git+http" in d for d in depends)
+
         if docker_depends:
             docker_image = docker_depends[0][len("docker:") :]
             docker_lines = [f"FROM {docker_image}"]
         else:
             py_version = docker_config.get("python_version", PYTHON_VERSION)
+            py_version = py_version.replace("-slim", "") if has_git_dependency else py_version
             docker_lines = [f"FROM python:{py_version}"]
 
         docker_lines.append("WORKDIR /usr/src/app")
 
         docker_lines.extend(docker_config.get("pre_install_lines", []))
 
-        apt_depends = DEFAULT_OS_PACKAGES + [d for d in depends if d.startswith("apt:")]
+        apt_depends = DEFAULT_OS_PACKAGES + [d[len("apt:") :] for d in depends if d.startswith("apt:")]
         if apt_depends:
             packages = " ".join(apt_depends)
             docker_lines.append(f"RUN apt-get update && apt-get install {packages} -y")
@@ -270,7 +272,7 @@ class DockerRunner:
         docker_cmds += [image_name]
         docker_cmds += ["/bin/sh", "-c", "python src/cmd.py > output/pipe.log 2>&1"]
 
-        print(docker_cmds)
+        # print(docker_cmds)
         completed_process = run(docker_cmds)
 
         output_dir = task_dir / "output"

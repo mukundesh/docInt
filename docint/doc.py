@@ -160,9 +160,10 @@ class Doc(BaseModel):
             def_fields = set(obj.__fields__.keys())
             return all_fields.difference(def_fields)
 
+        # should call post_init
         def update_region_links(doc, region):
             region.words = [doc[region.page_idx_][idx] for idx in region.word_idxs]
-            if region.word_lines_idxs:
+            if hasattr(region, "word_lines_idxs"):
                 p_idx, wl_idxs = region.page_idx_, region.word_lines_idxs
                 region.word_lines = [[doc[p_idx][idx] for idx in wl] for wl in wl_idxs]
 

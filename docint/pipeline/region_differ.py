@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from pprint import pprint
 
-from ..region import DataError
+from ..data_error import DataError
 from ..vision import Vision
 
 # b ../docint/pipeline/sents_fixer.py:87

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Union
 
 from ..page import Page
-from ..region import Region
+from ..para import Para
 from ..util import load_config
 from ..vision import Vision
 from ..word_line import words_in_lines
@@ -13,7 +13,7 @@ from .num_marker import NumMarker, NumType
 from .para_fixer import OfficerMisalignedError, OfficerMultipleError
 
 
-class ListItem(Region):
+class ListItem(Para):
     marker: "NumMarker" = None
     list_errors: List[Union["OfficerMisalignedError", "OfficerMultipleError"]] = []
 
@@ -39,7 +39,7 @@ class ListItem(Region):
         return "list_item"
 
     def __str__(self):
-        return self.line_text()
+        return self.text
 
 
 @Vision.factory(

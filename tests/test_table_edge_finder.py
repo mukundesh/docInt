@@ -32,3 +32,8 @@ def test_pdftable_finder(table_path):
         592.0,
         626.0,
     ]
+
+
+# TODO PLEASE ADD THIS
+def test_pdftable_rota_finder(table_rota_path):
+    pass

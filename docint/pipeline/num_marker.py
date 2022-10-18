@@ -6,7 +6,8 @@ from itertools import chain
 from pathlib import Path
 from typing import Union
 
-from ..region import DataError, Region
+from ..data_error import DataError
+from ..region import Region
 from ..util import load_config
 from ..vision import Vision
 
@@ -286,7 +287,7 @@ class FindNumMarker:
                     word_idx=word_idx,
                 )
                 exp_val = marker.num_val
-                marker.errors.append(err)
+                # marker.errors.append(err)
                 errors.append(err)
 
             exp_val = 1 if marker.num_val == 1 else exp_val

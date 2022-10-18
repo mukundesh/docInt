@@ -120,7 +120,9 @@ class TableFinder:
         for idx, list_item in enumerate(list_items):
             path = f"{page_path}.li{idx}"
             if self.make_ascii:
-                missing_unicodes = list_item.make_ascii(self.unicode_dict)  # noqa: F841
+                # TODO fixing of words should happen in one place
+                # missing_unicodes = list_item.make_ascii(self.unicode_dict)  # noqa: F841
+                pass
 
             if list_item.marker and list_item.marker.num_val == 1:
 

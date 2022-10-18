@@ -6,7 +6,7 @@ from pathlib import Path
 
 from more_itertools import pairwise, partition
 
-from ..region import DataError
+from ..data_error import DataError
 from ..shape import Box
 from ..table import Cell, Row, Table, TableEmptyBodyCellError, TableIncorectSeqError
 from ..util import load_config
