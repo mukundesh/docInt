@@ -34,7 +34,7 @@ class TableBuilderOnEdges:
         self.lgr.setLevel(logging.DEBUG)
 
         stream_handler = logging.StreamHandler(sys.stdout)
-        stream_handler.setLevel(logging.INFO)
+        stream_handler.setLevel(logging.DEBUG)
         self.lgr.addHandler(stream_handler)
         self.file_handler = None
 

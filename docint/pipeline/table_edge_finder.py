@@ -39,7 +39,7 @@ class EdgeFinderPageConfig:
 
 @Vision.factory(
     "table_edge_finder",
-    depends=["opencv-python-headless", "numpy"],
+    depends=["opencv-python-headless", "apt:libmagickwand-dev", "wand"],
     default_config={
         "doc_confdir": "conf",
         "pre_edit": True,
@@ -111,8 +111,19 @@ class TableEdgeFinder:
 
     def save_image(self, cv_img, stub, page_idx, work_dir=".tmp/"):
         img_file_name = Path(work_dir) / f"{stub}-{page_idx}.png"  # TODO FIX THIS.
-        img_pil = Image.fromarray(cv_img)
+        img_pil = cv_img if isinstance(cv_img, Image.Image) else Image.fromarray(cv_img)
         img_pil.save(img_file_name)
+
+    def get_skew_angle(self, pil_image, orientation):
+        import numpy
+        from wand.image import Image as WImage
+
+        with WImage.from_array(numpy.array(pil_image)) as image:
+            if orientation == "v":
+                image.rotate(90)
+            image.deskew(0.8 * image.quantum_range)
+            angle = float(image.artifacts["deskew:angle"])
+        return -1 * angle
 
     def find_column_ranges(self, page, page_idx, conf, xmin=None, ymin=None, ymax=None):
         import cv2
@@ -208,11 +219,12 @@ class TableEdgeFinder:
             page_image.crop(top, bot)
             # self.save_image(np.asarray(page_image.to_pil_image()), 'first-crop', page.page_idx)
 
-        v_skew_angle = page_image.get_skew_angle("v")
-
-        if abs(v_skew_angle) > conf.skew_threshold:
-            self.lgr.debug(f"\tRotating Image v_skew_angle: {v_skew_angle}")
-            page_image.rotate(v_skew_angle)
+        if conf.skew_threshold > 0.0:
+            v_skew_angle = self.get_skew_angle(page_image.image, "v")
+            if abs(v_skew_angle) > conf.skew_threshold:
+                self.lgr.debug(f"\tRotating Image v_skew_angle: {v_skew_angle}")
+                page_image.rotate(v_skew_angle)
+                self.save_image(page_image.image, "after_vert_rotation", page.page_idx)
 
         img_xmax, img_ymax = page_image.curr_size
 
@@ -235,6 +247,13 @@ class TableEdgeFinder:
 
         col_top_doc_coords = [page_image.get_doc_coord(c) for c in col_top_img_coords]
         col_bot_doc_coords = [page_image.get_doc_coord(c) for c in col_bot_img_coords]
+
+        self.lgr.info(
+            f"> Page {page.page_idx} Column doc_coords[{len(col_img_xs)}]: [{', '.join([str(c) for c in col_top_doc_coords])}]"
+        )
+        self.lgr.info(
+            f"> Page {page.page_idx} Column doc_coords[{len(col_img_xs)}]: [{', '.join([str(c) for c in col_bot_doc_coords])}]"
+        )
         page_image.clear_transforms()
 
         zip_col_coords = zip(col_top_doc_coords, col_bot_doc_coords)
@@ -254,11 +273,13 @@ class TableEdgeFinder:
             top, bot = crop_coords
             page_image.crop(top, bot)
 
-        h_skew_angle = page_image.get_skew_angle("h")
+        if conf.skew_threshold > 0.0:
+            h_skew_angle = self.get_skew_angle(page_image.image, "h")
 
-        if abs(h_skew_angle) > conf.skew_threshold:
-            self.lgr.debug(f"\tRotating Image h_skew_angle: {h_skew_angle}")
-            page_image.rotate(h_skew_angle)
+            if abs(h_skew_angle) > conf.skew_threshold:
+                self.lgr.debug(f"\tRotating Image h_skew_angle: {h_skew_angle}")
+                page_image.rotate(h_skew_angle)
+                self.save_image(page_image.image, "after_horz_rotation", page.page_idx)
 
         img_xmax, img_ymax = page_image.curr_size
 
@@ -274,6 +295,10 @@ class TableEdgeFinder:
 
         row_lt_doc_coords = [page_image.get_doc_coord(c) for c in row_lt_img_coords]
         row_rt_doc_coords = [page_image.get_doc_coord(c) for c in row_rt_img_coords]
+
+        self.lgr.info(f"> Page {page.page_idx} Row: [{', '.join([str(c) for c in row_lt_doc_coords])}]")
+        self.lgr.info(f"> Page {page.page_idx} Row: [{', '.join([str(c) for c in row_rt_doc_coords])}]")
+
         page_image.clear_transforms()
 
         zip_row_coords = zip(row_lt_doc_coords, row_rt_doc_coords)

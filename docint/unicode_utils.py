@@ -1,4 +1,8 @@
-def block(ch):
+scripts = []
+script_ranges = {}
+
+
+def get_script(ch):
     """
     Return the Unicode block name for ch, or None if ch has no block.
 
@@ -28,6 +32,8 @@ def _initBlocks(text):
         if m:
             start, end, name = m.groups()
             _blocks.append((int(start, 16), int(end, 16), name))
+            scripts.append(name)
+            script_ranges[name] = (int(start, 16), int(end, 16))
 
 
 # retrieved from http://unicode.org/Public/UNIDATA/Blocks.txt

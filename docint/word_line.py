@@ -2,6 +2,7 @@ import itertools as it
 import logging
 import statistics
 from dataclasses import dataclass
+from operator import attrgetter
 from typing import List, Union
 
 from .region import Region
@@ -265,6 +266,22 @@ def words_in_lines(
 # hopefully smaller and simpler method.
 
 
-def words_in_lines_short(words, num_slots=1000):
-    # moved to region.py to avoid circular dependency
-    pass
+def words_in_lines_short(words, cutoff_thous=5):
+    if not words:
+        return []
+
+    word_lines = [[]]
+    words = sorted(words, key=attrgetter("ymid"))
+    word_lines[0].append(words.pop(0))
+
+    for word in words:
+        last_ymid = word_lines[-1][-1].ymid
+
+        if (word.ymid - last_ymid) * 1000 > cutoff_thous:
+            word_lines.append([word])
+        else:
+            word_lines[-1].append(word)
+
+    for line in word_lines:
+        line.sort(key=attrgetter("xmin"))
+    return word_lines

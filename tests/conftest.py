@@ -120,3 +120,8 @@ def table_nolines_path():
 @pytest.fixture
 def table_rota_path():
     return Path("tests") / "table-rota3_1.pdf"
+
+
+@pytest.fixture
+def unicode_path():
+    return Path("tests") / "unicode.pdf"

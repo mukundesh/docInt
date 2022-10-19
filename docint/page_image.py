@@ -27,7 +27,7 @@ class PageImage(BaseModel):
         }
 
     def transform_rotate(self, image_coord, angle, prev_size, curr_size):
-        angle_rad = math.radians(-1 * angle)
+        angle_rad = math.radians(angle)  # Edited when moved from Wand -> PIL
 
         prev_width, prev_height = prev_size
         curr_width, curr_height = curr_size
@@ -142,9 +142,9 @@ class PageImage(BaseModel):
             self._init_image()
 
         prev_size = (self.image.width, self.image.height)
-        self.image = self.image.rotate(angle, background=background)
+        self.image = self.image.rotate(angle, expand=True, fillcolor=background)
         curr_size = (self.image.width, self.image.height)
-        # print(f'\tRotate prev_size: {prev_size} curr_size: {curr_size} angle: {angle}')
+        print(f"\tRotate prev_size: {prev_size} curr_size: {curr_size} angle: {angle}")
         self.transformations.append(("rotate", angle, prev_size, curr_size))
 
     def crop(self, top, bot):
