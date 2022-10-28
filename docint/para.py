@@ -1,11 +1,13 @@
 import re
 import sys
+import warnings
 from string import punctuation
 from typing import Dict, List
 
 from more_itertools import first, flatten
 from pydantic import BaseModel
 
+from .errors import Warnings
 from .region import Region
 from .span import Span, SpanGroup, flatten_spans
 from .word import Word
@@ -56,9 +58,10 @@ class Para(Region):
 
     @property
     def text(self):
-        if self.t is None:
-            self.t = " ".join(w.text for wl in self.word_lines for w in wl if w.text)
-        return self.t
+        # if self.t is None:
+        #     self.t = " ".join(w.text for wl in self.word_lines for w in wl if w.text)
+        # return self.t
+        return " ".join(w.text for wl in self.word_lines for w in wl if w.text)
 
     def iter_word_span_idxs(self):
         # not sure about this
@@ -70,25 +73,52 @@ class Para(Region):
                 yield word, Span(start=start_pos, end=end_pos), line_idx, pos_idx
                 start_pos += len(word) + 1
 
-    def iter_word_text(self, text_config=None):
+    def iter_word_text(self):
+        text_config = None
         for word, word_text, _, _, _ in self.iter_word_text_idxs_span(text_config):
             yield word_text, word
 
     def iter_word_text_idxs_span(self, text_config):
+        def merge_partials(partials):
+            if len(partials) == 1:
+                return partials.pop(0)
+
+            word = partials[-1][0]
+            w_text = "".join(p[1] for p in partials)
+            line_idx = partials[-1][2]
+            pos_idx = partials[-1][3]
+            non_o_spans = flatten(p[4] for p in partials)
+            partials.clear()
+            return (word, w_text, line_idx, pos_idx, non_o_spans)
+
         # will include partial text, but not empty word
         rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
         rm_spans = Span.accumulate(rm_spans, text=self.text, ignore_chars=" ")
         rm_span_group = SpanGroup(spans=rm_spans, text="")
 
+        partials = []
         for word, word_span, line_idx, pos_idx in self.iter_word_span_idxs():
             o_type, o_spans = rm_span_group.overlap_type2(word_span)
+
+            space_span = Span(start=word_span.end, end=word_span.end + 1)
+            space_overlap = space_span.overlaps_any(rm_span_group)
+
             if o_type == "none":
+                # print(f'\t{word.text} o_type: {o_type} space_overlap: {space_overlap}')
+                if partials:
+                    yield merge_partials(partials)
+
                 yield word, word.text, line_idx, pos_idx, [word_span]
 
             elif o_type == "partial":
                 non_o_spans = word_span.get_non_overlapping(o_spans)
                 non_o_text = "".join(self.text[s.slice()] for s in non_o_spans)
-                yield word, non_o_text, line_idx, pos_idx, non_o_spans
+
+                partials.append((word, non_o_text, line_idx, pos_idx, non_o_spans))
+                if not space_overlap:
+                    result = merge_partials(partials)
+                    # print(f'\t{result[1]} o_type: {o_type} space_overlap: {space_overlap}')
+                    yield result
 
     def iter_adjoin_words_texts(self, text_config):
         def is_adjoin(prev_line_idx, prev_pos_idx, line_idx, pos_idx):
@@ -172,20 +202,31 @@ class Para(Region):
 
         return base_spans
 
-    # def add_label(self, spans, label, text_config=None):
-    #     [self.label_span(s, label, text_config) for s in flatten_spans(spans)]
+    def add_label(self, span, label, text_config=None, suppress_warning=True):
+        def fix_boundary_span(span, text):
+            s, e = span.start, span.end
+            s = s + 1 if text[s] in " " else s
+            e = e - 1 if e < len(text) and text[e] in " " else e
+            return Span(start=s, end=e)
 
-    def add_label(self, span, label, text_config=None):
         base_spans = []
         for s in flatten_spans(span):
             base_spans += self.get_base_spans(s, text_config)
 
-        outside_spans = [s for s in base_spans if s.in_boundary(self.text)]
-        if outside_spans:
-            o_span_str = Span.to_str(self.text, outside_spans)
-            raise ValueError(f"Spans start/end in > < Spans: {o_span_str}")
+        invalid_spans = [s for s in base_spans if not s.is_valid(self.text)]
+        if invalid_spans:
+            se_str = [f"[{s.start}:{s.end}]" for s in invalid_spans]
+            raise ValueError(f"Spans are not in [0:{len(self.text)}] {se_str}")
+
+        boundary_spans = [s for s in base_spans if s.in_boundary(self.text)]
+        if boundary_spans:
+            o_span_str = Span.to_str(self.text, boundary_spans)
+            if suppress_warning:
+                warnings.warn(Warnings.W001.format(span_str=o_span_str))
+            [fix_boundary_span(s, self.text) for s in boundary_spans]
 
         for new_span in base_spans:
+            print(f"Adding label {label} -> >{self.text[new_span.start:new_span.end]}<")
             self.label_spans.setdefault(label, []).append(new_span)
 
     def label_regex(self, regexes, label, text_config=None):
@@ -204,16 +245,16 @@ class Para(Region):
         else:
             return list(flatten(self.label_spans.get(lb, []) for lb in labels))
 
-    def get_text_for_spans(self, spans, text_config, boundary_char=" "):
+    def get_text_for_spans(self, spans, text_config=None, boundary_char=" "):
         line_text = self.line_text(text_config)
         return boundary_char.join(line_text[s.slice()] for s in spans)
 
-    def get_words_for_spans(self, spans, text_config):
-        base_spans = self.get_base_spans(spans, text_config)
+    def get_words_for_spans(self, spans, text_config=None):
+        base_spans = flatten(self.get_base_spans(s, text_config) for s in spans)
 
         overlap_words = []
         for word, word_span, _, _ in self.iter_word_span_idxs():
-            if word_span.overlap_any(base_spans):
+            if word_span.overlaps_any(base_spans):
                 overlap_words.append(word)
         return overlap_words
 
@@ -276,7 +317,7 @@ class Para(Region):
 
             merged_text = text + next_text
             if vocab.has_text(merged_text, dist_cutoff):
-                print(f"\tMerging: {text} {next_text} -> {merged_text}")
+                # print(f"\tMerging: {text} {next_text} -> {merged_text}")
                 merge_words.append((word, next_word))
                 last_merged_word = next_word
 
@@ -340,18 +381,20 @@ class Para(Region):
                     [merged_word_idxs.add(w.word_idx) for w in merge_words]
 
         [self.edit_merge_words(words) for words in to_merge_words]
+        self.t = None
 
     def correct_words(self, vocab, text_config=None, dist_cutoff=1):
         OF_TEXTS = ("uf", "cf", "qf", "nf", "af", "bf")
         replace_words = []  # don't alter spans while iterating
-        for word, text, _, _, o_spans in self.iter_word_text_idxs_span(text_config):
+        for word, text, _, _, _ in self.iter_word_text_idxs_span(text_config):
+            # print(f'Correct {text}')
 
             if text not in word.text:
                 # not contiguous
                 continue
 
             text = self.elim_punct(text)
-            if not word or not text or text not in word.text:
+            if not word or not text:  # or text not in word.text:
                 continue
 
             if vocab.has_text(text, dist_cutoff=0):
@@ -365,7 +408,7 @@ class Para(Region):
             else:
                 matched_texts = vocab.find_texts(text, dist_cutoff)
                 if matched_texts:
-                    print(f"\tFound correction: {text} {matched_texts[0][0]}")
+                    # print(f"\tFound correction: {text} {matched_texts[0][0]}")
                     new_text = word.text.replace(text, matched_texts[0][0])
                     replace_words.append((word, new_text))
 
@@ -413,3 +456,6 @@ class Para(Region):
     def get_word_span(self, word):
         ws_iter = ((w, s) for w, s, _, _ in self.iter_word_span_idxs())
         return first((s for (w, s) in ws_iter if w.word_idx == word.word_idx), None)
+
+    def str_spans(self, indent=""):
+        return "TBD"

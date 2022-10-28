@@ -236,7 +236,7 @@ class ListFinder:
 
         if abs(angle) > rotation_config["rotation_min_angle"]:
             self.lgr.info(f"Rotated page {page.page_idx} strategy: {strategy} angle: {angle}")
-            rota_page = Page.build_rotated(page, angle)
+            rota_page = Page.build_rotated(page, -1 * angle)
             rota_word_lines = words_in_lines(rota_page)
             result_word_lines = []
             for rota_wl in rota_word_lines:

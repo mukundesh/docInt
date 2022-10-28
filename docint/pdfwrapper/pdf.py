@@ -2,6 +2,16 @@ from abc import ABC, abstractmethod, abstractproperty
 from typing import List
 
 
+class Char(ABC):
+    @abstractproperty
+    def text(self):
+        pass
+
+    @abstractproperty
+    def bounding_box(self):
+        pass
+
+
 class Word(ABC):
     @abstractproperty
     def text(self):
@@ -22,11 +32,11 @@ class Image(ABC):
         raise NotImplementedError("implement width")
 
     @abstractproperty
-    def width_dpi(self):
+    def horizontal_dpi(self):
         pass
 
     @abstractproperty
-    def height_dpi(self):
+    def vertical_dpi(self):
         pass
 
     @abstractmethod
@@ -60,6 +70,10 @@ class Page(ABC):
         raise NotImplementedError("implement width")
 
     @abstractproperty
+    def chars(self):
+        raise NotImplementedError("implement width")
+
+    @abstractproperty
     def images(self):
         raise NotImplementedError("implement width")
 
@@ -71,11 +85,11 @@ class Page(ABC):
         return len(self.images) == 1 and area(self.images[0]) >= 0.9 * area(self)
 
     @abstractmethod
-    def page_image_to_pil(self, *, dpi=144):
+    def page_image_to_pil(self, *, dpi=None):
         raise NotImplementedError("implement width")
 
     @abstractmethod
-    def page_image_save(self, file_path, *, dpi=144):
+    def page_image_save(self, file_path, *, dpi=None):
         pass
 
 

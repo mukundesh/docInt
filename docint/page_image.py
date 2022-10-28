@@ -1,5 +1,6 @@
 import math
 from base64 import b64encode
+from pathlib import Path
 from typing import Any, List, Tuple
 
 from PIL import Image
@@ -118,9 +119,17 @@ class PageImage(BaseModel):
         return doc_coord
 
     def _init_image(self):
-        print("INITIALIZING IMAGE")
+        print(f"INITIALIZING IMAGE {self.image_path}")
         if self.image is None:
-            self.image = Image.open(self.image_path)
+            self.image_path = Path(self.image_path)
+            if self.image_path.exists():
+                self.image = Image.open(self.image_path)
+            else:
+                # TODO THIS IS NEEDED FOR DOCKER, once directories
+                # are properly arranged docker won't be needed.
+                image_path = Path(".img") / self.image_path.parent.name / Path(self.image_path.name)
+                print(image_path)
+                self.image = Image.open(image_path)
 
     def get_skew_angle(self, orientation):
         return 0.0
@@ -214,4 +223,7 @@ class PageImage(BaseModel):
                 else:
                     scale = image_size[1] / cur_height
                     pil_image = pil_image.resize((int(cur_width * scale), image_size[1]))
+            self.image.close()
+            self.image = None  # close the image to conserve memory
+
         return pil_image

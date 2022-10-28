@@ -36,8 +36,8 @@ class ScriptNormalizer:
     def __init__(self, script, script_mapping, conf_stub):
         self.script = script
         self.conf_stub = conf_stub
-        if script not in scripts:
-            raise ValueError("Unknown script: {script}")
+        if script not in scripts + ["ascii"]:
+            raise ValueError(f"Unknown script: {script}")
 
         if isinstance(script_mapping, dict):
             self.script_mapping = script_mapping

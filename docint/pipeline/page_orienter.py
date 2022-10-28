@@ -1,10 +1,11 @@
 from collections import Counter
 from pathlib import Path
 
-from PIL import Image
-
 from ..shape import Coord
 from ..vision import Vision
+
+# from PIL import Image
+
 
 # TODO: 1. make image rotation optional
 # TODO: 2. no need to provide image dir as that should be picked up separately
@@ -59,9 +60,10 @@ class OrientPage:
         assert angle in (90, 180, 270)
         new_path = img_path.parent / (img_path.stem + f"-r{angle}" + img_path.suffix)
         if not new_path.exists():
-            # print(f"rotating the image {new_path}")
-            img = Image.open(img_path).rotate(angle)
-            img.save(new_path)
+            pass  # NOT ROTATING THE IMAGE
+            # print(f"rotating the image {new_path}") # TODO move this code elsewhere
+            # img = Image.open(img_path).rotate(angle)
+            # img.save(new_path) TODOo
 
     def orient_page(self, page, angle):
         xMultiplier = (page.height / float(page.width)) if angle in (90, 270) else 1.0

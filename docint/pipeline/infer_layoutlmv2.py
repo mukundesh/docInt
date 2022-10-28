@@ -1,5 +1,7 @@
+import gc
 import itertools
 import logging
+from itertools import chain, islice
 from pathlib import Path
 
 from ..region import Region
@@ -105,30 +107,40 @@ class InferLayoutLMv2:
         return word_labels_list
 
     def pipe(self, docs, **kwargs):
+        def chunks(iterable, size=10):
+            iterator = iter(iterable)
+            for first in iterator:
+                yield chain([first], islice(iterator, size - 1))
+
         self.logger.info("Entering infer_layoutlm.pipe")
+
         docs = list(docs)
-        infer_pages = [d[self.page_idx] for d in docs]
-        hf_dataset, _, _ = generate_dataset(infer_pages, self.model_dir, self.proc_model_name, has_labels=False)
+        for chunk_idx, docs_chunk in enumerate(chunks(docs, self.batch_size * 5)):
+            infer_pages = [d[self.page_idx] for d in docs_chunk]
+            hf_dataset, _, _ = generate_dataset(infer_pages, self.model_dir, self.proc_model_name, has_labels=False)
 
-        self.logger.info("Generated pytorch dataset")
+            self.logger.info("Generated pytorch dataset")
 
-        word_labels_list = self.eval(hf_dataset)
+            word_labels_list = self.eval(hf_dataset)
 
-        assert len(infer_pages) == len(word_labels_list)
+            assert len(infer_pages) == len(word_labels_list)
 
-        for doc in docs:
-            doc.add_extra_page_field("word_labels", ("dict", "docint.region", "Region"))
+            for doc in docs_chunk:
+                doc.add_extra_page_field("word_labels", ("dict", "docint.region", "Region"))
 
-        for (word_labels, page) in zip(word_labels_list, infer_pages):
-            print(f"{page.doc.pdf_name} words: {len(page.words)} labels: {len(word_labels)} -----------")
-            label_word_dict = {}
-            for (word_idx, label) in enumerate(word_labels[: len(page.words)]):
-                label_word_dict.setdefault(iob2label(label), []).append(page[word_idx])
+            for (word_labels, page) in zip(word_labels_list, infer_pages):
+                print(f"{page.doc.pdf_name} words: {len(page.words)} labels: {len(word_labels)} -----------")
+                label_word_dict = {}
+                for (word_idx, label) in enumerate(word_labels[: len(page.words)]):
+                    label_word_dict.setdefault(iob2label(label), []).append(page[word_idx])
 
-            lw_iter = label_word_dict.items()
-            page.word_labels = dict((l, Region.from_words(ws)) for (l, ws) in lw_iter)
+                lw_iter = label_word_dict.items()
+                page.word_labels = dict((l, Region.from_words(ws)) for (l, ws) in lw_iter)
 
-            for label, region in page.word_labels.items():
-                print(f"{label}: {region.raw_text()}")
-            print("")
+                for label, region in page.word_labels.items():
+                    print(f"{label}: {region.raw_text()}")
+                print("")
+            # end for
+            del hf_dataset
+            gc.collect()
         return docs

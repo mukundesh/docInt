@@ -70,6 +70,11 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
             # return_tensors="pt",
             #            return_offsets_mapping=True, # TODO, how to add offsets_mapping to the Features
         )
+
+        # close the images as they take a lot of memory
+        for img in images:
+            img.close()
+
         return encoded_inputs
 
     img_size = (None, MAX_IMAGE_HEIGHT)  # All heights have to be fixed

@@ -5,10 +5,11 @@ import sys
 from pathlib import Path
 
 from ..data_error import DataError
-from ..para import Para, TextConfig
+from ..para import TextConfig
 from ..span import Span
 from ..util import load_config
 from ..vision import Vision
+from ..vocab import Vocab
 
 # b ../docint/pipeline/sents_fixer.py:87
 
@@ -60,6 +61,7 @@ class ParaFixer:
         self.ignore_paren_len = ignore_paren_len
         self.unicode_file = unicode_file
         self.officer_at_start = officer_at_start
+        self.vocab = Vocab(self.dict_file.read_text().split("\n"))
 
         self.ignore_parent_strs = [
             "harg",
@@ -113,15 +115,34 @@ class ParaFixer:
         self.file_handler = None
 
     def mark_names(self, list_item):
+        def expand_span(s):
+            last_char = line_text[s.end].strip(string.punctuation).strip()
+            if last_char:
+                old_name = s.span_str(line_text)
+                s.end = line_text.index(" ", s.end)
+                new_name = s.span_str(line_text)
+                self.lgr.debug(f"NameExpansion: {old_name}->{new_name}")
+            return s
+
         ignore_config = TextConfig(rm_labels=["ignore"], rm_nl=True)
         line_text = list_item.line_text(ignore_config)
 
         ner_results = self.nlp(line_text)
         ner_results = [r for r in ner_results if r["entity"].endswith("-PER")]
-        officer_spans = [Span(r["start"], r["end"]) for r in ner_results]
+        officer_spans = [Span(start=r["start"], end=r["end"]) for r in ner_results]
 
         officer_spans = Span.accumulate(officer_spans, text=line_text, ignore_chars=" .,")
-        list_item.add_spans(officer_spans, "officer", ignore_config)
+        if not officer_spans:
+            return
+
+        # Salut getting skipped
+        if officer_spans[0].start < 25:
+            officer_spans[0].start = 0
+
+        officer_spans = [expand_span(s) for s in officer_spans]
+        officer_spans = Span.accumulate(officer_spans, text=line_text, ignore_chars=" .,")
+
+        list_item.add_label(officer_spans, "person", ignore_config)
 
     def mark_manual_words(self, list_item):
         if list_item.get_spans("person"):
@@ -135,7 +156,7 @@ class ParaFixer:
             pm_word = pm_word[0]
             start = line_text.lower().index(pm_word)
             end = start + len(pm_word)
-            list_item.add_span(start, end, "person", ignore_config)
+            list_item.add_label(Span(start=start, end=end), "person", ignore_config)
             self.lgr.debug(f"PERSON {line_text[start:end]}")
             return 1
         else:
@@ -157,7 +178,7 @@ class ParaFixer:
                 s, e = m.span()
                 self.lgr.debug(f"BLANKPAREN: {m.group(0)} ->[{s}: {e}]")
                 # list_item.blank_line_text_no_nl(s, e)
-                list_item.add_span(s, e, "ignore", text_config)
+                list_item.add_label(Span(start=s, end=e), "ignore", text_config)
                 paren_count += 1
         # end for
         return paren_count
@@ -182,22 +203,40 @@ class ParaFixer:
         ignore_spans.sort()
         self.lgr.debug(list_item.str_spans())
         for (s, e) in reversed(ignore_spans):
-            list_item.add_span(s, e, "ignore", ignore_config)
+            list_item.add_label(Span(start=s, end=e), "ignore", ignore_config)
 
         return punct_count
 
+    def fix_unicode(self, list_item):
+        for text, word in list_item.iter_word_text():
+            if not word.text.isascii():
+                u_text = word.text
+                if u_text in self.unicode_dict:
+                    a_text = self.unicode_dict[u_text]
+                    self.lgr.debug(f"UnicodeFixed: {u_text}->{a_text}")
+                    list_item.replace_word_text(word, "<all>", a_text)
+                else:
+                    sys.stderr.write(f"NOTFOUND: {u_text}\n")
+
     def fix_list(self, list_item):
+        print(f">{list_item.text}<")
+        print("Blocking Paren")
         paren_count = self.blank_paren_words(list_item)  # noqa: F841
 
+        print("Marking Unicode")
         unicode_count = self.fix_unicode(list_item)  # noqa: F841
 
+        print("Marking Names")
         name_count = self.mark_names(list_item)  # noqa: F841
 
-        merge_count = self.merge_words(list_item)  # noqa: F841
+        print("Merging Words")
+        text_config = TextConfig(rm_labels=["ignore", "person"])
+        merge_count = list_item.merge_words(self.vocab, text_config)  # noqa: F841
 
         # self.lgr.debug(f'B>{list_item.line_text_no_nl()}')
 
-        correct_count = self.correct_words(list_item)  # noqa: F841
+        print("Correcting Words")
+        correct_count = list_item.correct_words(self.vocab, text_config)  # noqa: F841
 
         manual_count = self.mark_manual_words(list_item)  # noqa: F841
 
@@ -253,21 +292,21 @@ class ParaFixer:
             for (list_idx, list_item) in enumerate(items):
                 item_path = f"pa{page.page_idx}.{self.item_name[:2]}{list_idx}"
                 indent_str = f"{doc.pdf_name}:{page_idx}>{list_idx}"  # noqa: F841
+                list_item.t = None
 
                 self.lgr.debug(f'\n{list_item.line_text().replace(NL, " ")}<')
-                para = Para.build_with_lines(list.words, list.word_lines)
 
-                self.fix_list(para)
-                list_item_errors = self.test(para, item_path)  # noqa: F841
+                self.fix_list(list_item)
+                list_item_errors = self.test(list_item, item_path)  # noqa: F841
 
                 # list_item.errors += list_item_errors
                 # if type(list_item).__name__ == "ListItem":
                 #     list_item.list_errors += list_item_errors
 
-                err_str = list_item.error_counts_str
+                # err_str = list_item.error_counts_str
                 self.lgr.debug(list_item.str_spans())
-                if err_str:
-                    self.lgr.debug(f"error: {err_str}")
+                if list_item_errors:
+                    self.lgr.debug("error: Has Errors")
 
                 self.lgr.debug(f'A>{list_item.line_text().replace(NL, " ")}<\n')
 

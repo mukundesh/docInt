@@ -112,6 +112,7 @@ class Doc(BaseModel):
                 image.save(image_path)
             else:
                 width, height = page.page_image_save(image_path)
+                print("Raster**:", width, height)
                 [x0, y0, x1, y1] = [0, 0, page.width, page.height]
                 top, bot = Coord(x=x0, y=y0), Coord(x=x1, y=y1)
                 image_box = Box(top=top, bot=bot)
@@ -163,7 +164,7 @@ class Doc(BaseModel):
         # should call post_init
         def update_region_links(doc, region):
             region.words = [doc[region.page_idx_][idx] for idx in region.word_idxs]
-            if hasattr(region, "word_lines_idxs"):
+            if hasattr(region, "word_lines_idxs") and region.word_lines_idxs is not None:
                 p_idx, wl_idxs = region.page_idx_, region.word_lines_idxs
                 region.word_lines = [[doc[p_idx][idx] for idx in wl] for wl in wl_idxs]
 

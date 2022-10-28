@@ -110,15 +110,24 @@ class TableEdgeFinder:
         return self.image_root / page.doc.pdf_stem / img_filename
 
     def save_image(self, cv_img, stub, page_idx, work_dir=".tmp/"):
+        work_dir = "logs"
         img_file_name = Path(work_dir) / f"{stub}-{page_idx}.png"  # TODO FIX THIS.
         img_pil = cv_img if isinstance(cv_img, Image.Image) else Image.fromarray(cv_img)
-        img_pil.save(img_file_name)
+        print("**** NOT SAVING THE FILE ***")
+        img_pil.save(img_file_name)  # TODO
 
     def get_skew_angle(self, pil_image, orientation):
-        import numpy
+        import numpy as np
         from wand.image import Image as WImage
 
-        with WImage.from_array(numpy.array(pil_image)) as image:
+        def pil_to_array(pil_image):
+            ar = np.array(pil_image)
+            if ar.dtype == np.dtype("bool"):
+                print("Converting bool to uint8")
+                ar = ar.astype("uint8") * 255
+            return ar
+
+        with WImage.from_array(pil_to_array(pil_image)) as image:
             if orientation == "v":
                 image.rotate(90)
             image.deskew(0.8 * image.quantum_range)
@@ -129,21 +138,33 @@ class TableEdgeFinder:
         import cv2
         import numpy as np
 
+        def pil_to_array(pil_image):
+            ar = np.array(pil_image)
+            if ar.dtype == np.dtype("bool"):
+                print("Converting bool to uint8")
+                ar = ar.astype("uint8") * 255
+            return ar
+
         if isinstance(page, Page):
             image_path = self.get_image_path(page)
             img = cv2.imread(str(image_path), 0)
         else:
             page_image = page
-            img_buffer = np.asarray(page_image.to_pil_image())
-            img = cv2.cvtColor(img_buffer, cv2.COLOR_BGR2GRAY)
-            # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img_buffer = pil_to_array(page_image.to_pil_image())
+            if img_buffer.ndim == 2:
+                print("Setting buffer")
+                img = img_buffer
+            else:
+                img = cv2.cvtColor(img_buffer, cv2.COLOR_BGR2GRAY)
 
-        # self.save_image(img, 'find_column_ranges-orig', page_idx)
+        self.save_image(img, "find_column_ranges-orig", page_idx)
 
         # thresholding the image to a binary image
         thresh, img_bin = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         # inverting the image
         img_bin = 255 - img_bin
+
+        self.save_image(img_bin, "binary", page_idx)
 
         # TODO incrase kernel for #205249
         # Length(width) of kernel as 100th of total width
@@ -157,9 +178,10 @@ class TableEdgeFinder:
 
         # Use vertical kernel to detect and save the vertical lines in a jpg
         image_v = cv2.erode(img_bin, ver_kernel, iterations=conf.col_erode_iterations)
+        self.save_image(img_bin, "after_erode", page_idx)
         vertical_lines = cv2.dilate(image_v, ver_kernel, iterations=3)
 
-        # save_image(vertical_lines, 'after_morph')
+        self.save_image(vertical_lines, "after_morph", page_idx)
 
         # Eroding and thesholding the image
         img_vh = vertical_lines
@@ -220,7 +242,7 @@ class TableEdgeFinder:
             # self.save_image(np.asarray(page_image.to_pil_image()), 'first-crop', page.page_idx)
 
         if conf.skew_threshold > 0.0:
-            v_skew_angle = self.get_skew_angle(page_image.image, "v")
+            v_skew_angle = self.get_skew_angle(page_image.to_pil_image(), "v")
             if abs(v_skew_angle) > conf.skew_threshold:
                 self.lgr.debug(f"\tRotating Image v_skew_angle: {v_skew_angle}")
                 page_image.rotate(v_skew_angle)
@@ -274,7 +296,7 @@ class TableEdgeFinder:
             page_image.crop(top, bot)
 
         if conf.skew_threshold > 0.0:
-            h_skew_angle = self.get_skew_angle(page_image.image, "h")
+            h_skew_angle = self.get_skew_angle(page_image.to_pil_image(), "h")
 
             if abs(h_skew_angle) > conf.skew_threshold:
                 self.lgr.debug(f"\tRotating Image h_skew_angle: {h_skew_angle}")
@@ -335,12 +357,12 @@ class TableEdgeFinder:
             # crop the image first
             crop_coords = []
             if (ymax - ymin) * 100 < conf.crop_threshold:
-                self.lgr.debug(f"\tCropping Image {(ymax-ymin)*100} {conf.crop_threshold}")
                 top_y, bot_y = ymin - self.crop_gutter, ymax + (self.crop_gutter)
                 top_y, bot_y = max(0.0, top_y), min(1.0, bot_y)
 
                 top, bot = Coord(x=0.0, y=top_y), Coord(x=1.0, y=bot_y)
                 crop_coords.extend([top, bot])
+                self.lgr.debug(f"\tCropping Image [{top},{bot}] because {(ymax-ymin)*100} < {conf.crop_threshold}")
             else:
                 top, bot = Coord(x=0.0, y=0.0), Coord(x=1.0, y=1.0)
 

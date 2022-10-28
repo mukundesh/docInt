@@ -2,7 +2,7 @@ import warnings  # noqa: F401
 
 
 class Warnings:
-    W001 = ""
+    W001 = "Spans start/end in SPACE span_str: {span_str}"
 
 
 class Errors:

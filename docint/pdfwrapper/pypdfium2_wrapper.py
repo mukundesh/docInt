@@ -7,9 +7,40 @@ import pypdfium2 as pdfium
 
 from docint.pdfwrapper import pdf
 
+DEFAULT_DPI = 144
+
+COLORSPACE_FAMILY = {
+    0: "FPDF_COLORSPACE_UNKNOWN",
+    1: "FPDF_COLORSPACE_DEVICEGRAY",
+    2: "FPDF_COLORSPACE_DEVICERGB",
+    3: "FPDF_COLORSPACE_DEVICECMYK",
+    4: "FPDF_COLORSPACE_CALGRAY",
+    5: "FPDF_COLORSPACE_CALRGB",
+    6: "FPDF_COLORSPACE_LAB",
+    7: "FPDF_COLORSPACE_ICCBASED",
+    8: "FPDF_COLORSPACE_SEPARATION",
+    9: "FPDF_COLORSPACE_DEVICEN",
+    10: "FPDF_COLORSPACE_INDEXED",
+    11: "FPDF_COLORSPACE_PATTERN",
+}
+
 
 def open(file_or_buffer, password=None):
     return PDF(file_or_buffer)
+
+
+class Char(pdf.Char):
+    def __init__(self, text, rect):
+        self._text = text
+        self._rect = rect
+
+    @property
+    def text(self):
+        return self._text
+
+    @property
+    def bounding_box(self):
+        return self._rect
 
 
 class Word(pdf.Word):
@@ -51,12 +82,24 @@ class Image(pdf.Image):
         return (self.width, self.height)
 
     @property
-    def width_dpi(self):
+    def horizontal_dpi(self):
         return self._metadata.horizontal_dpi
 
     @property
-    def height_dpi(self):
+    def vertical_dpi(self):
         return self._metadata.vertical_dpi
+
+    @property
+    def bits_per_pixel(self):
+        return self._metadata.bits_per_pixel
+
+    @property
+    def colorspace_int(self):
+        return self._metadata.colorspace
+
+    @property
+    def colorspace_str(self):
+        return COLORSPACE_FAMILY[int(self._metadata.colorspace)]
 
     @property
     def bounding_box(self):
@@ -75,14 +118,45 @@ class Image(pdf.Image):
         else:
             _bitmap = pdfium.FPDFImageObj_GetBitmap(self.lib_image.raw)
             buffer_start = pdfium.FPDFBitmap_GetBuffer(_bitmap)
+            bits_per_pixel = self._metadata.bits_per_pixel
+            print(f"BPP {bits_per_pixel}")
             buffer = ctypes.cast(
                 buffer_start,
                 ctypes.POINTER(ctypes.c_ubyte * (self.width * self.height * 3)),
             )
+            # if bits_per_pixel == 24:
             self._pil_image = PIL.Image.frombuffer(
                 "RGB", (self.width, self.height), buffer.contents, "raw", "RGB", 0, 1
             )
+            # elif bits_per_pixel == 1:
+            #    self._pil_image = PIL.Image.frombuffer(
+            #        "1", (self.width, self.height), buffer.contents, "raw", "1", 0, 1
+            #    )
+            # else:
+            #    raise NotImplementedError(f'Unable to handle bpp = {bits_per_pixel}')
             return self._pil_image
+
+    def extract_image(self, file_path):
+        def modulo_expand(size):
+            pixels = size[0] * size[1]
+            modulo = pixels % 8
+            return pixels if modulo == 0 else pixels + 8 - modulo
+
+        # TODO expand this, currently only works if bits_per_pixel == 1
+        buf_len = pdfium.FPDFImageObj_GetImageDataDecoded(self.lib_image.raw, None, 0)
+        assert buf_len * 8 == modulo_expand(self.size)
+
+        buffer = ctypes.create_string_buffer(buf_len)
+        pdfium.FPDFImageObj_GetImageDataDecoded(self.lib_image.raw, buffer, buf_len)
+
+        print(buf_len)
+
+        b = bytes(buffer)
+        print(len(b))
+
+        pil_image = PIL.Image.frombytes("1", self.size, b)
+        pil_image.save(file_path)
+        return pil_image.size
 
     def save(self, file_path):
         self.to_pil().save(file_path)
@@ -92,7 +166,8 @@ class Page(pdf.Page):
     def __init__(self, page, page_idx):
         self.lib_page = page
         self.page_idx = page_idx
-        self._words = self.build_words(self.lib_page.get_textpage())
+        self._words = None
+        self._chars = None
         img_type = pdfium.FPDF_PAGEOBJ_IMAGE
         self._images = [Image(o, self) for o in self.lib_page.get_objects() if o.type == img_type]
 
@@ -182,9 +257,34 @@ class Page(pdf.Page):
                 ), f"MERGED: {self.page_idx}[{s_index}:{e_index}] {text} + {to_texts(rects)} -> {rect_text} char: {char_text}\n{to_str(rects)}\n{to_str([rect])}"
 
             x0, y0, x1, y1 = rect
-            bottom, top = self.height - y0, self.height - y1
+            # print(text, [x0, y0, x1, y1])
+            if self.rotation == 90:
+                bottom, top = y1, y0
+                top, x0 = x0, top
+                bottom, x1 = x1, bottom
+            else:
+                bottom, top = self.height - y0, self.height - y1
             words.append(Word(text, (x0, top, x1, bottom)))
         return words
+
+    def build_chars(self, lib_textpage):
+        page_text = lib_textpage.get_text_range()
+        count_chars = lib_textpage.count_chars()
+        assert count_chars == len(page_text), f"count_chars mismatch {count_chars} {len(page_text)}\n{page_text}"
+
+        chars = []
+        for (char_idx, char_text) in enumerate(page_text):
+            char_rect = lib_textpage.get_charbox(char_idx)
+            x0, y0, x1, y1 = char_rect
+            if self.rotation == 90:
+                bottom, top = y1, y0
+                top, x0 = x0, top
+                bottom, x1 = x1, bottom
+            else:
+                bottom, top = self.height - y0, self.height - y1
+            char_rect = (x0, top, x1, bottom)
+            chars.append(Char(char_text, char_rect))
+        return chars
 
     @property
     def width(self):
@@ -196,7 +296,15 @@ class Page(pdf.Page):
 
     @property
     def words(self):
+        if self._words is None:
+            self._words = self.build_words(self.lib_page.get_textpage())
         return self._words
+
+    @property
+    def chars(self):
+        if self._chars is None:
+            self._chars = self.build_chars(self.lib_page.get_textpage())
+        return self._chars
 
     @property
     def images(self):
@@ -206,13 +314,14 @@ class Page(pdf.Page):
     def rotation(self):
         return self.lib_page.get_rotation()
 
-    def page_image_to_pil(self, *, dpi=144):
-        w_res = max((i.width_dpi for i in self._images), default=dpi)
-        h_res = max((i.height_dpi for i in self._images), default=dpi)
-        res = max(w_res, h_res)
-        return self.lib_page.render_to(pdfium.BitmapConv.pil_image, scale=res / 72.0)
+    def page_image_to_pil(self, *, dpi=None):
+        dpi = DEFAULT_DPI if dpi is None else dpi
+        h_dpi = max((i.horizontal_dpi for i in self._images), default=dpi)
+        v_dpi = max((i.vertical_dpi for i in self._images), default=dpi)
+        max_dpi = max(h_dpi, v_dpi)
+        return self.lib_page.render_to(pdfium.BitmapConv.pil_image, scale=max_dpi / 72.0)
 
-    def page_image_save(self, file_path, *, dpi=144):
+    def page_image_save(self, file_path, *, dpi=None):
         page_image = self.page_image_to_pil(dpi=dpi)
         (width, height) = page_image.size
         page_image.save(file_path)

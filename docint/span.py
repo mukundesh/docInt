@@ -11,7 +11,9 @@ def flatten_spans(span):
     if isinstance(span, Span):
         return [span]
     elif isinstance(span, list):
-        if isinstance(span[0], Span):
+        if len(span) == 0:
+            return []
+        elif isinstance(span[0], Span):
             return span
         elif isinstance(span[0], SpanGroup):
             return list(flatten(sg.spans for sg in span))
@@ -247,10 +249,12 @@ class Span(BaseModel):
 
     def in_boundary(self, text, boundary_chars=" "):
         s, e = self.start, self.end
-        assert 0 <= s < len(text) and 0 <= e < len(text)
         start_in_boundary = False if s == 0 else text[s] in boundary_chars
         end_in_boundary = text[e - 1] in boundary_chars
         return start_in_boundary or end_in_boundary
+
+    def is_valid(self, text):
+        return (0 <= self.start <= len(text)) and (0 <= self.end <= len(text)) and (self.start <= self.end)
 
 
 class SpanGroup(BaseModel):

@@ -4,6 +4,7 @@ from typing import List
 from pydantic import BaseModel
 
 from .data_error import DataError
+from .para import Para
 from .region import Region
 from .shape import Edge
 
@@ -37,7 +38,7 @@ class TableIncorectSeqError(DataError):
     act_val: str
 
 
-class Cell(Region):
+class Cell(Para):
     @classmethod
     def build(cls, words):
         word_idxs = [w.word_idx for w in words]
