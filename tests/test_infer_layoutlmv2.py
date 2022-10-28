@@ -1,6 +1,9 @@
+import pytest
+
 import docint
 
 
+@pytest.mark.skip("This takes a very long time")
 def test_infer_layout(layout_paths):
     docker_config = {
         "pre_install_lines": ["RUN pip install transformers[torch]"],

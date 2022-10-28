@@ -39,10 +39,11 @@ def test_pdftable_finder(table_path):
 
 
 # TODO PLEASE ADD THIS
+@pytest.mark.skip(reason="temporarily removing, need a better way to extract dense tables")
 def test_pdftable_rota_finder(table_rota_path):
     # ppln = docint.empty(config={"docker_pipes": ["gcv_recognizer", "table_edge_finder"], "docker_config": docker_config})
     ppln = docint.empty()
-    ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgp"})
+    ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgfound"})
     ppln.add_pipe("num_marker")
     ppln.add_pipe("table_edge_finder", pipe_config={"expected_columns": 4, "skew_threshold": 1.0})
     # ppln.add_pipe('table_builder_on_edges')

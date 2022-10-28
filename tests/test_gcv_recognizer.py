@@ -22,7 +22,7 @@ docker_config = {
 )
 def test_word_count(pdf_path, word_count, word_text):
     ppln = docint.empty(config={"docker_pipes": ["gcv_recognizer"], "docker_config": docker_config})
-    ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgp"})
+    ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgfound"})
     doc = ppln(Path("tests") / pdf_path)
     total_words = sum(len(p.words) for p in doc.pages)
 

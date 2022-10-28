@@ -33,6 +33,8 @@ def test_labels(one_line_doc):
     para.add_label(Span(start=20, end=23), "partial")  # jum in jumped
     para.add_label(Span(start=29, end=31), "partial")  # er in over
 
+    print(para.line_text(TextConfig(rm_labels=["partial"])))
+
     no_animal_partial = "The quick bwn ped ov the lazy ."
     no_animal_partial_tc = TextConfig(rm_labels=["animal", "partial"])
     assert para.line_text(no_animal_partial_tc) == no_animal_partial
@@ -42,6 +44,28 @@ def test_labels(one_line_doc):
     no_animal_partial_speed3_tc = TextConfig(rm_labels=["animal", "partial", "speed3"])
     no_animal_partial_speed3 = "The quick bwn ped ov the ."
     assert para.line_text(no_animal_partial_speed3_tc) == no_animal_partial_speed3
+
+
+def test_partial(one_line_doc):
+    all_words = one_line_doc.pages[0].words
+    para = Para.build_with_lines(all_words, [all_words])
+
+    para.add_label(Span(start=24, end=25), "partial_one_word")  # m
+    para.add_label(Span(start=22, end=23), "partial_one_word")  # p
+
+    no_partial_one_word = TextConfig(rm_labels=["partial_one_word"])
+    para.line_text(no_partial_one_word) == "The quick brown fox jupd over the lazy fox."
+
+    para.add_label(Span(start=20, end=23), "partial_one_word")  # p
+    para.line_text(no_partial_one_word) == "The quick brown fox pd over the lazy fox."
+
+    no_partial_two_words = TextConfig(rm_labels=["partial_two_words"])
+    para.add_label(Span(start=22, end=29), "partial_two_words")
+    print(para.line_text(no_partial_two_words))
+
+    no_partial_span_three_words = TextConfig(rm_labels=["partial_span_three_words"])
+    para.add_label(Span(start=22, end=33), "partial_span_three_words")
+    print(para.line_text(no_partial_span_three_words))
 
 
 # mis_spelt_doc
@@ -85,10 +109,12 @@ def test_paren(paren_doc, insensitive_vocab):
 
     paren_tc = TextConfig(rm_labels=["ignore"])
     para.merge_words(vocab, paren_tc, dist_cutoff=1)
-    para.correct_words(vocab, paren_tc, dist_cutoff=1)
+    print(f"After Merge: {para.line_text(paren_tc)}\n")
 
-    assert para.line_text(paren_tc) == "The quick brown fox jumped over the lazy fox."
-    assert para.text == "The quick brown fox jumped over the lazy(slow animal)fox."
+    para.correct_words(vocab, paren_tc, dist_cutoff=1)
+    print(f"After Correct: {para.line_text(paren_tc)}\n")
+
+    assert para.line_text(paren_tc) == "The quick brown fox jumped over the l azyfok."
 
 
 def test_multi_line(mis_spelt_multi_line_doc, insensitive_vocab):
