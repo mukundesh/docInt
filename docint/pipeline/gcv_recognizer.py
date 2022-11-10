@@ -253,7 +253,7 @@ class CloudVisionRecognizer:
         output_paths = self.output_dir_path.glob(f"{doc.pdf_name}.{self.output_stub}*json")
         output_paths = list(output_paths)
         if output_paths:
-            # print(f'Reading output_paths')
+            print("Reading output_paths")
             return self.read_gcv(doc, output_paths)
         else:
             print("INSIDE GCV RECOGNIZER")

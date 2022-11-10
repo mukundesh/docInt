@@ -125,3 +125,8 @@ def table_rota_path():
 @pytest.fixture
 def unicode_path():
     return Path("tests") / "unicode.pdf"
+
+
+@pytest.fixture
+def page_image_path():
+    return Path("tests") / "page_image.pdf"

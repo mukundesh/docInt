@@ -13,6 +13,7 @@ docker_config = {
 def test_pdftable_finder(table_path):
     ppln = docint.empty(config={"docker_pipes": ["table_edge_finder"], "docker_config": docker_config})
     ppln.add_pipe("pdf_reader")
+    ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("num_marker")
     ppln.add_pipe("table_edge_finder", pipe_config={"expected_columns": 4, "skew_threshold": 0.0})
     doc = ppln(table_path)
@@ -44,6 +45,7 @@ def test_pdftable_rota_finder(table_rota_path):
     # ppln = docint.empty(config={"docker_pipes": ["gcv_recognizer", "table_edge_finder"], "docker_config": docker_config})
     ppln = docint.empty()
     ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgfound"})
+    ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("num_marker")
     ppln.add_pipe("table_edge_finder", pipe_config={"expected_columns": 4, "skew_threshold": 1.0})
     # ppln.add_pipe('table_builder_on_edges')

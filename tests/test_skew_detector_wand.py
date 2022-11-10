@@ -9,9 +9,9 @@ docker_config = {
 
 
 def test_skew_finder(table_path):
-    # ppln = docint.empty(config={"docker_pipes": ["skew_detector_wand"], "docker_config": docker_config})
-    ppln = docint.empty()
+    ppln = docint.empty(config={"docker_pipes": ["skew_detector_wand"], "docker_config": docker_config})
     ppln.add_pipe("pdf_reader")
+    ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("skew_detector_wand")
     doc = ppln(table_path)
     assert abs(doc[0].horz_skew_angle) < 0.05
@@ -21,6 +21,7 @@ def test_skew_finder(table_path):
 def test_rota_skew_finder(table_rota_path):
     ppln = docint.empty(config={"docker_pipes": ["skew_detector_wand"], "docker_config": docker_config})
     ppln.add_pipe("pdf_reader")  # doesn't matter as we only need page_image
+    ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("skew_detector_wand")
     doc = ppln(table_rota_path)
 

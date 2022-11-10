@@ -14,7 +14,7 @@ from .util import get_uniq_str, tail
 PYTHON_VERSION = "3.7-slim"
 WORK_DIR = Path("/usr/src/app")
 REPORT_LAST_LINES_COUNT = 3
-DEFAULT_OS_PACKAGES = []
+DEFAULT_OS_PACKAGES = []  # "libmagickwand-dev"]
 DEFAULT_PY_PACKAGES = [  # move this to docint
     "PyYaml",
     "more-itertools",
@@ -23,6 +23,7 @@ DEFAULT_PY_PACKAGES = [  # move this to docint
     "Pillow",
     "python-dateutil",
     "pypdfium2",
+    # "wand", # temporary TODO
 ]
 
 # TODO: define docker_options
@@ -216,7 +217,6 @@ class DockerRunner:
             else:
                 doc.to_disk(task_dir / Path("input") / f"{doc.pdf_name}.doc.json")
                 input_ctnr_paths.append(Path("input") / f"{doc.pdf_name}.doc.json")
-
             output_ctnr_paths.append(Path("output") / f"{doc.pdf_name}.doc.json")
 
         ppln_path = task_dir / Path("src") / "pipeline.yml"
@@ -286,7 +286,14 @@ class DockerRunner:
         if len(output_paths) != len(docs):
             raise RuntimeError(Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines))
 
-        output_docs = [Doc.from_disk(d) for d in output_paths]
+        # Reading output file and also updating doc.pdffile_path from input_doc
+        output_docs = []
+        for doc in docs:
+            output_path = output_dir / f"{doc.pdf_name}.doc.json"
+            output_doc = Doc.from_disk(output_path)
+            output_doc.pdffile_path = Path(doc.pdffile_path)
+            output_docs.append(output_doc)
+
         if docker_config.get("delete_container_dir", True):
             shutil.rmtree(task_dir)
         return output_docs if isinstance(input_docs, (list, GeneratorType)) else output_docs[0]

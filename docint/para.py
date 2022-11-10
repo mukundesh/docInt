@@ -1,16 +1,28 @@
+import operator as op
 import re
 import sys
-import warnings
 from string import punctuation
 from typing import Dict, List
 
 from more_itertools import first, flatten
 from pydantic import BaseModel
 
-from .errors import Warnings
 from .region import Region
 from .span import Span, SpanGroup, flatten_spans
 from .word import Word
+
+### Notes
+# 1. Span cannot start in space or end in space, this causes issues wen Para gets edited
+# 2. Para cannot have multiple consecutive spaces, it causes lot of issues.
+# 3. Once you identify spans for a particular TextConfig, add them all at once,
+#    if you add them one my one, then the spans you found are not consistent.
+#    avoid reverse sorting and adding, add_label takes multiple spans
+# 4. BaseSpan are those that are on the original text (no labels added). All the
+#    span arithmetic is done on the base spans.
+# 5. Please be aware that the Para does have edit operations, which are executed
+#    while labels are added, and they are adjusted for the edit operations.
+#    that logic is intricate please be careful.
+# 6. TODO: This code needs 100% coverage, please add more test cases.
 
 
 class TextConfig(BaseModel):
@@ -119,6 +131,10 @@ class Para(Region):
                     result = merge_partials(partials)
                     # print(f'\t{result[1]} o_type: {o_type} space_overlap: {space_overlap}')
                     yield result
+        if partials:
+            result = merge_partials(partials)
+            # print(f'\t{result[1]} o_type: {o_type} space_overlap: {space_overlap}')
+            yield result
 
     def iter_adjoin_words_texts(self, text_config):
         def is_adjoin(prev_line_idx, prev_pos_idx, line_idx, pos_idx):
@@ -126,11 +142,13 @@ class Para(Region):
 
         prev_word, prev_text, prev_line_idx, prev_pos_idx = None, None, None, None
         for word, text, line_idx, pos_idx, _ in self.iter_word_text_idxs_span(text_config):
-
+            # print(f'AD> {text}')
             if (prev_line_idx is not None) and line_idx != prev_line_idx and prev_word:
+                # print('\tyielding')
                 yield prev_word, None, prev_text, ""
 
             elif prev_word and is_adjoin(prev_line_idx, prev_pos_idx, line_idx, pos_idx):
+                # print('\tyielding')
                 yield prev_word, word, prev_text, text
 
             prev_word, prev_text = word, text
@@ -179,27 +197,32 @@ class Para(Region):
                 yield yield_list
             info_list.pop(0)
 
-    def get_base_spans(self, span, text_config):
+    def get_base_spans3(self, span, text_config):
         rm_spans = self.get_spans(text_config.rm_labels) if text_config else []
         rm_spans = Span.accumulate(rm_spans, text=self.text, ignore_chars=" ")
-        start, end = span.start, span.end
 
-        base_spans, spanning_existing_span = [], False
-        for rm_span in rm_spans:
-            if rm_span.start <= start and rm_span.start < end:
-                inc = 1 if rm_span.on_word_boundary(self.text) else 0
-                start += len(rm_span) + inc
-                end += len(rm_span) + inc
+        rm_spans.sort(key=op.attrgetter("start"))
+        start, end, text = span.start, span.end, self.text
+
+        def get_base_span(rm_span):
+            nonlocal start, end
+            if rm_span.start < start:
+                # lft non overlapping, inc start & end
+                extra_char = 1 if rm_span.on_word_boundary(text) else 0
+                start += len(rm_span) + extra_char
+                end += len(rm_span) + extra_char
+                return None
             elif rm_span.start < end:
-                # Added span is spanning an existing rm label span
-                base_spans.append(Span(start=start, end=rm_span.start))
-                base_spans.append(Span(start=rm_span.end, end=end + len(rm_span)))
-                spanning_existing_span = True
-                break
+                # overlapping
+                base_span = Span(start=start, end=rm_span.start)
+                extra_char = 1 if rm_span.on_word_boundary(text) else 0
+                start = rm_span.end
+                end += len(rm_span) + extra_char
+                return base_span
 
-        if not spanning_existing_span:
-            base_spans.append(Span(start=start, end=end))
-
+        base_spans = [get_base_span(s) for s in rm_spans]
+        base_spans.append(Span(start=start, end=end))
+        base_spans = [s for s in base_spans if s]
         return base_spans
 
     def add_label(self, span, label, text_config=None, suppress_warning=True):
@@ -209,35 +232,61 @@ class Para(Region):
             e = e - 1 if e < len(text) and text[e] in " " else e
             return Span(start=s, end=e)
 
+        def fix_if_in_boundary(span, text):
+            if not span.in_boundary(text):
+                return span
+
+            s, e = span.start, span.end
+            if span.start_in_boundary(text):
+                while (text[s] in " ") and s < len(text):
+                    s = s + 1
+
+            if span.end_in_boundary(text):
+                while (text[e - 1] in " ") and e > 0:
+                    e = e - 1
+            return Span(start=s, end=e)
+
         base_spans = []
         for s in flatten_spans(span):
-            base_spans += self.get_base_spans(s, text_config)
+            base_spans += self.get_base_spans3(s, text_config)
 
         invalid_spans = [s for s in base_spans if not s.is_valid(self.text)]
         if invalid_spans:
             se_str = [f"[{s.start}:{s.end}]" for s in invalid_spans]
             raise ValueError(f"Spans are not in [0:{len(self.text)}] {se_str}")
 
-        boundary_spans = [s for s in base_spans if s.in_boundary(self.text)]
-        if boundary_spans:
-            o_span_str = Span.to_str(self.text, boundary_spans)
-            if suppress_warning:
-                warnings.warn(Warnings.W001.format(span_str=o_span_str))
-            [fix_boundary_span(s, self.text) for s in boundary_spans]
+        text = self.text
+        base_spans = [fix_if_in_boundary(s, text) for s in base_spans]
+
+        # boundary_spans = [s for s in base_spans if s.in_boundary(self.text)]
+        # if boundary_spans:
+        #     o_span_str = Span.to_str(self.text, boundary_spans)
+        #     if suppress_warning:
+        #         warnings.warn(Warnings.W001.format(span_str=o_span_str))
+        #     [fix_boundary_span(s, self.text) for s in boundary_spans]
 
         for new_span in base_spans:
-            print(f"Adding label {label} -> >{self.text[new_span.start:new_span.end]}<")
+            if not new_span:
+                continue
+
+            s = Span.to_str(self.text, new_span)
+            assert s[0] != " "
+            print(f"Add label {label}: >{s}< {span} ->{new_span}")
             self.label_spans.setdefault(label, []).append(new_span)
 
     def label_regex(self, regexes, label, text_config=None):
         line_text = self.line_text(text_config)
+        # if line_text.startswith(': 11 Minister Law'):
+        #     import pdb
+        #     pdb.set_trace()
         new_spans = []
         regexes = regexes if isinstance(regexes, list) else [regexes]
         for regex in regexes:
             for m in re.finditer(regex, line_text):
                 new_spans.append(Span(start=m.span()[0], end=m.span()[1]))
-        new_spans.sort(reverse=True)
-        [self.add_label(s, label, text_config) for s in new_spans]
+        # new_spans.sort(reverse=True)
+        # [self.add_label(s, label, text_config) for s in new_spans]
+        self.add_label(new_spans, label, text_config)
 
     def get_spans(self, labels):
         if isinstance(labels, str):
@@ -250,7 +299,7 @@ class Para(Region):
         return boundary_char.join(line_text[s.slice()] for s in spans)
 
     def get_words_for_spans(self, spans, text_config=None):
-        base_spans = flatten(self.get_base_spans(s, text_config) for s in spans)
+        base_spans = list(flatten(self.get_base_spans3(s, text_config) for s in spans))
 
         overlap_words = []
         for word, word_span, _, _ in self.iter_word_span_idxs():
@@ -307,9 +356,8 @@ class Para(Region):
                 continue
 
             text = self.elim_punct(text)
-            if vocab.has_text(text):
-                continue
 
+            # prefer longer words, don't check if the current word is in vocab
             next_text = self.elim_punct(next_text)
 
             if (not text) or (not next_text):
@@ -317,7 +365,7 @@ class Para(Region):
 
             merged_text = text + next_text
             if vocab.has_text(merged_text, dist_cutoff):
-                # print(f"\tMerging: {text} {next_text} -> {merged_text}")
+                print(f"\tMerging: {text} {next_text} -> {merged_text}")
                 merge_words.append((word, next_word))
                 last_merged_word = next_word
 
@@ -389,6 +437,7 @@ class Para(Region):
         for word, text, _, _, _ in self.iter_word_text_idxs_span(text_config):
             # print(f'Correct {text}')
 
+            orig_text = text
             if text not in word.text:
                 # not contiguous
                 continue
@@ -408,8 +457,8 @@ class Para(Region):
             else:
                 matched_texts = vocab.find_texts(text, dist_cutoff)
                 if matched_texts:
-                    # print(f"\tFound correction: {text} {matched_texts[0][0]}")
-                    new_text = word.text.replace(text, matched_texts[0][0])
+                    print(f"\tFound correction: {text} {matched_texts[0][0]}")
+                    new_text = word.text.replace(orig_text, matched_texts[0][0])
                     replace_words.append((word, new_text))
 
         [self.replace_word_text(w, "<all>", t) for (w, t) in replace_words]
@@ -450,12 +499,31 @@ class Para(Region):
     def get_unlabeled_texts(self):
         line_text = self.line_text()
         all_spans = Span.accumulate(list(flatten(self.label_spans.values())))
+        print(all_spans)
         ts = Span.unmatched_texts(all_spans, line_text)
+        print(ts)
         return [s for t in ts for s in t.strip().split()]
+
+    def get_unlabeled_texts_idxs(self):
+        line_text = self.line_text()
+        all_spans = Span.accumulate(list(flatten(self.label_spans.values())))
+        print(all_spans)
+        u_texts, u_spans = Span.unmatched_texts_spans(all_spans, line_text)
+        u_texts = [s for t in u_texts for s in t.strip().split()]
+
+        u_words = self.get_words_for_spans(u_spans)
+
+        print(len(u_texts), len(u_words))
+        u_idxs = [f"{w.text}-{w.word_idx}" for w in u_words]
+        return u_texts, u_idxs
 
     def get_word_span(self, word):
         ws_iter = ((w, s) for w, s, _, _ in self.iter_word_span_idxs())
         return first((s for (w, s) in ws_iter if w.word_idx == word.word_idx), None)
 
     def str_spans(self, indent=""):
-        return "TBD"
+        text_config = TextConfig(rm_labels=["ignore", "puncts", "person"])
+        return self.line_text(text_config)
+
+
+#        return "|".join(f'{l}: {Span.to_str(line_text, self.label_spans[l])}' for l in self.label_spans)

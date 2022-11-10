@@ -77,6 +77,10 @@ class Page(ABC):
     def images(self):
         raise NotImplementedError("implement width")
 
+    @abstractproperty
+    def rotation(self):
+        raise NotImplementedError("implement width")
+
     @property
     def has_one_large_image(self):
         def area(obj):

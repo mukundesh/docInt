@@ -1,9 +1,7 @@
-import pytest
-
 import docint
 
 
-@pytest.mark.skip("This takes a very long time")
+# @pytest.mark.skip("This takes a very long time")
 def test_infer_layout(layout_paths):
     docker_config = {
         "pre_install_lines": ["RUN pip install transformers[torch]"],
@@ -14,6 +12,7 @@ def test_infer_layout(layout_paths):
 
     ppl = docint.empty(config={"docker_pipes": ["infer_layoutlmv2"], "docker_config": docker_config})
     ppl.add_pipe("pdf_reader")
+    ppl.add_pipe("page_image_builder_raster")
     pipe_config = {
         "infer_model_name": "test-layout",
         "model_dir": ".model",

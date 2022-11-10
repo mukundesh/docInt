@@ -41,6 +41,24 @@ class ListItem(Para):
     def __str__(self):
         return self.text
 
+    def make_ascii(self, unicode_dict={}):
+        assert not self.label_spans
+        not_found = []
+        for text, word in self.iter_word_text():
+            if not word.text.isascii():
+                u_text = word.text
+                if u_text in unicode_dict:
+                    a_text = unicode_dict[u_text]
+                    # self.lgr.debug(f'UnicodeFixed: {u_text}->{a_text}')
+                    assert a_text is not None, f"incorrect text >{u_text}<"
+                    self.replace_word_text(word, "<all>", a_text)
+                else:
+                    sys.stderr.write(f"Unicode: >{u_text}<\n")
+                    not_found.append(word.text)
+                    pass
+                    # self.lgr.info(f'unicode text not found: {u_text}\n')
+        return not_found
+
 
 @Vision.factory(
     "list_finder",
@@ -236,7 +254,7 @@ class ListFinder:
 
         if abs(angle) > rotation_config["rotation_min_angle"]:
             self.lgr.info(f"Rotated page {page.page_idx} strategy: {strategy} angle: {angle}")
-            rota_page = Page.build_rotated(page, -1 * angle)
+            rota_page = Page.build_rotated(page, angle)
             rota_word_lines = words_in_lines(rota_page)
             result_word_lines = []
             for rota_wl in rota_word_lines:

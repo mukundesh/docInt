@@ -13,6 +13,31 @@ MAX_IMAGE_HEIGHT = 1000
 # TODO: 2 Save the results and verify the model is correct
 
 
+def get_wand_array(page_image):
+    # TODO: Unable to use Wand to for doing imaging resizing as the processor is failing
+    # with type mismatch error.
+    # ValueError: Images must of type `PIL.Image.Image`, `np.ndarray` or `torch.Tensor`
+    # (single example), `List[PIL.Image.Image]`, `List[np.ndarray]` or `List[torch.Tensor]`
+    # (batch of examples), but is of type <class 'list'>
+    #
+    # This could also be a python 3.7 issue as this fails
+    # print(isinstance(images, List[np.ndarray]))
+    import numpy as np
+    from wand.image import Image as WandImage
+
+    image_path = Path(page_image.image_path)
+    if not image_path.exists():
+        image_path = Path(".img") / image_path.parent.name / Path(image_path.name)
+
+    with WandImage(filename=image_path) as image:
+        orig_w, orig_h = image.size
+        h_scale = MAX_IMAGE_HEIGHT / orig_h
+        new_w = int(orig_w * h_scale)
+        image.resize(new_w, MAX_IMAGE_HEIGHT)
+        ar = np.asarray(bytearray(image.make_blob()), dtype=np.int64)
+    return ar
+
+
 def check_datset(data_dict):
     num_examples = len(data_dict["id"])
     assert all(len(v) == num_examples for v in data_dict.values())
@@ -68,7 +93,7 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
             padding="max_length",
             truncation=True,
             # return_tensors="pt",
-            #            return_offsets_mapping=True, # TODO, how to add offsets_mapping to the Features
+            # return_offsets_mapping=True, # TODO, how to add offsets_mapping to the Features
         )
 
         # close the images as they take a lot of memory
@@ -85,6 +110,8 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
         data_dict["bboxes"].append([get_bbox(page, w) for w in page.words])
         data_dict["ner_tags"].append(get_ner_tags(page))
         data_dict["pil_images"].append(page.page_image.to_pil_image(img_size).convert("RGB"))
+
+        # data_dict["pil_images"].append(get_wand_array(page.page_image))
 
     check_datset(data_dict)
 

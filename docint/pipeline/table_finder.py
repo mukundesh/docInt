@@ -121,8 +121,7 @@ class TableFinder:
             path = f"{page_path}.li{idx}"
             if self.make_ascii:
                 # TODO fixing of words should happen in one place
-                # missing_unicodes = list_item.make_ascii(self.unicode_dict)  # noqa: F841
-                pass
+                missing_unicodes = list_item.make_ascii(self.unicode_dict)  # noqa: F841
 
             if list_item.marker and list_item.marker.num_val == 1:
 

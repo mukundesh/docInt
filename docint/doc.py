@@ -6,16 +6,14 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-import pydantic
 from more_itertools import flatten
 from pydantic import BaseModel, parse_obj_as
 
-from . import pdfwrapper
 from .errors import Errors
 from .page import Page
 from .page_image import PageImage
 from .region import Region
-from .shape import Box, Coord, Shape
+from .shape import Shape
 
 # A container for tracking the document from a pdf/image to extracted information.
 
@@ -44,12 +42,9 @@ class Doc(BaseModel):
         else:
             raise TypeError("Unknown type {type(idx)} this method can handle")
 
-    def to_dict(self):
-        pass
-
     @property
     def num_pages(self):
-        return len(self.page_images)
+        return len(self.pages)
 
     @property
     def pdf_path(self):
@@ -65,81 +60,35 @@ class Doc(BaseModel):
 
     @property
     def has_images(self):
-        return sum([i.num_images for i in self.page_infos]) > 0
+        raise NotImplementedError("Currently not implemented")
+        # return sum([i.num_images for i in self.page_infos]) > 0
 
     def get_image_path(self, page_idx):
-        page_num = page_idx + 1
-        image_dir = Path(self._image_root) / self.pdf_stem
-        angle = getattr(self.pages[page_idx], "reoriented_angle", 0)
-        if angle != 0:
-            return image_dir / f"orig-{page_num:03d}-000-r{angle}.png"
-        else:
-            return image_dir / f"orig-{page_num:03d}-000.png"
+        raise NotImplementedError("Currently not implemented")
+
+        # page_num = page_idx + 1
+        # image_dir = Path(self._image_root) / self.pdf_stem
+        # angle = getattr(self.pages[page_idx], "reoriented_angle", 0)
+        # if angle != 0:
+        #     return image_dir / f"orig-{page_num:03d}-000-r{angle}.png"
+        # else:
+        #     return image_dir / f"orig-{page_num:03d}-000.png"
 
     # move this to document factory
     @classmethod
     def build_doc(cls, pdf_path, image_dirs_path):
-        def get_image_path(pdf_path, image_dirs_path, page_idx):
-            image_dirs_path = cls.image_dirs_path if not image_dirs_path else image_dirs_path
-            image_name = f"orig-{page_idx+1:03d}-000.png"
-            image_path = Path(image_dirs_path) / pdf_path.name[:-4] / Path(image_name)
-            return image_path
+        return Doc(pdffile_path=pdf_path)
 
-        doc = Doc(pdffile_path=pdf_path)
-        image_dirs_path = cls.image_dirs_path if not image_dirs_path else image_dirs_path
-        image_dir_path = Path(image_dirs_path) / pdf_path.name[:-4]
-        pdf_info_path = image_dir_path / (doc.pdf_name + ".pdfinfo.json")
+    def to_json(self, exclude_defaults=True):
+        return self.json(exclude_defaults=exclude_defaults)
 
-        if image_dir_path.exists() and pdf_info_path.exists():
-            pdf_info = json.loads(pdf_info_path.read_text())
-            doc.page_infos = [PageInfo(**p) for p in pdf_info["page_infos"]]
-            doc.page_images = [PageImage(**i) for i in pdf_info["page_images"]]
-            return doc
+    def to_dict(self, exclude_defaults=True):
+        return self.dict(exclude_defaults=exclude_defaults)
 
-        image_dir_path.mkdir(exist_ok=True, parents=True)
-        pdf = pdfwrapper.open(pdf_path, library_name="pypdfium2")
-        for (page_idx, page) in enumerate(pdf.pages):
-            doc.page_infos.append(PageInfo(width=page.width, height=page.height, num_images=len(page.images)))
-
-            image_path = get_image_path(pdf_path, image_dirs_path, page_idx)
-            if page.has_one_large_image:
-                image = page.images[0]
-                width, height = image.width, image.height
-                x0, y0, x1, y1 = image.bounding_box
-                top, bot = Coord(x=x0, y=y0), Coord(x=x1, y=y1)
-                image_box = Box(top=top, bot=bot)
-                image_type = "original"
-                image.save(image_path)
-            else:
-                width, height = page.page_image_save(image_path)
-                print("Raster**:", width, height)
-                [x0, y0, x1, y1] = [0, 0, page.width, page.height]
-                top, bot = Coord(x=x0, y=y0), Coord(x=x1, y=y1)
-                image_box = Box(top=top, bot=bot)
-                image_type = "raster"
-
-            page_image = PageImage(
-                image_width=width,
-                image_height=height,
-                image_path=str(image_path),
-                image_box=image_box,
-                image_type=image_type,
-                page_width=page.width,
-                page_height=page.height,
-            )
-            doc.page_images.append(page_image)
-        # end
-        pdf_info = {"page_infos": doc.page_infos, "page_images": doc.page_images}
-        pdf_info_path.write_text(json.dumps(pdf_info, default=pydantic.json.pydantic_encoder, indent=2))
-        return doc
-
-    def to_json(self):
-        return self.json(exclude_defaults=True)  # removed indent, models_as_dict=False
-
-    def to_disk(self, disk_file, format="json"):
+    def to_disk(self, disk_file, format="json", exclude_defaults=True):
         disk_file = Path(disk_file)
         if format == "json":
-            disk_file.write_text(self.to_json())
+            disk_file.write_text(self.to_json(exclude_defaults=exclude_defaults))
         else:
             raise NotImplementedError(f"Unknown format: {format}")
             # disk_file.write_bytes(self.to_msgpack())
@@ -460,6 +409,13 @@ class Doc(BaseModel):
             region.shape_ = None
             return region
 
+        def addWordIdxs(doc, region_path, *word_idxs):
+            region = doc.get_region(region_path)
+            # add_words = [doc.get_word(p) for p in word_paths]
+            region["word_idxs"] += list(int(idx) for idx in word_idxs)
+            # region.text_ = None
+            return region
+
         # def newRegionToList(doc, parent_path, *word_paths):
         #     parent = doc.get_region(parent_path)
         #     assert word_paths
@@ -483,9 +439,6 @@ class Doc(BaseModel):
             assert del_idx < len(doc.pages)
 
             doc.pages.pop(del_idx)
-            doc.page_images.pop(del_idx)
-            doc.page_infos.pop(del_idx)
-
             for page in doc.pages[del_idx:]:
                 page.page_idx -= 1
 

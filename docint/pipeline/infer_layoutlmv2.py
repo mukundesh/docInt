@@ -20,6 +20,8 @@ def iob2label(label):
         "git+https://github.com/facebookresearch/detectron2.git",
         "seqeval",
         "datasets",
+        "apt:libmagickwand-dev",
+        "wand",
     ],
     default_config={
         "page_idx": 0,

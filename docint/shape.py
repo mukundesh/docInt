@@ -4,12 +4,61 @@ from typing import List
 from pydantic import BaseModel
 
 
+def doc_to_image(doc_coord, size):
+    assert 0 <= doc_coord.x <= 1.1 and 0 <= doc_coord.y <= 1.1
+    w, h = size
+    return Coord(x=doc_coord.x * w, y=doc_coord.y * h)
+
+
+def image_to_doc(image_coord, size):
+    w, h = size
+    return Coord(x=image_coord.x / w, y=image_coord.y / h)
+
+
+def size_after_rotation(old_size, angle):
+    """https://stackoverflow.com/a/70420150"""
+    rad_angle = math.radians(angle)
+    abs_sin, abs_cos = abs(math.sin(rad_angle)), abs(math.cos(rad_angle))
+
+    w, h = old_size
+    new_h = math.ceil(w * abs_sin) + math.ceil(h * abs_cos)
+    new_w = math.ceil(w * abs_cos) + math.ceil(h * abs_sin)
+    return new_w, new_h
+
+
+def rotate_image_coord(image_coord, angle, prev_size, curr_size):
+    angle_rad = math.radians(angle)
+
+    prev_width, prev_height = prev_size
+    curr_width, curr_height = curr_size
+
+    image_x_centre, image_y_centre = prev_width / 2.0, prev_height / 2.0
+    centre_x = image_coord.x - prev_width + image_x_centre
+    centre_y = prev_height - image_coord.y - image_y_centre
+
+    rota_centre_x = (centre_x * math.cos(angle_rad)) - (centre_y * math.sin(angle_rad))
+    rota_centre_y = (centre_y * math.cos(angle_rad)) + (centre_x * math.sin(angle_rad))
+
+    rota_image_x, rota_image_y = (
+        rota_centre_x + curr_width / 2,
+        curr_height / 2 - rota_centre_y,
+    )
+
+    rota_image_x = min(max(0, rota_image_x), curr_width)
+    rota_image_y = min(max(0, rota_image_y), curr_height)
+    image_coord = Coord(x=round(rota_image_x), y=round(rota_image_y))
+    return image_coord
+
+
 class Coord(BaseModel):
     x: float  # currently always stay as float
     y: float
 
     def __str__(self):
         return f"{self.x:4.4f}:{self.y:4.4f}"
+
+    def __repr__(self):
+        return self.__str__()
 
     def inside(self, top, bot):
         return (top.x <= self.x <= bot.x) and (top.y <= self.y <= bot.y)
@@ -18,7 +67,7 @@ class Coord(BaseModel):
 class Shape(BaseModel):
     @classmethod
     def build_box(cls, boxes):
-        if isinstance(boxes[0], float):
+        if isinstance(boxes[0], float) or isinstance(boxes[0], int):
             coord_vals = boxes
             assert len(coord_vals) == 4
             [x0, y0, x1, y1] = coord_vals
@@ -57,6 +106,11 @@ class Box(Shape):
     @classmethod
     def from_coords(cls, coords):
         return cls.build(coords)
+
+    @classmethod
+    def from_bounding_box(cls, bounds):
+        [x0, y0, x1, y1] = bounds
+        return Box(top=Coord(x=x0, y=y0), bot=Coord(x=x1, y=y1))
 
     @classmethod
     def check_coords(cls, top, bot):
@@ -189,15 +243,15 @@ class Poly(Shape):
 
     def _get_min(self, axis):
         if axis == "x":
-            return min([c.x for c in self.coords])
+            return min(c.x for c in self.coords)
         else:
-            return min([c.y for c in self.coords])
+            return min(c.y for c in self.coords)
 
     def _get_max(self, axis):
         if axis == "x":
-            return max([c.x for c in self.coords])
+            return max(c.x for c in self.coords)
         else:
-            return max([c.y for c in self.coords])
+            return max(c.y for c in self.coords)
 
     def is_horz(self):
         (minX, minY) = self.get_min("x"), self.get_min("y")

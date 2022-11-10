@@ -9,7 +9,6 @@ from statistics import mean
 from typing import List
 
 from more_itertools import pairwise
-from PIL import Image
 
 from ..data_error import DataError
 from ..page import Page
@@ -21,6 +20,45 @@ from ..vision import Vision
 
 # TODO 1: test with skew threshold
 # TODO 2: remove unnecessary options
+
+
+class WandImageContext(ImageContext):
+    def __enter__(self):
+        from wand.image import Image as WandImage
+
+        image_path = Path(self.page_image.image_path)
+        if image_path.exists():
+            self.image = WandImage(filename=image_path)
+        else:
+            # TODO THIS IS NEEDED FOR DOCKER, once directories
+            # are properly arranged docker won't be needed.
+            image_path = Path(".img") / image_path.parent.name / Path(image_path.name)
+            print(image_path)
+            self.image = WandImage(filename=image_path)
+
+        self.transformations = []
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        print("Closing Image Context")
+        self.image.destroy()
+        self.image = None
+        self.transformations.clear()
+
+    def normalize_angle(self, angle):
+        # Wand measures angle clockwise while PIL (default) is counter cw
+        return -1 * angle  # PIL2WAND
+
+    def _image_rotate(self, angle, background):
+        self.image.rotate(angle, background=background)  # PIL2WAND
+
+    def _image_crop(self, img_top, img_bot):
+        self.image.crop(  # PIL2WAND
+            left=round(img_top.x),
+            top=round(img_top.y),
+            right=round(img_bot.x),
+            bottom=round(img_bot.y),
+        )
 
 
 class MismatchColumnEdges(DataError):
@@ -39,7 +77,7 @@ class EdgeFinderPageConfig:
 
 
 @Vision.factory(
-    "table_edge_finder",
+    "table_edge_finder_wand",
     depends=["opencv-python-headless", "apt:libmagickwand-dev", "wand"],
     default_config={
         "doc_confdir": "conf",
@@ -51,7 +89,7 @@ class EdgeFinderPageConfig:
         "skew_threshold": 1.0,
     },
 )
-class TableEdgeFinder:
+class TableEdgeFinderWand:
     def __init__(
         self,
         doc_confdir,
@@ -113,51 +151,31 @@ class TableEdgeFinder:
 
     def save_image(self, cv_img, stub, page_idx, work_dir=".tmp/"):
         work_dir = "logs"
-        img_file_name = Path(work_dir) / f"{stub}-{page_idx}.png"  # TODO FIX THIS.
-        img_pil = cv_img if isinstance(cv_img, Image.Image) else Image.fromarray(cv_img)
-        img_pil.save(img_file_name)  # TODO
+        img_file_name = Path(work_dir) / f"{stub}-{page_idx}.png"  # noqa
+        # img_pil = cv_img if isinstance(cv_img, Image.Image) else Image.fromarray(cv_img)
+        # print("**** NOT SAVING THE FILE ***")
+        # img_pil.save(img_file_name)  # TODO
 
-    def get_skew_angle(self, pil_image, orientation):  # WAND2PIL
-        import numpy as np
-        from wand.image import Image as WImage
-
-        def pil_to_array(pil_image):
-            ar = np.array(pil_image.copy())
-            if ar.dtype == np.dtype("bool"):
-                print("Converting bool to uint8")
-                ar = ar.astype("uint8") * 255
-            return ar
-
-        with WImage.from_array(pil_to_array(pil_image)) as image:
-            if orientation == "v":
-                image.rotate(90)
-            image.deskew(0.8 * image.quantum_range)
-            angle = -1 * float(image.artifacts["deskew:angle"])
-        print("**** SKEW ANGLE ***", angle)
+    def get_skew_angle(self, page_image, orientation):  # PIL2WAND
+        image = page_image.image.clone()
+        if orientation == "v":
+            image.rotate(90)
+        image.deskew(0.8 * image.quantum_range)
+        angle = -1 * float(image.artifacts["deskew:angle"])
+        print("**** SKEW ANGLE ***", angle, self.skew_threshold)
         return angle
 
     def find_column_ranges(self, page, page_idx, conf, xmin=None, ymin=None, ymax=None):
         import cv2
         import numpy as np
 
-        def pil_to_array(pil_image):  # WAND2PIL START
-            ar = np.array(pil_image)
-            if ar.dtype == np.dtype("bool"):
-                print("Converting bool to uint8")
-                ar = ar.astype("uint8") * 255
-            return ar
-
-        if isinstance(page, Page):
+        if isinstance(page, Page):  # PIL2WAND
             image_path = self.get_image_path(page)
             img = cv2.imread(str(image_path), 0)
         else:
             page_image = page
-            img_buffer = pil_to_array(page_image.image)
-            if img_buffer.ndim == 2:
-                print("Setting buffer")
-                img = img_buffer
-            else:
-                img = cv2.cvtColor(img_buffer, cv2.COLOR_BGR2GRAY)  # WAND2PIL END
+            img_buffer = np.asarray(bytearray(page_image.image.make_blob()), dtype=np.uint8)
+            img = cv2.imdecode(img_buffer, cv2.IMREAD_GRAYSCALE)
 
         self.save_image(img, "find_column_ranges-orig", page_idx)
 
@@ -238,12 +256,13 @@ class TableEdgeFinder:
             print(f"Crop Coords: {crop_coords}")
             top, bot = crop_coords
             page_image.crop(top, bot)
-            self.save_image(page_image.image, "after_vert_crop", page_idx)
+            # self.save_image(np.asarray(page_image.to_pil_image()), 'first-crop', page_idx)
 
         if conf.skew_threshold > 0.0:
-            v_skew_angle = self.get_skew_angle(page_image.image, "v")
+            v_skew_angle = self.get_skew_angle(page_image, "v")
             if abs(v_skew_angle) > conf.skew_threshold:
                 self.lgr.debug(f"\tRotating Image v_skew_angle: {v_skew_angle}")
+                print(f"\tRotating Image v_skew_angle: {v_skew_angle}")
                 page_image.rotate(v_skew_angle)
                 self.save_image(page_image.image, "after_vert_rotation", page_idx)
 
@@ -269,12 +288,9 @@ class TableEdgeFinder:
         col_top_doc_coords = [page_image.get_doc_coord(c) for c in col_top_img_coords]
         col_bot_doc_coords = [page_image.get_doc_coord(c) for c in col_bot_img_coords]
 
-        self.lgr.info(
-            f"> Page {page_idx} Column doc_coords[{len(col_img_xs)}]: [{', '.join([str(c) for c in col_top_doc_coords])}]"
-        )
-        self.lgr.info(
-            f"> Page {page_idx} Column doc_coords[{len(col_img_xs)}]: [{', '.join([str(c) for c in col_bot_doc_coords])}]"
-        )
+        num_xs = len(col_img_xs)
+        self.lgr.info(f"> Pg {page_idx} col_doc_coords[{num_xs}]: {col_top_doc_coords}")
+        self.lgr.info(f"> Pg {page_idx} col_doc_coords[{num_xs}]: {col_bot_doc_coords}")
 
         zip_col_coords = zip(col_top_doc_coords, col_bot_doc_coords)
         col_edges = [Edge.build_v_oncoords(top, bot) for top, bot in zip_col_coords]
@@ -293,7 +309,7 @@ class TableEdgeFinder:
             page_image.crop(top, bot)
 
         if conf.skew_threshold > 0.0:
-            h_skew_angle = self.get_skew_angle(page_image.image, "h")
+            h_skew_angle = self.get_skew_angle(page_image, "h")
 
             if abs(h_skew_angle) > conf.skew_threshold:
                 self.lgr.debug(f"\tRotating Image h_skew_angle: {h_skew_angle}")
@@ -315,8 +331,8 @@ class TableEdgeFinder:
         row_lt_doc_coords = [page_image.get_doc_coord(c) for c in row_lt_img_coords]
         row_rt_doc_coords = [page_image.get_doc_coord(c) for c in row_rt_img_coords]
 
-        self.lgr.info(f"> Page {page_idx} Row: [{', '.join([str(c) for c in row_lt_doc_coords])}]")
-        self.lgr.info(f"> Page {page_idx} Row: [{', '.join([str(c) for c in row_rt_doc_coords])}]")
+        self.lgr.info(f"> Page {page_idx} Row: {row_lt_doc_coords}")
+        self.lgr.info(f"> Page {page_idx} Row: {row_rt_doc_coords}")
 
         zip_row_coords = zip(row_lt_doc_coords, row_rt_doc_coords)
         row_edges = [Edge.build_h_oncoords(lt, rt) for lt, rt in zip_row_coords]
@@ -357,15 +373,21 @@ class TableEdgeFinder:
 
                 top, bot = Coord(x=0.0, y=top_y), Coord(x=1.0, y=bot_y)
                 crop_coords.extend([top, bot])
-                self.lgr.debug(f"\tCropping Image [{top},{bot}] because {(ymax-ymin)*100} < {conf.crop_threshold}")
+                self.lgr.debug(
+                    f"\tCropping Image [{top},{bot}] because {(ymax-ymin)*100:.2f}% < {conf.crop_threshold}%"
+                )
             else:
                 top, bot = Coord(x=0.0, y=0.0), Coord(x=1.0, y=1.0)
 
-            with ImageContext(page.page_image) as page_image_ctx:
+            with WandImageContext(page.page_image) as page_image_ctx:
+                print("ENTER COLUMN EDGES")
                 col_edges, col_img_xs = self.get_column_edges(page_image_ctx, page.page_idx, crop_coords, conf)
+                print("EXIT COLUMN EDGES")
 
-            with ImageContext(page.page_image) as page_image_ctx:
+            with WandImageContext(page.page_image) as page_image_ctx:
+                print("ENTER ROW EDGES")
                 row_edges = self.get_row_edges(page_image_ctx, page.page_idx, row_markers, crop_coords, conf)
+                print("EXIT ROW EDGES")
 
             table_edges = TableEdges(row_edges=row_edges, col_edges=col_edges, col_img_xs=col_img_xs)
             table_edges_list.append(table_edges)

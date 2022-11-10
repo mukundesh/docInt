@@ -52,8 +52,14 @@ class LineWord(Region):
         return "-".join([f"[{w.word_idx}]" for w in self.words])
 
     def to_str(self):
+        def w_text(lw):
+            return lw.words[0].text
+
         words_text = " ".join(w.text for w in self.words)
-        return f"[{self.words[0].word_idx}]#{len(self.words)} >{words_text}<"
+
+        lt = ",".join([str(w_text(lw)) for lw in self.lt_lwords])  # noqa: F841
+        rt = ",".join([str(w_text(lw)) for lw in self.rt_lwords])  # noqa: F841
+        return f"[{self.words[0].word_idx}]#{len(self.words)} >{words_text} LT: {lt} RT: {rt}<"
 
     @property
     def char_width(self):
@@ -73,14 +79,14 @@ class LineWord(Region):
         lt_words = pg.words_to("left", word, overlap_percent=40, min_height=avg_height)
         rt_words = pg.words_to("right", word, overlap_percent=40, min_height=avg_height)
 
-        # print(f'lt_words: {len(lt_words)} rt_words: {len(rt_words)}')
+        # print(f'lt_words: {len(lt_words)} rt_words: {len(rt_words)} {avg_height}')
 
         self.lt_lwords = [lWords_exp[w.word_idx] for w in lt_words.words] if lt_words else []
         self.rt_lwords = [lWords_exp[w.word_idx] for w in rt_words.words] if rt_words else []
 
         assert all(self.lt_lwords) and all(self.rt_lwords)
 
-        # print(f'lt_words: {len(self.lt_lwords)} rt_lwords: {len(self.rt_lwords)}')
+        # print(f'\tlt_words: {len(self.lt_lwords)} rt_lwords: {len(self.rt_lwords)}')
 
         self.lt_lwords = [lw for lw in self.lt_lwords if id(lw) != id(self)]
         self.rt_lwords = [lw for lw in self.rt_lwords if id(lw) != id(self)]

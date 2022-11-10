@@ -14,6 +14,7 @@ def test_learn_layout(layout_paths):
 
     ppl = docint.empty(config={"docker_pipes": ["learn_layoutlmv2"], "docker_config": docker_config})
     ppl.add_pipe("pdf_reader")
+    ppl.add_pipe("page_image_builder_raster")
     ppl.add_pipe("learn_layoutlmv2", pipe_config={"num_folds": 3})
     docs = ppl.pipe_all(layout_paths)
     docs = list(docs)
@@ -31,6 +32,7 @@ def test_learn_layout_one_fold(layout_paths):
     docker_pipes = ["learn_layoutlmv2"]
     ppl = docint.empty(config={"docker_pipes": docker_pipes, "docker_config": docker_config})
     ppl.add_pipe("pdf_reader")
+    ppl.add_pipe("page_image_builder_raster")
     ppl.add_pipe("learn_layoutlmv2", pipe_config={"num_folds": 1, "max_steps": 100})
     docs = ppl.pipe_all(layout_paths)
     docs = list(docs)
@@ -40,6 +42,7 @@ def test_learn_layout_one_fold(layout_paths):
 def test_learn_layout_word_labels(layout_paths):
     ppl = docint.empty()
     ppl.add_pipe("pdf_reader")
+    ppl.add_pipe("page_image_builder_raster")
     ppl.add_pipe("learn_layoutlmv2")
 
     docs = ppl.pipe_all(layout_paths)

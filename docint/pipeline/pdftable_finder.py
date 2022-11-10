@@ -17,6 +17,7 @@ from ..vision import Vision
 
 @Vision.factory(
     "pdftable_finder",
+    depends=["pdfplumber"],
     default_config={
         "pdfplumber_config": {
             "vertical_strategy": "lines",

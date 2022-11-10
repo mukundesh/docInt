@@ -167,6 +167,9 @@ class Span(BaseModel):
     def __str__(self):
         return f"[{self.start}:{self.end}]"
 
+    def __repr__(self):
+        return self.__str__()
+
     @property
     def start_longest_len(self):
         return (self.start, -1 * len(self))
@@ -235,7 +238,7 @@ class Span(BaseModel):
 
     @classmethod
     def to_str(self, span_str, spans):
-        return ",".join([span_str[s.slice()] for s in spans])
+        return ",".join([span_str[s.slice()] for s in flatten_spans(spans)])
 
     def on_word_boundary(self, text, boundary_chars=" "):
         lt_word_boundary, rt_word_boundary = False, False
@@ -247,11 +250,17 @@ class Span(BaseModel):
 
         return lt_word_boundary and rt_word_boundary
 
+    def start_in_boundary(self, text, boundary_chars=" "):
+        s = self.start
+        return False if s == 0 else text[s] in boundary_chars
+
+    def end_in_boundary(self, text, boundary_chars=" "):
+        e = self.end
+        return text[e - 1] in boundary_chars
+
     def in_boundary(self, text, boundary_chars=" "):
-        s, e = self.start, self.end
-        start_in_boundary = False if s == 0 else text[s] in boundary_chars
-        end_in_boundary = text[e - 1] in boundary_chars
-        return start_in_boundary or end_in_boundary
+        bc = boundary_chars
+        return self.start_in_boundary(text, bc) or self.end_in_boundary(text, bc)
 
     def is_valid(self, text):
         return (0 <= self.start <= len(text)) and (0 <= self.end <= len(text)) and (self.start <= self.end)

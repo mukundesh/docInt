@@ -13,7 +13,6 @@ def test_properties(one_word_doc):
     assert doc.num_pages == 1
     assert doc.pdf_name == "one_word.pdf"
     assert doc.pdf_stem == "one_word"
-    assert doc.has_images == False  # noqa: E712
 
 
 def test_words(one_word_doc):
@@ -61,16 +60,5 @@ def test_extra_obj(one_word_doc, tmp_path):
 
 def test_page_info(one_word_doc):
     doc = one_word_doc
-    assert doc.page_infos[0].width == 595.0
-    assert doc.page_infos[0].height == 842.0
-    assert doc.page_infos[0].num_images == 0
-
-
-def test_page_image(one_word_doc):
-    doc = one_word_doc
-    doc.page_images[0].image_width = 2480.0
-    doc.page_images[0].image_height = 3059.0
-    doc.page_images[0].image_path = "orig-001-000.png"
-    doc.page_images[0].image_type = "raster"
-    doc.page_images[0].image_box.top.x = 0.0
-    doc.page_images[0].image_box.bot.y = 842.0
+    assert doc.pages[0].width == 595.0
+    assert doc.pages[0].height == 842.0

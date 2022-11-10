@@ -2,6 +2,7 @@ import docint
 
 
 def test_pdftable_finder(table_path):
+    # ppln = docint.empty(config={"docker_pipes": ["pdftable_finder"]}) # TODO not able to find pdf
     ppln = docint.empty()
     ppln.add_pipe("pdf_reader")
     ppln.add_pipe("pdftable_finder", pipe_config={"num_columns": 4})

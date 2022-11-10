@@ -124,21 +124,21 @@ class ParaFixer:
                 self.lgr.debug(f"NameExpansion: {old_name}->{new_name}")
             return s
 
+        def to_span(ner_result):
+            r = ner_result
+            start = 0 if r["start"] < 25 else r["start"]  # gobble up all chars
+            end = r["end"]
+            return Span(start=start, end=end)
+
         ignore_config = TextConfig(rm_labels=["ignore"], rm_nl=True)
         line_text = list_item.line_text(ignore_config)
 
         ner_results = self.nlp(line_text)
-        ner_results = [r for r in ner_results if r["entity"].endswith("-PER")]
-        officer_spans = [Span(start=r["start"], end=r["end"]) for r in ner_results]
 
+        officer_spans = [to_span(r) for r in ner_results if r["entity"].endswith("-PER")]
         officer_spans = Span.accumulate(officer_spans, text=line_text, ignore_chars=" .,")
         if not officer_spans:
             return
-
-        # Salut getting skipped
-        if officer_spans[0].start < 25:
-            officer_spans[0].start = 0
-
         officer_spans = [expand_span(s) for s in officer_spans]
         officer_spans = Span.accumulate(officer_spans, text=line_text, ignore_chars=" .,")
 
@@ -188,22 +188,28 @@ class ParaFixer:
         line_text = list_item.line_text(ignore_config)
         punct_count = 0
 
-        ignore_spans = []
+        punct_spans = []
 
         for m in re.finditer(r"[.,;\']", line_text):
             s, e = m.span()
-            ignore_spans.append((s, e))
+            punct_spans.append(Span(start=s, end=e))
             punct_count += 1
 
         for m in re.finditer("in the", line_text):
             s, e = m.span()
-            ignore_spans.append((s, e))
+            punct_spans.append(Span(start=s, end=e))
             punct_count += 1
 
-        ignore_spans.sort()
-        self.lgr.debug(list_item.str_spans())
-        for (s, e) in reversed(ignore_spans):
-            list_item.add_label(Span(start=s, end=e), "ignore", ignore_config)
+        punct_spans.sort()
+        self.lgr.debug(f"B> {list_item.str_spans()}")
+        self.lgr.debug(f"S> {punct_spans}--{Span.to_str(line_text, punct_spans)}")
+
+        list_item.add_label(punct_spans, "puncts", ignore_config)
+
+        # for (s, e) in reversed(punct_spans):
+        #     list_item.add_label(Span(start=s, end=e), "ignore", ignore_config)
+
+        self.lgr.debug(f"A>{list_item.str_spans()}")
 
         return punct_count
 
@@ -233,14 +239,11 @@ class ParaFixer:
         text_config = TextConfig(rm_labels=["ignore", "person"])
         merge_count = list_item.merge_words(self.vocab, text_config)  # noqa: F841
 
-        # self.lgr.debug(f'B>{list_item.line_text_no_nl()}')
-
-        print("Correcting Words")
         correct_count = list_item.correct_words(self.vocab, text_config)  # noqa: F841
-
         manual_count = self.mark_manual_words(list_item)  # noqa: F841
-
         punct_count = self.blank_punct(list_item)  # noqa: F841
+        self.lgr.debug(f"Done all: {list_item.str_spans()}")
+        print(f"F >{list_item.text}<")
 
         return merge_count, correct_count
 
@@ -290,14 +293,14 @@ class ParaFixer:
             # access what to fix through path
             items = getattr(page, self.item_name, [])
             for (list_idx, list_item) in enumerate(items):
-                item_path = f"pa{page.page_idx}.{self.item_name[:2]}{list_idx}"
+                item_path = f"pa{page.page_idx}.{self.item_name[:2]}{list_idx}"  # noqa
                 indent_str = f"{doc.pdf_name}:{page_idx}>{list_idx}"  # noqa: F841
                 list_item.t = None
 
-                self.lgr.debug(f'\n{list_item.line_text().replace(NL, " ")}<')
+                self.lgr.debug(f'\n***{list_item.line_text().replace(NL, " ")}<')
 
                 self.fix_list(list_item)
-                list_item_errors = self.test(list_item, item_path)  # noqa: F841
+                list_item_errors = []  # self.test(list_item, item_path)  # noqa: F841
 
                 # list_item.errors += list_item_errors
                 # if type(list_item).__name__ == "ListItem":

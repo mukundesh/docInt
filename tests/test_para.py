@@ -1,3 +1,5 @@
+import pdb  # noqa
+
 import pytest
 
 from docint.para import Para, TextConfig
@@ -33,8 +35,6 @@ def test_labels(one_line_doc):
     para.add_label(Span(start=20, end=23), "partial")  # jum in jumped
     para.add_label(Span(start=29, end=31), "partial")  # er in over
 
-    print(para.line_text(TextConfig(rm_labels=["partial"])))
-
     no_animal_partial = "The quick bwn ped ov the lazy ."
     no_animal_partial_tc = TextConfig(rm_labels=["animal", "partial"])
     assert para.line_text(no_animal_partial_tc) == no_animal_partial
@@ -54,18 +54,38 @@ def test_partial(one_line_doc):
     para.add_label(Span(start=22, end=23), "partial_one_word")  # p
 
     no_partial_one_word = TextConfig(rm_labels=["partial_one_word"])
-    para.line_text(no_partial_one_word) == "The quick brown fox jupd over the lazy fox."
+    assert para.line_text(no_partial_one_word) == "The quick brown fox jupd over the lazy fox."
 
     para.add_label(Span(start=20, end=23), "partial_one_word")  # p
-    para.line_text(no_partial_one_word) == "The quick brown fox pd over the lazy fox."
+    assert para.line_text(no_partial_one_word) == "The quick brown fox pd over the lazy fox."
 
     no_partial_two_words = TextConfig(rm_labels=["partial_two_words"])
     para.add_label(Span(start=22, end=29), "partial_two_words")
-    print(para.line_text(no_partial_two_words))
+    assert para.line_text(no_partial_two_words) == "The quick brown fox juer the lazy fox."
 
     no_partial_span_three_words = TextConfig(rm_labels=["partial_span_three_words"])
     para.add_label(Span(start=22, end=33), "partial_span_three_words")
-    print(para.line_text(no_partial_span_three_words))
+    assert para.line_text(no_partial_span_three_words) == "The quick brown fox juhe lazy fox."
+
+
+def test_overlapping(one_line_doc):
+    all_words = one_line_doc.pages[0].words
+    para = Para.build_with_lines(all_words, [all_words])
+
+    para.add_label(Span(start=32, end=35), "article")
+    no_article_config = TextConfig(rm_labels=["article"])
+    no_article_line = para.line_text(TextConfig(rm_labels=["article"]))
+    assert no_article_line == "The quick brown fox jumped over lazy fox."
+
+    para.add_label(Span(start=27, end=36), "overlap", no_article_config)
+    overlap_line = para.line_text(TextConfig(rm_labels=["article", "overlap"]))
+    assert overlap_line == "The quick brown fox jumped fox."
+
+    para.add_label(Span(start=24, end=28), "article")
+    para.add_label(Span(start=10, end=40), "overlap")
+
+    new_overlap_line = para.line_text(TextConfig(rm_labels=["article", "overlap"]))
+    assert new_overlap_line == "The quick fox."
 
 
 # mis_spelt_doc
@@ -108,7 +128,7 @@ def test_paren(paren_doc, insensitive_vocab):
     para.label_regex(r, "ignore")
 
     paren_tc = TextConfig(rm_labels=["ignore"])
-    para.merge_words(vocab, paren_tc, dist_cutoff=1)
+    para.merge_words(vocab, paren_tc, dist_cutoff=0)
     print(f"After Merge: {para.line_text(paren_tc)}\n")
 
     para.correct_words(vocab, paren_tc, dist_cutoff=1)
@@ -120,6 +140,7 @@ def test_paren(paren_doc, insensitive_vocab):
 def test_multi_line(mis_spelt_multi_line_doc, insensitive_vocab):
     doc, vocab = mis_spelt_multi_line_doc, insensitive_vocab
 
+    # this is fyi
     long_line = (
         "Line1: A quick brown fox jumped over the lazy fox. "
         "Line2: A quick brown fox jumped over the lazy fox. "

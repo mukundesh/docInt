@@ -39,19 +39,19 @@ class Region(BaseModel):
         if rm_idx in self.word_idxs:
             self.word_idxs = [idx for idx in self.word_idxs if rm_idx != idx]
             self.words = [w for w in self.words if w.word_idx != rm_idx]
+            self.shape_ = None
 
-            if self.word_lines:
-                word_lines = []
-                for word_line in self.word_lines:
-                    word_lines.append([w for w in word_line if w.word_idx != rm_idx])
-                self.word_lines = word_lines
+            # if self.word_lines:
+            #     word_lines = []
+            #     for word_line in self.word_lines:
+            #         word_lines.append([w for w in word_line if w.word_idx != rm_idx])
+            #     self.word_lines = word_lines
 
-            if self.word_lines_idxs:
-                word_lines_idxs = []
-                for word_line_idx in self.word_lines_idxs:
-                    word_lines_idxs.append([idx for idx in word_line_idx if idx != rm_idx])
-                self.word_lines_idxs = word_lines_idxs
-                self.shape_ = None
+            # if self.word_lines_idxs:
+            #     word_lines_idxs = []
+            #     for word_line_idx in self.word_lines_idxs:
+            #         word_lines_idxs.append([idx for idx in word_line_idx if idx != rm_idx])
+            #     self.word_lines_idxs = word_lines_idxs
 
     def __bool__(self):
         # What is an empty region, what if remove the words from a

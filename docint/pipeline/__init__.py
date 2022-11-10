@@ -32,3 +32,6 @@ from .infer_layoutlmv2 import InferLayoutLMv2
 from .skew_detector_num_marker import SkewDetectorNumMarker
 from .skew_detector_wand import SkewDetectorWand
 from .script_normalizer import ScriptNormalizer
+from .page_image_builder_raster import PageImageBuilderRaster
+from .page_image_builder_embedded import PageImageBuilderEmbedded
+from .table_edge_finder_wand import TableEdgeFinderWand

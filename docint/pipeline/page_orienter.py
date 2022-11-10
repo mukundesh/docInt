@@ -1,13 +1,12 @@
 from collections import Counter
 from pathlib import Path
 
+from PIL import Image
+
 from ..shape import Coord
 from ..vision import Vision
 
-# from PIL import Image
-
-
-# TODO: 1. make image rotation optional
+# TODO: 1. make image rotation optional -- why ???
 # TODO: 2. no need to provide image dir as that should be picked up separately
 # TODO: 3. logging
 
@@ -56,14 +55,13 @@ class OrientPage:
             angle_counter[angle] += 1
         return max(angle_counter, key=angle_counter.get, default=0)
 
-    def orient_image(self, img_path, angle):
+    def orient_image(self, page, angle):
         assert angle in (90, 180, 270)
-        new_path = img_path.parent / (img_path.stem + f"-r{angle}" + img_path.suffix)
-        if not new_path.exists():
-            pass  # NOT ROTATING THE IMAGE
-            # print(f"rotating the image {new_path}") # TODO move this code elsewhere
-            # img = Image.open(img_path).rotate(angle)
-            # img.save(new_path) TODOo
+        if page.page_image is not None:
+            img_path = Path(page.page_image.image_path)
+            new_path = img_path.parent / (img_path.stem + f"-r{angle}" + img_path.suffix)
+            img = Image.open(img_path).rotate(angle)
+            img.save(new_path)
 
     def orient_page(self, page, angle):
         xMultiplier = (page.height / float(page.width)) if angle in (90, 270) else 1.0
@@ -92,17 +90,12 @@ class OrientPage:
         doc.add_extra_page_field("reoriented_angle", ("noparse", "", ""))
         for page in doc.pages:
             angle = self.calc_reorient_angle(page)
-            # print(f"page_idx: {page.page_idx} Angle: {angle}")
+            print(f"page_idx: {page.page_idx} Angle: {angle}")
             if angle != 0:
                 print(f"Orienting page_idx: {page.page_idx}")
-                # angle = self.calc_reorient_angle(page)
-
                 self.orient_page(page, angle)
                 page.reoriented_angle = angle
-                if self.images_dir:
-                    img_filename = Path(f"orig-{page.page_idx+1:03d}-000.png")
-                    img_path = self.images_dir / doc.pdf_stem / img_filename
-                    self.orient_image(img_path, angle)
+                self.orient_image(page, angle)
             else:
                 page.reoriented_angle = 0
         return doc

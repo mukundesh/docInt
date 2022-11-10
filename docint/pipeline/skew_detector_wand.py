@@ -38,7 +38,9 @@ class SkewDetectorWand:
     def get_skew_angle(self, page, orientation):
         from wand.image import Image
 
-        with Image(filename=page.page_image.image_path) as image:
+        print(type(page.page_image))
+
+        with Image(filename=page.page_image.get_image_path()) as image:
             if orientation == "h":
                 hor_image = image
                 hor_image.deskew(0.8 * hor_image.quantum_range)

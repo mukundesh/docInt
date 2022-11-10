@@ -38,6 +38,6 @@ class UnmatchedTextsError(DataError):
     texts: List[str]
 
     @classmethod
-    def build(cls, path, unmatched_texts, post_str=""):
-        msg = f'{",".join(unmatched_texts)}|{post_str}'
+    def build(cls, path, unmatched_texts, post_str="", word_idxs=[]):
+        msg = f'{",".join(unmatched_texts)}|{", ".join(word_idxs)}|{post_str}'
         return UnmatchedTextsError(path=path, msg=msg, texts=unmatched_texts)
