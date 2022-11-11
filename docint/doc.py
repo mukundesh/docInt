@@ -80,7 +80,7 @@ class Doc(BaseModel):
         return Doc(pdffile_path=pdf_path)
 
     def to_json(self, exclude_defaults=True):
-        return self.json(exclude_defaults=exclude_defaults)
+        return self.json(exclude_defaults=exclude_defaults, sort_keys=True)
 
     def to_dict(self, exclude_defaults=True):
         return self.dict(exclude_defaults=exclude_defaults)

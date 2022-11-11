@@ -6,10 +6,12 @@ from polyleven import levenshtein
 class Vocab:
     def __init__(self, texts, *, case_sensitive=False):
         self.case_sensitive = case_sensitive
+
+        # order of words is important, hence storing in dict (py >=3.7)
         if self.case_sensitive:
-            self._texts = set(texts)
+            self._texts = dict((t, None) for t in texts)
         else:
-            self._texts = set(t.lower() for t in texts)
+            self._texts = dict((t.lower(), None) for t in texts)
 
     def __contains__(self, text):
         text = text if self.case_sensitive else text.lower()
@@ -38,7 +40,7 @@ class Vocab:
             #    return [(text, 0)]
 
             result = []
-            for t in self._texts:
+            for t in self._texts.keys():
                 dist = levenshtein(text, t)
                 if dist <= dist_cutoff:
                     result.append((t, dist))
