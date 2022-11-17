@@ -1,14 +1,17 @@
 import json
 import shlex
 import shutil
+from enum import IntEnum
 from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from more_itertools import flatten
 from pydantic import BaseModel, parse_obj_as
 
+from .data_edit import DataEdit
+from .data_error import DataError
 from .errors import Errors
 from .page import Page
 from .page_image import PageImage
@@ -24,14 +27,44 @@ class PageInfo(BaseModel):
     num_images: int
 
 
+class ExtractType(IntEnum):
+    BaseType = 0
+    Object = 1
+    List = 2
+    Dict = 3
+    DictList = 4
+
+
+class ExtractInfo(BaseModel):
+    field_name: str
+    field_type: ExtractType
+    module_name: str
+    class_name: str
+    pipe_name: str
+
+    def get_class(self):
+        if self.module_name and self.class_name:
+            return getattr(import_module(self.module_name), self.class_name)
+        else:
+            return None
+
+
 class Doc(BaseModel):
     pdffile_path: Path
     pages: List[Page] = []  # field(default_factory=list)
-    page_infos: List[PageInfo] = []  # field(default_factory=list)
+    page_infos: List[PageInfo] = []  # field(default_factory=list)  # REMOVE
     page_images: List[PageImage] = []  # field(default_factory=list)
-    extra_fields: Dict[str, Tuple] = {}
-    extra_page_fields: Dict[str, Tuple] = {}
-    _image_root: str = None
+    extra_fields: Dict[str, Tuple] = {}  # REMOVE
+    extra_page_fields: Dict[str, Tuple] = {}  # REMOVE
+    _image_root: str = None  # REMOVE
+
+    doc_extract_infos: Dict[str, ExtractInfo] = {}
+    page_extract_infos: Dict[str, ExtractInfo] = {}
+
+    pipe_names: List[str] = []
+    errors: Dict[str, List[DataError]] = {}
+    edits: Dict[str, List[DataEdit]] = {}
+    config: Dict[str, Dict[str, Any]] = {}
 
     class Config:
         extra = "allow"
@@ -58,22 +91,6 @@ class Doc(BaseModel):
     def pdf_name(self):
         return self.pdffile_path.name
 
-    @property
-    def has_images(self):
-        raise NotImplementedError("Currently not implemented")
-        # return sum([i.num_images for i in self.page_infos]) > 0
-
-    def get_image_path(self, page_idx):
-        raise NotImplementedError("Currently not implemented")
-
-        # page_num = page_idx + 1
-        # image_dir = Path(self._image_root) / self.pdf_stem
-        # angle = getattr(self.pages[page_idx], "reoriented_angle", 0)
-        # if angle != 0:
-        #     return image_dir / f"orig-{page_num:03d}-000-r{angle}.png"
-        # else:
-        #     return image_dir / f"orig-{page_num:03d}-000.png"
-
     # move this to document factory
     @classmethod
     def build_doc(cls, pdf_path, image_dirs_path):
@@ -97,14 +114,126 @@ class Doc(BaseModel):
         file_path = Path(file_path)
         shutil.copy(self.pdf_path, file_path)
 
-    def add_extra_page_field(self, field_name, field_tuple):
+    def add_doc_extract(self, field_name, field_type, module_name, class_name):
+        extract_info = ExtractInfo(
+            field_name=field_name,
+            field_type=field_type,
+            module_name=module_name,
+            class_name=class_name,
+            pipe_name=self.pipe_names[-1],
+        )
+        self.doc_extract_infos[field_name] = extract_info
+
+    def add_page_extract(self, field_name, field_type, module_name, class_name):
+        extract_info = ExtractInfo(
+            field_name=field_name,
+            field_type=field_type,
+            module_name=module_name,
+            class_name=class_name,
+            pipe_name=self.pipe_names[-1],
+        )
+        self.page_extract_infos[field_name] = extract_info
+
+    def add_extra_page_field_old(self, field_name, field_tuple):
         self.extra_page_fields[field_name] = field_tuple
 
-    def add_extra_field(self, field_name, field_tuple):
+    def add_extra_field_old(self, field_name, field_tuple):
         self.extra_fields[field_name] = field_tuple
+
+    def add_extra_page_field(self, field_name, field_tuple):
+        (extra_type, module_name, class_name) = field_tuple
+        field_type = {
+            "noparse": ExtractType.BaseType,
+            "obj": ExtractType.Object,
+            "list": ExtractType.List,
+            "dict": ExtractType.Dict,
+            "dict_list": ExtractType.DictList,
+        }[extra_type]
+
+        self.add_page_extract(field_name, field_type, module_name, class_name)
+
+    def add_extra_field(self, field_name, field_tuple):
+        (extra_type, module_name, class_name) = field_tuple
+        field_type = {
+            "noparse": ExtractType.BaseType,
+            "obj": ExtractType.Object,
+            "list": ExtractType.List,
+            "dict": ExtractType.Dict,
+            "dict_list": ExtractType.DictList,
+        }[extra_type]
+
+        self.add_doc_extract(field_name, field_type, module_name, class_name)
 
     @classmethod  # noqa C901
     def from_dict(cls, doc_dict):  # noqa C901
+        # should call post_init
+        def update_region_links(doc, region):
+            region.words = [doc[region.page_idx_][idx] for idx in region.word_idxs]
+            if hasattr(region, "word_lines_idxs") and region.word_lines_idxs is not None:
+                p_idx, wl_idxs = region.page_idx_, region.word_lines_idxs
+                region.word_lines = [[doc[p_idx][idx] for idx in wl] for wl in wl_idxs]
+
+        def update_links(doc, regions):
+            if regions and not isinstance(regions[0], Region):
+                return
+            inner_regions = [ir for r in regions for ir in r.get_regions()]
+            for region in inner_regions:
+                update_region_links(doc, region)
+
+        def build_extract(obj, extract_info):
+            extract_dict = getattr(obj, extract_info.field_name, None)
+            if not extract_dict:
+                return
+
+            cls = extract_info.get_class()
+
+            if extract_info.field_type == ExtractType.BaseType:
+                return
+
+            elif extract_info.field_type == ExtractType.Object:
+                extract = parse_obj_as(cls, extract_dict)
+                update_links(obj.doc, [extract])
+
+            elif extract_info.field_type == ExtractType.List:
+                extract = parse_obj_as(List[cls], extract_dict)
+                update_links(obj.doc, extract)
+
+            elif extract_info.field_type == ExtractType.Dict:
+                key_type = type(list(extract_dict.keys())[0])
+                extract = parse_obj_as(Dict[key_type, cls], extract_dict)
+                update_links(obj.doc, list(extract.values()))
+
+            elif extract_info.field_type == ExtractType.DictList:
+                key_type = type(list(extract_dict.keys())[0])
+                extract = parse_obj_as(Dict[key_type, List[cls]], extract_dict)
+                update_links(obj.doc, list(flatten(extract.values())))
+            else:
+                raise NotImplementedError(f"Unknown type: {extract_info.field_type}")
+
+            print(extract_info.field_name, type(extract))
+            setattr(obj, extract_info.field_name, extract)
+
+        # TODO use construct to speed up the document loading
+        # need to supply the field_set, page has 'doc' field excluded
+        # new_doc = Doc.construct(**doc_dict)
+
+        new_doc = Doc(**doc_dict)
+        # link doc to page and words
+        for page in new_doc.pages:
+            page.doc = new_doc
+            for word in page.words:
+                word.doc = new_doc
+
+        for extract_info in new_doc.doc_extract_infos.values():
+            build_extract(new_doc, extract_info)
+
+        for page in new_doc.pages:
+            for extract_info in new_doc.page_extract_infos.values():
+                build_extract(page, extract_info)
+        return new_doc
+
+    @classmethod  # noqa C901
+    def from_dict_old(cls, doc_dict):  # noqa C901
         def get_extra_fields(obj):
             all_fields = set(obj.dict().keys())
             def_fields = set(obj.__fields__.keys())
@@ -225,6 +354,51 @@ class Doc(BaseModel):
     @property
     def doc(self):
         return self
+
+    def get_relevant_extracts(self, pipe, path, shape):
+        extracts = {}
+
+        def add_relevant_extracts(obj, extract_info):
+            extract = getattr(obj, extract_info.name, None)
+            if not extract:
+                return
+
+            if hasattr(extract, "get_relevant_extracts"):
+                extract_class = extract_info.get_class()
+                relevant_extracts = extract_class.get_relevant_extracts(path, shape)
+            else:
+                relevant_extracts = [extract]
+
+            extracts.setdefault(extract_info.name, []).extend(relevant_extracts)
+
+        doc_eis = [e for e in self.doc_extract_infos.values() if e.pipe == pipe]
+        for extract_info in doc_eis:
+            add_relevant_extracts(self, extract_info)
+
+        page = self.get_page(path)
+        if not page:
+            return None
+
+        page_eis = [e for e in self.page_extract_infos.values() if e.pipe == pipe]
+        for extract_info in page_eis:
+            add_relevant_extracts(page, extract_info)
+
+        return extracts
+
+    def add_pipe(self, pipe_name):
+        self.pipe_names.append(pipe_name)
+
+    def add_errors(self, errors):
+        pipe_name = self.pipe_names[-1]
+        self.errors.setdefault(pipe_name, []).extend(errors)
+
+    def add_edits(self, edits):
+        pipe_name = self.pipe_names[-1]
+        self.edits.setdefault(pipe_name, []).extend(edits)
+
+    def add_config(self, pipe, config):
+        pipe_name = self.pipe_names[-1]
+        self.configs[pipe_name] = config
 
     # TODO proper path processing please...
     # combine all of these in one single path

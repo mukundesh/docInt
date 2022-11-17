@@ -58,7 +58,7 @@ DEFAULT_PY_PACKAGES = [  # move this to docint
 class DockerRunner:
     def __init__(self, docker_dir):
         self.docker_dir = docker_dir
-        self.docint_dir = "/Users/mukund/Software/swap_pdf/docint"  # TODO: remove this
+        self.docint_dir = "/Users/mukund/Software/docInt/docint"  # TODO: remove this
 
     def generate_dockerfile(self, depends, docker_config):
         def is_python_package(d):
@@ -257,6 +257,8 @@ class DockerRunner:
     def pipe(self, name, input_docs, depends, is_recognizer, pipe_config, *, docker_config={}):
         docs = list(input_docs) if isinstance(input_docs, (list, GeneratorType)) else [input_docs]
         image_name, image_dir = self.build_image(name, depends, docker_config)
+
+        [doc.add_pipe(name) for doc in docs]
 
         task_dir = self.build_task_dir(image_dir, name, docs, is_recognizer, pipe_config, docker_config)
 

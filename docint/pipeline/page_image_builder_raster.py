@@ -16,6 +16,7 @@ def build_page_image(page, pdf_page, image_dir):
 
     image_stub = Path(page.doc.pdf_stem) / f"raster-{page_num:03d}-000.png"
     image_path = image_dir / image_stub
+    # write the image to the file
     image_width, image_height = pdf_page.page_image_save(image_path)
     image_box = Box(top=Coord(x=0.0, y=0.0), bot=Coord(x=page.width, y=page.height))
 

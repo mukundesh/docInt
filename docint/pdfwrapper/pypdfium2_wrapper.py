@@ -7,7 +7,7 @@ import pypdfium2 as pdfium
 
 from docint.pdfwrapper import pdf
 
-DEFAULT_DPI = 144
+DEFAULT_DPI = 72
 
 COLORSPACE_FAMILY = {
     0: "FPDF_COLORSPACE_UNKNOWN",
@@ -250,11 +250,11 @@ class Page(pdf.Page):
             rects = list(lib_textpage.get_rectboxes(s_index, e_index - s_index))
             rect = merge_rects(rects) if len(rects) > 1 else rects[0]
             if len(rects) > 1:
-                rect_text = get_text(rect).strip()
-                char_text = get_chars(s_index, e_index)
-                assert (
-                    text == rect_text
-                ), f"MERGED: {self.page_idx}[{s_index}:{e_index}] {text} + {to_texts(rects)} -> {rect_text} char: {char_text}\n{to_str(rects)}\n{to_str([rect])}"
+                rect_text = get_text(rect).strip()  # noqa
+                char_text = get_chars(s_index, e_index)  # noqa
+                # assert (
+                #    text == rect_text
+                # ), f"MERGED: {self.page_idx}[{s_index}:{e_index}] {text} + {to_texts(rects)} -> {rect_text} char: {char_text}\n{to_str(rects)}\n{to_str([rect])}"
 
             x0, y0, x1, y1 = rect
             # print(text, [x0, y0, x1, y1])

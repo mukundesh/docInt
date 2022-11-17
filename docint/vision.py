@@ -141,6 +141,31 @@ class Vision:
             return after + 1
         raise ValueError(Errors.E006.format(args=all_args, opts=self.component_names))
 
+    def exec_task(self, name, doc, proc, kwargs={}):
+        if name in self.docker_pipes:
+            print(">> Docker")
+            depends = self.factories_meta[name].depends
+            is_recognizer = self.factories_meta[name].is_recognizer
+            pipe_config = self.all_pipe_config[name]
+            return self.docker.pipe(
+                name,
+                doc,
+                depends,
+                is_recognizer,
+                pipe_config,
+                docker_config=self.docker_config,
+            )
+        else:
+            ## TODO doc.add_pipe is needed here, please do it...
+
+            if hasattr(proc, "pipe"):
+                print(">> PIPE")
+                return proc.pipe(doc, **kwargs)  # type: ignore[call-arg]
+            else:
+                doc.add_pipe(name)  # Added
+                print(">> PROC")
+                return proc(doc)
+
     def __call__(
         self,
         path: Path,
@@ -168,21 +193,8 @@ class Vision:
             if hasattr(proc, "get_error_handler"):
                 error_handler = proc.get_error_handler()  # noqa: F841 todo
             try:
-                # doc = proc(doc, **component_cfg.get(name, {}))  # type: ignore[call-arg]
-                if name in self.docker_pipes:
-                    depends = self.factories_meta[name].depends
-                    is_recognizer = self.factories_meta[name].is_recognizer
-                    pipe_config = self.all_pipe_config[name]
-                    doc = self.docker.pipe(
-                        name,
-                        doc,
-                        depends,
-                        is_recognizer,
-                        pipe_config,
-                        docker_config=self.docker_config,
-                    )
-                else:
-                    doc = proc(doc)  # type: ignore[call-arg]
+                print(">> __call__")
+                doc = self.exec_task(name, doc, proc)
             except KeyError as e:
                 # This typically happens if a component is not initialized
                 raise ValueError(Errors.E109.format(name=name)) from e
@@ -244,20 +256,23 @@ class Vision:
         print(f"INSIDE PIPE_PARTIALS {proc}")
         if hasattr(proc, "pipe"):
             print(f"INSIDE _PIPE {proc}")
-            if name in self.docker_pipes:
-                depends = self.factories_meta[name].depends
-                is_recognizer = self.factories_meta[name].is_recognizer
-                pipe_config = self.all_pipe_config[name]
-                yield from self.docker.pipe(
-                    name,
-                    docs,
-                    depends,
-                    is_recognizer,
-                    pipe_config,
-                    docker_config=self.docker_config,
-                )
-            else:
-                yield from proc.pipe(docs, **kwargs)
+            print(">> __pipe_partial.docs__")
+            yield from self.exec_task(name, docs, proc, kwargs)
+
+            # if name in self.docker_pipes:
+            #     depends = self.factories_meta[name].depends
+            #     is_recognizer = self.factories_meta[name].is_recognizer
+            #     pipe_config = self.all_pipe_config[name]
+            #     yield from self.docker.pipe(
+            #         name,
+            #         docs,
+            #         depends,
+            #         is_recognizer,
+            #         pipe_config,
+            #         docker_config=self.docker_config,
+            #     )
+            # else:
+            #     yield from proc.pipe(docs, **kwargs)
         else:
             # We added some args for pipe that __call__ doesn't expect.
             kwargs = dict(kwargs)
@@ -269,22 +284,25 @@ class Vision:
                     kwargs.pop(arg)
             for doc in docs:
                 try:
-                    if name in self.docker_pipes:
-                        depends = self.factories_meta[name].depends
-                        is_recognizer = self.factories_meta[name].is_recognizer
-                        pipe_config = self.all_pipe_config[name]
-                        doc = self.docker.pipe(
-                            name,
-                            doc,
-                            depends,
-                            is_recognizer,
-                            pipe_config,
-                            docker_config=self.docker_config,
-                        )
-                        yield doc
-                    else:
-                        doc = proc(doc, **kwargs)  # type: ignore[call-arg]
-                        yield doc
+                    # if name in self.docker_pipes:
+                    #     depends = self.factories_meta[name].depends
+                    #     is_recognizer = self.factories_meta[name].is_recognizer
+                    #     pipe_config = self.all_pipe_config[name]
+                    #     doc = self.docker.pipe(
+                    #         name,
+                    #         doc,
+                    #         depends,
+                    #         is_recognizer,
+                    #         pipe_config,
+                    #         docker_config=self.docker_config,
+                    #     )
+                    #     yield doc
+                    # else:
+                    #     doc = proc(doc, **kwargs)  # type: ignore[call-arg]
+                    # yield doc
+
+                    print(">> __pipe_partial.proc__")
+                    yield self.exec_task(name, doc, proc, kwargs)
                 except Exception as e:
                     error_handler(name, proc, [doc], e)
 

@@ -35,7 +35,14 @@ def test_extra_obj(one_word_doc, tmp_path):
     one_word_doc.add_extra_field("marker", ("obj", "docint.region", "Region"))
     one_word_doc.add_extra_field("markers", ("list", "docint.region", "Region"))
     one_word_doc.add_extra_field("marker_dict", ("dict", "docint.region", "Region"))
+    one_word_doc.add_extra_field("marker_dict_list", ("dict_list", "docint.region", "Region"))
     one_word_doc.add_extra_field("angle", ("noparse", "", ""))
+
+    one_word_doc.add_extra_page_field("marker", ("obj", "docint.region", "Region"))
+    one_word_doc.add_extra_page_field("markers", ("list", "docint.region", "Region"))
+    one_word_doc.add_extra_page_field("marker_dict", ("dict", "docint.region", "Region"))
+    one_word_doc.add_extra_page_field("marker_dict_list", ("dict_list", "docint.region", "Region"))
+    one_word_doc.add_extra_page_field("angle", ("noparse", "", ""))
 
     one_word = one_word_doc[0][0]
     one_region = Region.build(words=[one_word], page_idx=0)
@@ -43,19 +50,34 @@ def test_extra_obj(one_word_doc, tmp_path):
     one_word_doc.marker = one_region
     one_word_doc.markers = [one_region]
     one_word_doc.marker_dict = {"first": one_region}
+    one_word_doc.marker_dict_list = {"first": [one_region]}
+
+    one_word_doc.pages[0].marker = one_region
+    one_word_doc.pages[0].markers = [one_region]
+    one_word_doc.pages[0].marker_dict = {"first": one_region}
+    one_word_doc.pages[0].marker_dict_list = {"first": [one_region]}
 
     # one_word_doc.angle = 0.75
     one_word_doc.angle = 1.5
+    one_word_doc[0].angle = 2.5
 
     tmp_file = tmp_path / "one_word.json"
+
     one_word_doc.to_disk(tmp_file)
 
     read_doc = Doc.from_disk(tmp_file)
     assert id(read_doc[0][0]) == id(read_doc.markers[0].words[0])
     assert id(read_doc[0][0]) == id(read_doc.marker.words[0])
     assert id(read_doc[0][0]) == id(read_doc.marker_dict["first"].words[0])
+    assert id(read_doc[0][0]) == id(read_doc.marker_dict_list["first"][0].words[0])
+
+    assert id(read_doc[0][0]) == id(read_doc[0].markers[0].words[0])
+    assert id(read_doc[0][0]) == id(read_doc[0].marker.words[0])
+    assert id(read_doc[0][0]) == id(read_doc[0].marker_dict["first"].words[0])
+    assert id(read_doc[0][0]) == id(read_doc[0].marker_dict_list["first"][0].words[0])
 
     assert 1.5 == one_word_doc.angle
+    assert 2.5 == one_word_doc[0].angle
 
 
 def test_page_info(one_word_doc):
