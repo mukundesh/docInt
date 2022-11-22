@@ -59,14 +59,14 @@ HTMLHeader = """
 
 
 @Vision.factory(
-    "html_generator",
+    "html_generator2",
     default_config={
         "html_root": "output/.html",
         "image_root": "output/.html/.img",
         "color_dict": {"word": "blue"},
     },
 )
-class HtmlGenerator:
+class HtmlGenerator2:
     def __init__(self, html_root, image_root, color_dict):
         if not is_writeable_dir(html_root):
             raise ValueError(f"Html director {html_root} is not writeable")

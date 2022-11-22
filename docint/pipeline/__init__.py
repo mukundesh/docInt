@@ -5,6 +5,7 @@ from .do_nothing import DoNothing
 from .gcv_recognizer import CloudVisionRecognizer
 
 from .html_gen import HtmlGenerator
+from .html_gen2 import HtmlGenerator2
 from .list_finder import ListFinder
 from .nonum_list_finder import NonumberListFinder
 from .num_marker import NumMarker

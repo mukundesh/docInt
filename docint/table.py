@@ -43,7 +43,9 @@ class Cell(Para):
     def build(cls, words):
         word_idxs = [w.word_idx for w in words]
         page_idx = words[0].page_idx if words else None
+        word_lines_idxs = [[w.word_idx for w in words]]  # noqa
         return Cell(words=words, word_lines=[words], word_idxs=word_idxs, page_idx_=page_idx)
+        # return Cell(words=words, word_lines=[words], word_idxs=word_idxs, word_lines_idxs=word_lines_idxs, page_idx_=page_idx)
 
 
 class Row(Region):
@@ -82,6 +84,13 @@ class Row(Region):
                     errors.append(TableEmptyBodyCellError(path=cell_path, msg=msg, is_none=is_none))
         return errors
 
+    def get_html_lines(self):
+        return " | ".join(c.text if len(c) else "" for c in self.cells)
+
+    def get_html_json(self):
+        cell_str = ", ".join(f"{idx}: {c.text}" for (idx, c) in enumerate(self.cells))
+        return f"{{{cell_str}}}"
+
 
 class TableEdges(BaseModel):
     row_edges: List[Edge]
@@ -112,6 +121,21 @@ class Table(Region):
             page_idx_=page_idx,
             title=title,
         )
+
+    @classmethod
+    def get_relevant_objects(cls, tables, path, shape):
+        path_page_idx, _ = path.split(".", 1)
+        path_page_idx = int(path_page_idx[2:])
+
+        relevant_rows = []
+        for table in tables:
+            if table.page_idx != path_page_idx:
+                continue
+
+            for row in table.header_rows + table.body_rows:
+                if shape.box.overlaps(row.shape.box, 80):
+                    relevant_rows.append(row)
+        return relevant_rows
 
     def get_regions(self):
         all_rows = self.body_rows + self.header_rows

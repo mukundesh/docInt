@@ -59,6 +59,12 @@ class ListItem(Para):
                     # self.lgr.info(f'unicode text not found: {u_text}\n')
         return not_found
 
+    def get_html_lines(self):
+        return [f"Marker: {self.marker.num_text}", self.text]
+
+    def get_html_json(self):
+        return f"{{ marker: {self.marker.num_text}, line: {self.text}"
+
 
 @Vision.factory(
     "list_finder",

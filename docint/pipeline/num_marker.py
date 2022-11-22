@@ -8,6 +8,7 @@ from typing import Union
 
 from ..data_error import DataError
 from ..region import Region
+from ..shape import Box, Coord
 from ..util import load_config
 from ..vision import Vision
 
@@ -56,6 +57,30 @@ class NumMarker(Region):
             num_val=num_val,
             idx=word.word_idx,
         )
+
+    @classmethod
+    def get_relevant_objects(cls, markers, path, shape):
+        path_page_idx, _ = path.split(".", 1)
+        path_page_idx = int(path_page_idx[2:])
+
+        sb = shape.box
+        expanded_box = Box(top=Coord(x=0.0, y=sb.top.y), bot=Coord(x=1.0, y=sb.bot.y))
+
+        relevant_markers = []
+        for marker in markers:
+            if marker.page_idx != path_page_idx:
+                continue
+
+            if marker.shape.box.overlaps(expanded_box, 80):
+                relevant_markers.append(marker)
+
+        return relevant_markers
+
+    def get_html_lines(self):
+        return [f"Num Marker: {self.num_text}, Val: {self.num_val}, Type: {self.num_type}"]
+
+    def get_html_json(self):
+        return f"{{ text: {self.num_text}, val: {self.num_val} type: {self.num_type} }}"
 
 
 class MarkerMisalginedError(DataError):

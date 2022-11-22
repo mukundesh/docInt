@@ -31,9 +31,30 @@ class Region(BaseModel):
         word_idxs = [w.word_idx for w in words]
         return Region(words=words, word_idxs=word_idxs, page_idx_=page_idx)
 
+    @classmethod
+    def get_relevant_objects(cls, regions, path, shape):
+        def get_path_page_idx(path):
+            page_idx, word_idx = path.split(".", 1)
+            return int(page_idx[2:])
+
+        relevant_regions = []
+        path_page_idx = get_path_page_idx(path)
+
+        for region in regions:
+            if not region.words:
+                continue
+
+            if region.page.page_idx != path_page_idx:
+                continue
+
+            if shape.box.overlaps(region.shape.box, 80):
+                relevant_regions.append(region)
+        return relevant_regions
+
     def __len__(self):
         return len(self.words)
 
+    # TODO_MUST shouldn't this be in para.py ???
     def remove_word_ifpresent(self, word):
         rm_idx = word.word_idx
         if rm_idx in self.word_idxs:
