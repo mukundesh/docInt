@@ -43,9 +43,10 @@ class Cell(Para):
     def build(cls, words):
         word_idxs = [w.word_idx for w in words]
         page_idx = words[0].page_idx if words else None
-        word_lines_idxs = [[w.word_idx for w in words]]  # noqa
-        return Cell(words=words, word_lines=[words], word_idxs=word_idxs, page_idx_=page_idx)
-        # return Cell(words=words, word_lines=[words], word_idxs=word_idxs, word_lines_idxs=word_lines_idxs, page_idx_=page_idx)
+        word_lines_idxs = [[w.word_idx for w in words]]
+        return Cell(
+            words=words, word_lines=[words], word_idxs=word_idxs, word_lines_idxs=word_lines_idxs, page_idx_=page_idx
+        )
 
 
 class Row(Region):
