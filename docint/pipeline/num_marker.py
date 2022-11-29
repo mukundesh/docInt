@@ -381,6 +381,8 @@ class FindNumMarker:
         self.lgr.info(f"=={doc_stub} {total_markers} {DataError.error_counts(errors)}")
         [self.lgr.info(str(e)) for e in errors]
 
+        doc.add_errors(errors)
+
         # self.write_fixes(doc, errors)
 
         self.x_range = old_x_range
