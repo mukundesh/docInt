@@ -124,7 +124,7 @@ class TableFinder:
                 missing_unicodes = list_item.make_ascii(self.unicode_dict)  # noqa: F841
 
             if list_item.marker and list_item.marker.num_val == 1:
-
+                print("LINE DETECTION")
                 ## TODO better handling of this, need a way to detect headings and then remove it.
 
                 marker_word = list_item.marker.words[0]
@@ -142,6 +142,9 @@ class TableFinder:
                     [body_rows[-1].remove_word(w) for w in title_words]
                     tables.append(Table.build(body_rows, title=title))
                     body_rows = []
+
+                if page.page_idx == 3:
+                    print(f"Last: {page.words[-1].shape}  first: {marker_word.shape}")
 
                 title_text = " ".join(w.text for w in title_words)
                 if title_text:

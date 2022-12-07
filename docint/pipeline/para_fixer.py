@@ -151,7 +151,7 @@ class ParaFixer:
         ignore_config = TextConfig(rm_labels=["ignore"], rm_nl=True)
         line_text = list_item.line_text(ignore_config)
         pm_words = ("the prime minister", "prime minister", "p.m.")
-        pm_word = [w for w in pm_words if line_text.lower().startswith(w)]
+        pm_word = [w for w in pm_words if line_text.lower().startswith(w)]  # TODO FIX THISS VVVIMP
         if pm_word:
             pm_word = pm_word[0]
             start = line_text.lower().index(pm_word)

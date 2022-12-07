@@ -82,6 +82,12 @@ class NumMarker(Region):
     def get_html_json(self):
         return f"{{ text: {self.num_text}, val: {self.num_val} type: {self.num_type} }}"
 
+    def get_svg_info(self):
+        idx_info = {
+            "marker": [w.word_idx for w in self.words],
+        }
+        return {"idxs": idx_info}
+
 
 class MarkerMisalginedError(DataError):
     exp_val: int

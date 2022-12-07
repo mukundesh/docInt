@@ -85,12 +85,12 @@ class Row(Region):
                     errors.append(TableEmptyBodyCellError(path=cell_path, msg=msg, is_none=is_none))
         return errors
 
-    def get_html_lines(self):
-        return " | ".join(c.text if len(c) else "" for c in self.cells)
-
     def get_html_json(self):
         cell_str = ", ".join(f"{idx}: {c.text}" for (idx, c) in enumerate(self.cells))
         return f"{{{cell_str}}}"
+
+    def get_svg_info(self):
+        return {"idxs": {"cells": [[w.word_idx for w in c.words] for c in self.cells]}}
 
 
 class TableEdges(BaseModel):

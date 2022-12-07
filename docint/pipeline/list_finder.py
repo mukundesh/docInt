@@ -65,6 +65,13 @@ class ListItem(Para):
     def get_html_json(self):
         return f"{{ marker: {self.marker.num_text}, line: {self.text}"
 
+    def get_svg_info(self):
+        idx_info = {
+            "lines": [[w.word_idx for w in wl] for wl in self.word_lines],
+            # 'marker': [ w.word_idx for w in self.marker.words],
+        }
+        return {"idxs": idx_info}
+
 
 @Vision.factory(
     "list_finder",

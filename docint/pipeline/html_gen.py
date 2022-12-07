@@ -1,5 +1,5 @@
 import html
-import pathlib
+from pathlib import Path
 
 from more_itertools import flatten
 
@@ -63,17 +63,19 @@ HTMLHeader = """
     default_config={
         "html_root": "output/.html",
         "image_root": "output/.html/.img",
+        "svg_stem": "svg",
         "color_dict": {"word": "blue"},
     },
 )
 class HtmlGenerator:
-    def __init__(self, html_root, image_root, color_dict):
+    def __init__(self, html_root, image_root, svg_stem, color_dict):
         if not is_writeable_dir(html_root):
             raise ValueError(f"Html director {html_root} is not writeable")
 
-        self.html_root = pathlib.Path(html_root)
+        self.html_root = Path(html_root)
+        self.image_root = Path(image_root)
+        self.svg_stem = svg_stem
         self.color_dict = color_dict
-        self.image_root = pathlib.Path(image_root)
 
     def get_svg_str(self, object, color, page, path_abbr="", alt_text="", item_name="item_shape"):
         color_str = f'stroke="{color}" fill="{color}" fill-opacity="0.2" stroke-width="1"'
@@ -212,15 +214,14 @@ class HtmlGenerator:
             if angle != 0:
                 angle = page.reoriented_angle
                 print(f"Page: {page_num} Rotated: {angle}")
-                img_filename = pathlib.Path(f"orig-{page_num:03d}-000-r{angle}.png")
+                img_path = Path(page.page_image.image_path)
+                img_filename = img_path.stem + f"-r{angle}" + img_path.suffix
             else:
-                # Handling deletion of pages
-                # img_filename = pathlib.Path(f"orig-{page_num:03d}-000.png")
-                img_filename = page.page_image.image_path
+                img_filename = Path(page.page_image.image_path).name
 
             img_url = str(self.image_root / doc.pdf_stem / img_filename)
 
-            svg_filename = pathlib.Path(f"svg-{page_num:03}.svg")
+            svg_filename = Path(f"{self.svg_stem}-{page_num:03}.svg")
             svg_dir_path = self.html_root / doc.pdf_stem
             svg_path = svg_dir_path / svg_filename
 

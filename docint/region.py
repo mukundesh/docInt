@@ -169,6 +169,10 @@ class Region(BaseModel):
     def ymid(self):
         return self.shape.ymid
 
+    def get_box_to_svg(self):
+        image_box = self.page.get_image_shape(self.shape)
+        return [image_box.top.x, image_box.top.y, image_box.bot.x, image_box.bot.y]
+
     def reduce_width_at(self, direction, ov_shape):
         # edit, word_line
         # reduce with only of the box
