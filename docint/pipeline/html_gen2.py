@@ -27,7 +27,41 @@ from ..vision import Vision
 
 SVGHeader = """<svg version="1.1"
     xmlns="http://www.w3.org/2000/svg" viewBox="0 0 WIDTH HEIGHT" xmlns:xlink="http://www.w3.org/1999/xlink">
-<link xmlns="http://www.w3.org/1999/xhtml" rel="stylesheet" href="CSSFILE" type="text/css"/>
+  <style type="text/css">
+.w {
+    fill: none;
+    stroke: blue;
+    stroke-dasharray: 5,5;
+    pointer-events: all;
+}
+
+.officer {
+    fill: blue;
+    fill-opacity: 0.2;
+    stroke-width: 4;
+}
+
+.continues_posts {
+    fill: teal;
+    fill-opacity: 0.2;
+    stroke-width: 4;
+    stroke: green;
+}
+
+.assumes_posts {
+    fill: purple;
+    fill-opacity: 0.2;
+    stroke-width: 4;
+    stroke: green;
+}
+
+.relinquishes_posts {
+    fill: violet;
+    fill-opacity: 0.2;
+    stroke-width: 4;
+    stroke: green;
+}
+</style>
 <image x="0" y="0" width="WIDTH" height="HEIGHT" xlink:href="IMG_URL"/>
 """
 
@@ -57,8 +91,9 @@ class HtmlGenerator2:
             img_coords_str = " ".join(f"{c.x:.0f},{c.y:.0f}" for c in img_coords)
             shape_str = f'points="{img_coords_str}"'
             pol_str = f'<polygon id="{word.word_idx}" class="{cls_list}" {shape_str}>'
-            svg_str = f"{pol_str}<title>{html.escape(word.text)}</title></polygon>"
-            return f'<a xlink:href="http://{word.path_abbr}/">{svg_str}</a>'
+            title_str = html.escape(f"{word.word_idx}-{word.text}")
+            svg_str = f"{pol_str}<title>{title_str}</title></polygon>"
+            return svg_str
 
         def get_rect_str(word, cls_list):
             box = word.shape.box
@@ -69,8 +104,9 @@ class HtmlGenerator2:
             img_w, img_h = img_size_coord.x, img_size_coord.y
             shape_str = f'x="{img_top.x}" y="{img_top.y}" width="{img_w}" height="{img_h}"'
             rect_str = f'<rect id="{word.word_idx}" class="{cls_list}" {shape_str}>'
-            rect_str += f"<title>{html.escape(word.text)}</title></rect>"
-            return f'<a xlink:href="http://{word.path_abbr}/">{rect_str}</a>'
+            title_str = html.escape(f"{word.word_idx}-{word.text}")
+            rect_str += f"<title>{title_str}</title></rect>"
+            return rect_str
 
         def get_word_str(word, svg_classes):
             cls_list = " ".join(svg_classes)
