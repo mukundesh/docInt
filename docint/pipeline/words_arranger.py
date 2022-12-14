@@ -135,7 +135,7 @@ class WordsArranger:
             page.arranged_word_idxs = []
             page.arranged_new_line_pos = []
             if self.rotate_page:
-                print("fRotating page: {page.page_idx}")
+                print(f"Rotating page: {page.page_idx}")
                 r_page = self.rotate_words_inpage(page)
             else:
                 r_page = page

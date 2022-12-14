@@ -36,3 +36,6 @@ from .script_normalizer import ScriptNormalizer
 from .page_image_builder_raster import PageImageBuilderRaster
 from .page_image_builder_embedded import PageImageBuilderEmbedded
 from .table_edge_finder_wand import TableEdgeFinderWand
+
+from .list_finder2 import ListFinder2
+from .line_finder import LineFinder

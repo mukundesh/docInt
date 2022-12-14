@@ -41,6 +41,17 @@ class Word(BaseModel):
         }
         use_enum_values = True
 
+    @classmethod
+    def from_word(cls, word, shape):
+        return Word(
+            doc=word.doc,
+            page_idx=word.page_idx,
+            word_idx=word.word_idx,
+            text_=word.text_,
+            break_type=word.break_type,
+            shape_=shape,
+        )
+
     @property
     def text(self):
         return self.text_

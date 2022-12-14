@@ -37,6 +37,10 @@ class Page(BaseModel):
         else:
             raise TypeError("Unknown type {type(idx)} this method can handle")
 
+    @classmethod
+    def from_page(cls, page, words):
+        return Page(doc=page.doc, page_idx=page.page_idx, words=words, width_=page.width_, height_=page.height_)
+
     # def get_region(self, shape, overlap=100):
     #     assert False
     #     pass
@@ -86,6 +90,10 @@ class Page(BaseModel):
     @property
     def image_size(self):  # TODO change this to page_image_size
         return self.page_image.size
+
+    @property
+    def path_abbr(self):
+        return f"pa{self.page_idx}"
 
     @property
     def text_with_ws(self):
@@ -218,4 +226,35 @@ class Page(BaseModel):
             # print_details(word, new_word)
 
         new_page.words = new_words
+        return new_page
+
+    @classmethod
+    def build_rotated2(cls, page, angle):
+        def rotate_coord(coord):
+            old_coord = doc_to_image(coord, old_size)
+            new_coord = rotate_image_coord(old_coord, -angle, old_size, new_size)
+            return image_to_doc(new_coord, new_size)
+
+        def get_shape_str(shape, size):
+            w, h = size
+            cs = (f"{c.x * w:.0f}:{c.y*h:.0f}" for c in shape.coords)
+            return ", ".join(cs)
+
+        def print_details(old_word, new_word):
+            old_shp_str = get_shape_str(old_word.shape_, old_size)
+            new_shp_str = get_shape_str(new_word.shape_, new_size)
+            print(f"{old_word.path_abbr}:{old_word.text} | {old_shp_str} | {new_shp_str}")
+
+        new_words = []
+        old_size = page.size
+        new_size = size_after_rotation(page.size, -angle)
+        for word in page.words:
+            new_coords = [rotate_coord(c) for c in word.shape_.coords]
+            if isinstance(word.shape_, Poly):
+                new_shape = Poly(coords=new_coords)
+            else:
+                new_shape = Box.build(new_coords)
+            new_words.append(Word.from_word(word, new_shape))
+
+        new_page = Page.from_page(page, new_words)
         return new_page
