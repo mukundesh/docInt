@@ -119,6 +119,11 @@ class TableFinder:
         tables, body_rows, title = [], [], None
         for idx, list_item in enumerate(list_items):
             path = f"{page_path}.li{idx}"
+            if path == "pa1.li4":
+                pass
+                # import pdb
+                # pdb.set_trace()
+
             if self.make_ascii:
                 # TODO fixing of words should happen in one place
                 missing_unicodes = list_item.make_ascii(self.unicode_dict)  # noqa: F841

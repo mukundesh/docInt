@@ -369,21 +369,26 @@ class Doc(BaseModel):
             stub = jpath[: -len(edge_idxs)]
             return [f"{stub}{idx}" for idx in range(start, end)]
         else:
-            return jpath
+            return [jpath]
 
     def edit(self, edits, file_path="", line_nums=[]):  # noqa: C901
         def clearWord(doc, path):
-            word = doc.get_word(path)
-            word.clear()
-            return word
+            return clearWords(doc, path)
 
         def clearWords(doc, *paths):
-            return [clearWord(doc, path) for path in paths]
+            words = []
+            for path in paths:
+                word = doc.get_word(path)
+                word.clear()
+                words.append(word)
+            data_edits.append(DataEdit(cmd="clearWords", paths=paths))
+            return words
 
         def clearChar(doc, path, clearChar):
             word = doc.get_word(path)
             for char in clearChar:
                 word.clear(char)
+            data_edits.append(DataEdit(cmd="clearChar", paths=[path]))
             return word
 
         def newWord(doc, text, xpath, ypath):
@@ -393,6 +398,7 @@ class Doc(BaseModel):
 
             box = Shape.build_box([xword.xmin, yword.ymin, xword.xmax, yword.ymax])
             word = page.add_word(text, box)
+            data_edits.append(DataEdit(cmd="newWord", paths=[xpath, ypath]))
             return word
 
         def newAdjWord(doc, text, path, direction="left"):
@@ -417,6 +423,7 @@ class Doc(BaseModel):
 
             box = Shape.build_box([xmin, word.ymin, xmax, word.ymax])
             new_word = page.add_word(text, box)
+            data_edits.append(DataEdit(cmd="newAdjWord", paths=[path]))
             return new_word
 
         def mergeWords(doc, *paths):
@@ -428,6 +435,7 @@ class Doc(BaseModel):
             new_text = main_word.text + to_merge_text
 
             main_word.replaceStr("<all>", new_text)
+            data_edits.append(DataEdit(cmd="mergeWords", paths=paths))
             [w.replaceStr("<all>", "") for w in to_merge_words]
 
         def splitWord(doc, path, split_str):
@@ -450,32 +458,38 @@ class Doc(BaseModel):
 
             rt_box = Shape.build_box([split_x, box.top.y, box.bot.x, box.bot.y])
             word.page.add_word(rt_str, rt_box)
+            data_edits.append(DataEdit(cmd="splitWord", paths=[path]))
             return word
 
         def replaceStr(doc, path, old, new):
             word = doc.get_word(path)
             word.replaceStr(old, new)
+            data_edits.append(DataEdit(cmd="replaceStr", paths=[path]))
             return word
 
-        def moveEdge(doc, path, coord_idx, direction, num_thou=5):
-            edge = doc.get_edge(path)
-            idx = int(coord_idx[1])
-            offset = int(num_thou) * 0.001
-            assert idx in (1, 2)
-            move_coord = getattr(edge, f"coord{idx}")
-            if direction == "up":
-                move_coord.y -= offset
-            elif direction == "down":
-                move_coord.y += offset
-            elif direction == "left":
-                move_coord.x -= offset
-            else:
-                move_coord.x += offset
-            return edge
+        def moveEdge(doc, path, coord, direction, num_thou=5):
+            return moveEdges(doc, path, coord, direction, num_thou)
 
         def moveEdges(doc, path, coord, direction, num_thou=5):
             edge_paths = doc.get_edge_paths(path)
-            return [moveEdge(doc, p, coord, direction, num_thou) for p in edge_paths]
+            edges = []
+            for path in edge_paths:
+                edge = doc.get_edge(path)
+                idx = int(coord[1])
+                offset = int(num_thou) * 0.001
+                assert idx in (1, 2)
+                move_coord = getattr(edge, f"coord{idx}")
+                if direction == "up":
+                    move_coord.y -= offset
+                elif direction == "down":
+                    move_coord.y += offset
+                elif direction == "left":
+                    move_coord.x -= offset
+                else:
+                    move_coord.x += offset
+                edges.append(edge)
+            data_edits.append(DataEdit(cmd="moveEdges", paths=edge_paths))
+            return edges
 
         def addWords(doc, region_path, *word_paths):
             region = doc.get_region(region_path)
@@ -483,6 +497,7 @@ class Doc(BaseModel):
             region.words += add_words
             # region.text_ = None
             region.shape_ = None
+            data_edits.append(DataEdit(cmd="addWords", paths=[region_path, *word_paths]))
             return region
 
         def addWordIdxs(doc, region_path, *word_idxs):
@@ -490,6 +505,7 @@ class Doc(BaseModel):
             # add_words = [doc.get_word(p) for p in word_paths]
             region["word_idxs"] += list(int(idx) for idx in word_idxs)
             # region.text_ = None
+            data_edits.append(DataEdit(cmd="addWordIdxs", paths=[region_path]))
             return region
 
         # def newRegionToList(doc, parent_path, *word_paths):
@@ -517,9 +533,12 @@ class Doc(BaseModel):
             doc.pages.pop(del_idx)
             for page in doc.pages[del_idx:]:
                 page.page_idx -= 1
+            data_edits.append(DataEdit(cmd="deletePage", paths=[path]))
 
         if line_nums:
             assert len(line_nums) == len(edits)
+
+        data_edits = []  # list of lists, constisting of items edited
 
         for (edit, line_num) in zip_longest(edits, line_nums, fillvalue=""):
             # print(f"Edit: {edit}")
@@ -533,3 +552,5 @@ class Doc(BaseModel):
                 raise ValueError(Errors.E020.format(line_num=line_str, function=proc))
 
             cmd(self, *editList)
+        assert len(data_edits) == len(edits)
+        self.add_edits(data_edits)

@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Callable, List, Mapping
 
 import yaml
-from dateutil import parser
 
 from .errors import Errors
 
@@ -169,6 +168,8 @@ def load_config(config_dir, doc_name, stub):
 
 
 def find_date(date_line):
+    from dateutil import parser
+
     try:
         date_line = date_line.strip("()")
         dt = parser.parse(date_line, fuzzy=True, dayfirst=True)

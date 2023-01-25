@@ -412,7 +412,7 @@ class Hierarchy:
         if not is_readable(self.file_path):
             raise ValueError(f"Path is not readable: {self.file_path}")
 
-        yml_dict = read_config_from_disk(self.file_path)
+        self.yml_dict = yml_dict = read_config_from_disk(self.file_path)
 
         self.ignore_levels = yml_dict.get("ignoreLevels", [])
         self.root = self.rec_build_tree(yml_dict)
@@ -571,3 +571,15 @@ class Hierarchy:
             return None
 
         return rec_get_node(self.root, hierarchy_path)
+
+    def to_dict(self):
+        return self.yml_dict
+
+    def get_names(self):
+        names = []
+
+        def save_name(node):
+            names.append(node.name)
+
+        self.visit_breadth_first(save_name)
+        return names

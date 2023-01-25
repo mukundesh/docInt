@@ -249,6 +249,7 @@ class CloudVisionRecognizer:
 
     def __call__(self, doc):
         # output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
+        print(f"Processing {doc.pdf_name}")
 
         output_paths = self.output_dir_path.glob(f"{doc.pdf_name}.{self.output_stub}*json")
         output_paths = list(output_paths)
