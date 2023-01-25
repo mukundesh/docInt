@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "docint"
-version = "0.3.0"
+version = "0.1.0"
 description = "Extracting information from DOCuments INTelligently."
 authors = ["mukundesh <mukundesh@outlook.com>"]
 license = "MIT"
