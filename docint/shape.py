@@ -193,6 +193,8 @@ class Box(Shape):
     def overlaps(self, bigBox, overlap_percent=1.0):
         return True if self.get_overlap_percent(bigBox) > overlap_percent else False
 
+    # TODO change this keyword partial, there is some confusion of partial with overlap_percent
+    # the correct word is subsumes
     def in_xrange(self, xrange, partial=False):
         lt, rt = xrange
         xmin, xmax = self.top.x, self.bot.x

@@ -119,10 +119,10 @@ class TableFinder:
         tables, body_rows, title = [], [], None
         for idx, list_item in enumerate(list_items):
             path = f"{page_path}.li{idx}"
-            if path == "pa1.li4":
-                pass
+            if path == "pa3.li6":
                 # import pdb
                 # pdb.set_trace()
+                pass
 
             if self.make_ascii:
                 # TODO fixing of words should happen in one place
@@ -174,6 +174,9 @@ class TableFinder:
             if not x_range:
                 self.lgr.info(f"> {path} ** No boundary, skipping >{list_item.raw_text()}<")
                 continue
+
+            # TODO why is there a xrange, it should only be a single x value, given that we are
+            # allowign partial range overlap in split_words
 
             lt_words, rt_words = split_words(list_item.words, x_range)
             lt_cell, rt_cell = Cell.build(lt_words), Cell.build(rt_words)

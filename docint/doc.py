@@ -97,7 +97,7 @@ class Doc(BaseModel):
         return Doc(pdffile_path=pdf_path)
 
     def to_json(self, exclude_defaults=True):
-        return self.json(exclude_defaults=exclude_defaults, sort_keys=True)
+        return self.json(exclude_defaults=exclude_defaults, sort_keys=True, separators=(",", ":"))
 
     def to_dict(self, exclude_defaults=True):
         return self.dict(exclude_defaults=exclude_defaults)
@@ -157,6 +157,28 @@ class Doc(BaseModel):
         }[extra_type]
 
         self.add_doc_extract(field_name, field_type, module_name, class_name)
+
+    def remove_extra_field(self, field_name):
+        del self.doc_extract_infos[field_name]
+
+        if hasattr(self, field_name):
+            delattr(self, field_name)
+
+    def remove_extra_page_field(self, field_name):
+        del self.page_extract_infos[field_name]
+
+        for page in self.pages:
+            if hasattr(page, field_name):
+                delattr(page, field_name)
+
+    def remove_all_extra_fields(self, except_fields=[]):
+        doc_fields = [f for f in self.doc_extract_infos if f not in except_fields]
+        for field_name in doc_fields:
+            self.remove_extra_field(field_name)
+
+        page_fields = [f for f in self.page_extract_infos if f not in except_fields]
+        for field_name in page_fields:
+            self.remove_extra_page_field(field_name)
 
     @classmethod  # noqa C901
     def from_dict(cls, doc_dict):  # noqa C901

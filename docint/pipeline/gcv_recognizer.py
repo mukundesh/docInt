@@ -139,7 +139,7 @@ class CloudVisionRecognizer:
         # get the protobuffer
         responsesDict = MessageToDict(response._pb)
         responseDict = responsesDict["responses"][0]
-        output_path.write_text(json.dumps(responseDict))
+        output_path.write_text(json.dumps(responseDict, sort_keys=True, separators=(",", ":")))
         return output_path
 
     def run_async_gcv(self, doc, output_path):

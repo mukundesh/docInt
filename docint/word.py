@@ -31,7 +31,7 @@ class Word(BaseModel):
     page_idx: int
     word_idx: int
     text_: str
-    break_type: BreakType
+    break_type: BreakType = 1
     shape_: Union[Poly, Box]
     orig_text_: str = None
 
