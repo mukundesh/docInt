@@ -8,14 +8,20 @@ from pydantic.json import pydantic_encoder
 from .. import pdfwrapper
 from ..page_image import PageImage
 from ..shape import Box, Coord
+from ..util import get_full_path, get_repo_dir, is_repo_path
 from ..vision import Vision
 
 
-def build_page_image(page, pdf_page, image_dir):
+def build_raster_page_image(page, pdf_page, image_dir):
     page_num = page.page_idx + 1
 
     image_stub = Path(page.doc.pdf_stem) / f"raster-{page_num:03d}-000.png"
-    image_path = image_dir / image_stub
+    if is_repo_path(image_dir):
+        image_path = get_full_path(image_dir) / image_stub
+    else:
+        image_path = image_dir / image_stub
+
+    image_repo_path = Path(image_dir) / image_stub
     # write the image to the file
     image_width, image_height = pdf_page.page_image_save(image_path)
     image_box = Box(top=Coord(x=0.0, y=0.0), bot=Coord(x=page.width, y=page.height))
@@ -23,7 +29,7 @@ def build_page_image(page, pdf_page, image_dir):
     return PageImage(
         image_width=image_width,
         image_height=image_height,
-        image_path=str(image_path),
+        image_path=str(image_repo_path),
         image_box=image_box,
         image_type="raster",
         page_width=page.width,
@@ -41,13 +47,21 @@ def build_page_image(page, pdf_page, image_dir):
 )
 class PageImageBuilderRaster:
     def __init__(self, image_dir, use_cache):
-        self.image_dir = Path(image_dir)
+        self.image_dir = image_dir
         self.use_cache = use_cache
+        self.repo_dir = get_repo_dir()
+
+        assert is_repo_path(self.image_dir) or Path(self.image_dir).exists()
 
     def __call__(self, doc, pipe_config={}):
         doc.add_extra_page_field("page_image", ("obj", "docint.page_image", "PageImage"))
 
-        doc_image_dir = self.image_dir / doc.pdf_stem
+        if is_repo_path(self.image_dir):
+            image_dir_path = get_full_path(self.image_dir, self.repo_dir)
+        else:
+            image_dir_path = Path(self.image_dir)
+
+        doc_image_dir = image_dir_path / doc.pdf_stem
         json_path = doc_image_dir / f"{doc.pdf_name}.page_image.json"
         print(f"Use Cache, {self.use_cache}")
 
@@ -66,7 +80,7 @@ class PageImageBuilderRaster:
 
         page_images = []
         for (page, pdf_page) in zip(doc.pages, pdf.pages):
-            page_image = build_page_image(page, pdf_page, self.image_dir)
+            page_image = build_raster_page_image(page, pdf_page, self.image_dir)
             page.page_image = page_image
             page_images.append(page_image)
 

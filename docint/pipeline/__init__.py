@@ -5,7 +5,7 @@ from .do_nothing import DoNothing
 from .gcv_recognizer import CloudVisionRecognizer
 
 from .html_gen import HtmlGenerator
-from .html_gen2 import HtmlGenerator2
+from .svg_gen import SVGGenerator
 from .list_finder import ListFinder
 from .nonum_list_finder import NonumberListFinder
 from .num_marker import NumMarker
@@ -39,3 +39,5 @@ from .table_edge_finder_wand import TableEdgeFinderWand
 
 from .list_finder2 import ListFinder2
 from .line_finder import LineFinder
+
+from .meta_writer import MetaWriter

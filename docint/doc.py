@@ -93,7 +93,7 @@ class Doc(BaseModel):
 
     # move this to document factory
     @classmethod
-    def build_doc(cls, pdf_path, image_dirs_path):
+    def build_doc(cls, pdf_path):
         return Doc(pdffile_path=pdf_path)
 
     def to_json(self, exclude_defaults=True):
@@ -260,6 +260,16 @@ class Doc(BaseModel):
     @property
     def doc(self):
         return self
+
+    def prepend_image_stub(self, stub):
+        for page in self.pages:
+            if page.page_image:
+                page.page_image.prepend_image_stub(stub)
+
+    def remove_image_stub(self, stub):
+        for page in self.pages:
+            if page.page_image:
+                page.page_image.remove_image_stub(stub)
 
     def get_relevant_extracts(self, pipe, path, shape):
         relevant_extracts = {}

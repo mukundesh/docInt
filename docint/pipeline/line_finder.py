@@ -115,12 +115,14 @@ class LineFinder:
         self.lgr.info(f"line_finder: {doc.pdf_name}")
         cfg = self.load_config(doc)
         doc.add_extra_page_field("lines", ("list", "docint.region", "Region"))
+        doc.add_extra_page_field("page_rota_angle", ("noparse", "", ""))
 
         for page in doc.pages:
             angle = self.get_page_angle(page, cfg)
             newline_height_multiple = self.get_newline_height_multiple(page, cfg)
             word_lines = self.get_word_lines(page, angle, newline_height_multiple)
             page.lines = [Region.from_words(wl) for wl in word_lines if wl]
+            page.page_rota_angle = angle
 
         self.teardown_config()
         self.remove_log_handler(doc)

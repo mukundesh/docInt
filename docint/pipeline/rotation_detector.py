@@ -95,9 +95,9 @@ class RotationDetector:
         print(f"Detect Rotation {doc.pdf_name}")
 
         doc.add_extra_page_field("num_marker_angle", ("noparse", "", ""))
-        doc.add_extra_page_field("horz_skew_angle", ("noparse", "", ""))
-        doc.add_extra_page_field("vert_skew_angle", ("noparse", "", ""))
-        doc.add_extra_page_field("word_box_angle", ("noparse", "", ""))
+        # doc.add_extra_page_field("horz_skew_angle", ("noparse", "", ""))
+        # doc.add_extra_page_field("vert_skew_angle", ("noparse", "", ""))
+        # doc.add_extra_page_field("word_box_angle", ("noparse", "", ""))
 
         for page in doc.pages:
             page.num_marker_angle = self.get_num_markers_angle(page)

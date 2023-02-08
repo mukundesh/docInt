@@ -6,7 +6,7 @@ from more_itertools import flatten
 from ..region import Region
 from ..shape import Box, Coord, Edge, Poly
 from ..table import Table, TableEdges
-from ..util import is_writeable_dir
+from ..util import get_full_path, is_repo_path, is_writeable_dir
 from ..vision import Vision
 from ..word import Word
 
@@ -62,18 +62,22 @@ HTMLHeader = """
     "html_generator",
     default_config={
         "html_root": "output/.html",
-        "image_root": "output/.html/.img",
+        "image_stem": "",
         "svg_stem": "svg",
         "color_dict": {"word": "blue"},
     },
 )
 class HtmlGenerator:
-    def __init__(self, html_root, image_root, svg_stem, color_dict):
-        if not is_writeable_dir(html_root):
-            raise ValueError(f"Html director {html_root} is not writeable")
+    def __init__(self, html_root, image_stem, svg_stem, color_dict):
+        if is_repo_path(html_root):
+            self.html_root = get_full_path(html_root)
+        else:
+            self.html_root = Path(html_root)
 
-        self.html_root = Path(html_root)
-        self.image_root = Path(image_root)
+        if not is_writeable_dir(self.html_root):
+            raise ValueError(f"Html director {self.html_root} is not writeable")
+
+        self.image_stem = image_stem
         self.svg_stem = svg_stem
         self.color_dict = color_dict
 
@@ -153,7 +157,14 @@ class HtmlGenerator:
             elif item_name == "post":
                 posts = page.doc.order.get_posts_page_idx(page_idx)
                 # return [p for p in posts if len(p.words) > 0 ]
-                return flatten(p.words for p in posts if len(p.words) > 0)
+                post_words = flatten(p.words for p in posts if len(p.words) > 0)
+
+                uniq_post_words, word_idxs_set = [], set()
+                for word in post_words:
+                    if word.word_idx not in word_idxs_set:
+                        uniq_post_words.append(word)
+                        word_idxs_set.add(word.word_idx)
+                return uniq_post_words
             else:
                 raise NotImplementedError(f"not implemented {item_name}")
 
@@ -214,12 +225,17 @@ class HtmlGenerator:
             if angle != 0:
                 angle = page.reoriented_angle
                 print(f"Page: {page_num} Rotated: {angle}")
-                img_path = Path(page.page_image.image_path)
+                img_path = page.page_image.get_image_path()
                 img_filename = img_path.stem + f"-r{angle}" + img_path.suffix
             else:
-                img_filename = Path(page.page_image.image_path).name
+                img_filename = page.page_image.get_image_path().name
 
-            img_url = str(self.image_root / doc.pdf_stem / img_filename)
+            # TODO should this be relative path ? currently full
+            # img_url = str(self.image_root / doc.pdf_stem / img_filename)
+            if self.image_stem:
+                img_url = f"{self.image_stem}-{page_num:03}.jpg"
+            else:
+                img_url = str(page.page_image.get_image_path().parent / img_filename)
 
             svg_filename = Path(f"{self.svg_stem}-{page_num:03}.svg")
             svg_dir_path = self.html_root / doc.pdf_stem

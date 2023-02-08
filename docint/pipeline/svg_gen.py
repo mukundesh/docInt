@@ -67,22 +67,18 @@ SVGHeader = """<svg version="1.1"
 
 
 @Vision.factory(
-    "html_generator2",
+    "svg_generator",
     default_config={
-        "svg_root": "output/.html/.img",
-        "image_root": "output/.html/.img",
-        "css_file": "svg.css",
+        "svg_root": "output/.html/svgs",
         "svg_stem": "svg",
     },
 )
-class HtmlGenerator2:
-    def __init__(self, svg_root, image_root, css_file, svg_stem):
+class SVGGenerator:
+    def __init__(self, svg_root, svg_stem):
         if not is_writeable_dir(svg_root):
             raise ValueError(f"Html director {svg_root} is not writeable")
 
         self.svg_root = Path(svg_root)
-        self.image_root = Path(image_root)
-        self.css_file = css_file
         self.svg_stem = svg_stem
 
     def write_svg(self, page, img_url, svg_path, svg_info):
@@ -123,23 +119,12 @@ class HtmlGenerator2:
             else:
                 return lst
 
-        # c_idxs = {}
-        # for (c, idx_list) in svg_info.get('idxs', {}).items():
-        #     if idx_list and isinstance(idx_list[0], list):
-        #         for (pos, idxs) in enumerate(idx_list):
-        #             c_idxs[f'{c}{pos}'] = idxs
-        #     else:
-        #         c_idxs[c] = idx_list
-
         c_idxs = dict((c, flatten_list(idxs)) for (c, idxs) in svg_info.get("idxs", {}).items())
 
         with open(svg_path, "w") as svg_file:
             pw, ph = page.image_size
             svg_file.write(
-                SVGHeader.replace("WIDTH", f"{pw:.0f}")
-                .replace("HEIGHT", f"{ph:.0f}")
-                .replace("IMG_URL", img_url)
-                .replace("CSSFILE", self.css_file)
+                SVGHeader.replace("WIDTH", f"{pw:.0f}").replace("HEIGHT", f"{ph:.0f}").replace("IMG_URL", img_url)
             )
             svg_words = []
             for word in page.words:
@@ -155,19 +140,8 @@ class HtmlGenerator2:
 
         for (page_idx, page) in enumerate(doc.pages):
             page_num = page_idx + 1
-            angle = getattr(page, "reoriented_angle", 0)
-            if angle != 0:
-                angle = page.reoriented_angle
-                print(f"Page: {page_num} Rotated: {angle}")
-                img_path = Path(page.page_image.image_path)
-                img_filename = img_path.stem + f"-r{angle}" + img_path.suffix
-            else:
-                img_filename = Path(page.page_image.image_path).name
 
-            if len(str(self.image_root)) > 1:
-                img_url = str(self.image_root / doc.pdf_stem / img_filename)
-            else:
-                img_url = f"p-{page_num:03}.jpg"
+            img_url = f"p-{page_num:03}.jpg"
 
             svg_filename = Path(f"{self.svg_stem}-{page_num:03}.svg")
             svg_dir_path = self.svg_root / doc.pdf_stem

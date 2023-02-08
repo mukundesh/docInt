@@ -5,6 +5,7 @@ from itertools import chain, islice
 from pathlib import Path
 
 from ..region import Region
+from ..util import get_model_path
 from ..vision import Vision
 from .learn_layoutlmv2 import generate_dataset
 
@@ -17,6 +18,7 @@ def iob2label(label):
     "infer_layoutlmv2",
     depends=[
         "transformers[torch]",
+        "torchvision",
         "git+https://github.com/facebookresearch/detectron2.git",
         "seqeval",
         "datasets",
@@ -27,8 +29,8 @@ def iob2label(label):
         "page_idx": 0,
         "batch_size": 10,
         "model_dir": "input/model",
-        "proc_model_name": "microsoft/layoutlmv2-base-uncased",
-        "infer_model_name": "orgpedia/cabsec-layoutlmv2",
+        "proc_model_name": "huggingface:microsoft/layoutlmv2-base-uncased",
+        "infer_model_name": "cabsec-layoutlmv2",
     },
 )
 class InferLayoutLMv2:
@@ -59,7 +61,8 @@ class InferLayoutLMv2:
 
         self.logger.info(f"Evaluating model with batch_size: {self.batch_size}")
 
-        infer_model_dir = self.model_dir / Path(self.infer_model_name).name
+        # infer_model_dir = self.model_dir / Path(self.infer_model_name).name
+        infer_model_dir = get_model_path(self.infer_model_name, self.model_dir)
 
         import torch
         from torch.utils.data import DataLoader

@@ -7,7 +7,7 @@ from pathlib import Path
 from ..data_error import DataError
 from ..para import TextConfig
 from ..span import Span
-from ..util import load_config
+from ..util import get_full_path, get_model_path, load_config
 from ..vision import Vision
 from ..vocab import Vocab
 
@@ -33,6 +33,8 @@ class OfficerMultipleError(DataError):
         "lv_dist_cutoff": 1,
         "ignore_paren_len": 7,
         "unicode_file": "conf/unicode.txt",
+        "model_dir": "/import/models",
+        "ner_model_name": "huggingface:dslim/bert-base-NER",
         "officer_at_start": True,
     },
 )
@@ -47,6 +49,8 @@ class ParaFixer:
         lv_dist_cutoff,
         ignore_paren_len,
         unicode_file,
+        model_dir,
+        ner_model_name,
         officer_at_start,
     ):
 
@@ -60,7 +64,10 @@ class ParaFixer:
         self.lv_dist_cutoff = lv_dist_cutoff
         self.ignore_paren_len = ignore_paren_len
         self.unicode_file = unicode_file
+        self.model_dir = get_full_path(model_dir)
+        self.ner_model_name = ner_model_name
         self.officer_at_start = officer_at_start
+
         self.vocab = Vocab(self.dict_file.read_text().split("\n"))
 
         self.ignore_parent_strs = [
@@ -84,8 +91,12 @@ class ParaFixer:
         # TODO PLEASE MOVE THIS TO OPTIONS
         from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 
-        tokenizer = AutoTokenizer.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
-        model = AutoModelForTokenClassification.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
+        # tokenizer = AutoTokenizer.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
+        # model = AutoModelForTokenClassification.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
+
+        ner_model_dir = get_model_path(self.ner_model_name, self.model_dir)
+        tokenizer = AutoTokenizer.from_pretrained(ner_model_dir)
+        model = AutoModelForTokenClassification.from_pretrained(ner_model_dir)
 
         self.nlp = pipeline("ner", model=model, tokenizer=tokenizer)
         # self.nlp = pipeline("ner")

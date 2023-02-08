@@ -35,8 +35,6 @@ class Vision:
         self._components = []
 
         self.default_error_handler = raise_error
-        self.images_dir = ".img"
-        self.image_root = ".img"  # We should be using this
         self.docker_dir = Path(".docker")
         self.ignore_docs = []
         self.docker = DockerRunner(self.docker_dir)
@@ -46,10 +44,6 @@ class Vision:
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
         viz = Vision()
-        viz.images_dir = config.get("images_dir", ".img")
-        viz.image_root = config.get("image_root", ".img")
-        Doc._image_root = viz.image_root
-
         viz.ignore_docs = config.get("ignore_docs", [])
         viz.docker_pipes = config.get("docker_pipes", [])
         viz.docker_dir = config.get("docker_dir", viz.docker_dir)
@@ -63,7 +57,7 @@ class Vision:
         return viz
 
     def build_doc(self, pdf_path):
-        return Doc.build_doc(pdf_path, self.images_dir)
+        return Doc.build_doc(pdf_path)
 
     def add_pipe(
         self,

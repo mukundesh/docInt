@@ -1,5 +1,4 @@
 from collections import Counter
-from pathlib import Path
 
 from PIL import Image
 
@@ -11,11 +10,10 @@ from ..vision import Vision
 # TODO: 3. logging
 
 
-@Vision.factory("orient_pages", default_config={"min_word_len": 4, "images_dir": None})
+@Vision.factory("orient_pages", default_config={"min_word_len": 4})
 class OrientPage:
-    def __init__(self, min_word_len, images_dir):
+    def __init__(self, min_word_len):
         self.min_word_len = min_word_len
-        self.images_dir = Path(images_dir) if images_dir else ""
 
     def needs_reorientation(self, page):
         horz_score = sum([1 if w.box.is_horz else 0 for w in page.words])
@@ -58,7 +56,7 @@ class OrientPage:
     def orient_image(self, page, angle):
         assert angle in (90, 180, 270)
         if page.page_image is not None:
-            img_path = Path(page.page_image.image_path)
+            img_path = page.page_image.get_image_path()
             new_path = img_path.parent / (img_path.stem + f"-r{angle}" + img_path.suffix)
             img = Image.open(img_path).rotate(angle)
             img.save(new_path)

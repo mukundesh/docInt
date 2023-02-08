@@ -9,7 +9,7 @@ from more_itertools import first
 
 from .doc import Doc
 from .errors import Errors
-from .util import get_uniq_str, tail
+from .util import get_repo_dir, get_uniq_str, tail
 
 PYTHON_VERSION = "3.7-slim"
 WORK_DIR = Path("/usr/src/app")
@@ -211,6 +211,8 @@ class DockerRunner:
 
         input_ctnr_paths, output_ctnr_paths = [], []
         for doc in docs:
+            doc.prepend_image_stub(".img")  # ADDED
+
             if is_recognizer:
                 doc.copy_pdf(task_dir / Path("input") / f"{doc.pdf_name}")
                 input_ctnr_paths.append(Path("input") / f"{doc.pdf_name}")
@@ -236,6 +238,7 @@ class DockerRunner:
         task_dir = task_dir.resolve()
 
         # TODO: can we not just mount task_ dir insted of multiple mounts
+        # No, as we will overwrite the output directory, which we ideally don't want to
 
         mnts += ["-v", f"{str(task_dir / 'input')}:{str(task_ctnr_dir / 'input')}"]
         mnts += ["-v", f"{str(task_dir / 'output')}:{str(task_ctnr_dir / 'output')}"]
@@ -248,6 +251,31 @@ class DockerRunner:
         mnts += [
             "-v",
             f"{str(cache_dir / '.secrets')}:{str(task_ctnr_dir / '.secrets')}",
+        ]
+
+        mnts += ["-v", f"{str(log_dir)}:{str(task_ctnr_dir / 'logs')}"]
+        mnts += ["-v", f"{str(conf_dir)}:{str(task_ctnr_dir / 'conf')}"]
+        return mnts
+
+    def get_mounts2(self, task_dir, repo_dir, conf_dir, log_dir):
+        task_ctnr_dir = WORK_DIR / "task_"
+        mnts = []
+        task_dir = task_dir.resolve()
+
+        # TODO: can we not just mount task_ dir insted of multiple mounts
+        # No, as we will overwrite the output directory, which we ideally don't want to
+
+        mnts += ["-v", f"{str(task_dir / 'input')}:{str(task_ctnr_dir / 'input')}"]
+        mnts += ["-v", f"{str(task_dir / 'output')}:{str(task_ctnr_dir / 'output')}"]
+        mnts += ["-v", f"{str(task_dir / 'src')}:{str(task_ctnr_dir / 'src')}"]
+
+        mnts += ["-v", f"{str(self.docint_dir)}:{str(task_ctnr_dir / 'docint')}"]
+
+        mnts += ["-v", f"{str(repo_dir / 'import' / 'models')}:{str(task_ctnr_dir / '.model')}"]
+        mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.img')}"]
+        mnts += [
+            "-v",
+            f"{str(repo_dir / '.secrets')}:{str(task_ctnr_dir / '.secrets')}",
         ]
 
         mnts += ["-v", f"{str(log_dir)}:{str(task_ctnr_dir / 'logs')}"]
@@ -269,7 +297,8 @@ class DockerRunner:
         conf_dir = cache_dir / "conf"
 
         docker_cmds = ["docker", "run"]
-        docker_cmds += self.get_mounts(task_dir, cache_dir, conf_dir, log_dir)
+        # docker_cmds += self.get_mounts(task_dir, cache_dir, conf_dir, log_dir) # ADDED
+        docker_cmds += self.get_mounts2(task_dir, get_repo_dir(), conf_dir, log_dir)  # ADDED
         docker_cmds += ["--name", container_name]
         docker_cmds += [image_name]
         docker_cmds += ["/bin/sh", "-c", "python src/cmd.py > output/pipe.log 2>&1"]
@@ -294,6 +323,7 @@ class DockerRunner:
             output_path = output_dir / f"{doc.pdf_name}.doc.json"
             output_doc = Doc.from_disk(output_path)
             output_doc.pdffile_path = Path(doc.pdffile_path)
+            output_doc.remove_image_stub(".img")  # ADDED
             output_docs.append(output_doc)
 
         if docker_config.get("delete_container_dir", True):

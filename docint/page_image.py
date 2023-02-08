@@ -6,6 +6,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from .shape import Box, Coord, rotate_image_coord
+from .util import get_full_path, is_repo_path
 
 
 class ImageContext:
@@ -15,7 +16,7 @@ class ImageContext:
         self.transformations = []
 
     def __enter__(self):
-        image_path = Path(self.page_image.image_path)
+        image_path = Path(self.page_image.get_image_path())
         if image_path.exists():
             self.image = Image.open(image_path)
         else:
@@ -225,13 +226,36 @@ class PageImage(BaseModel):
         # return img_str
 
     def get_image_path(self):
-        image_path = Path(self.image_path)
-        if not image_path.exists():
-            # TODO THIS IS NEEDED FOR DOCKER, once directories
-            # are properly arranged docker won't be needed.
-            image_path = Path(".img") / image_path.parent.name / Path(image_path.name)
+        if is_repo_path(self.image_path):
+            print(f"GET Repo {self.image_path}")
+            image_path = get_full_path(self.image_path)
+        else:
+            print(f"GET NON REPO {self.image_path}")
+            print(self.image_path)
+            image_path = self.image_path
+
+        # moved the repo_path style
+
+        # image_path = Path(self.image_path)
+        # if not image_path.exists():
+        #     # TODO THIS IS NEEDED FOR DOCKER, once directories
+        #     # are properly arranged docker won't be needed.
+        #     image_path = Path(".img") / image_path.parent.name / Path(image_path.name)
 
         return image_path
+
+    def prepend_image_stub(self, stub):
+        assert stub[-1] != "/"
+        if is_repo_path(self.image_path):
+            self.image_path = f"{stub}{self.image_path}"
+        print(f"PREPEND image_path: {self.image_path}")
+
+    def remove_image_stub(self, stub):
+        assert stub[-1] != "/"
+        if self.image_path.startswith(stub):
+            self.image_path = self.image_path[len(stub) :]
+            assert is_repo_path(self.image_path)
+        print(f"REMOVE image_path: {self.image_path}")
 
     def to_pil_image(self, image_size=None):
         pil_image = Image.open(self.get_image_path())

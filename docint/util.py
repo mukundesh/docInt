@@ -3,6 +3,7 @@ import os
 import random
 import string
 from pathlib import Path
+from subprocess import run
 from typing import Any, Callable, List, Mapping
 
 import yaml
@@ -269,3 +270,99 @@ def tail(file_path, lines=1, _buffer=4098):
             block_counter -= 1
 
     return lines_found[-lines:]
+
+
+# Repo Path management
+# Repo path starts from the root directory of a repository (where .git is stored)
+# All the paths in Orgpedia are either relative or repo paths.
+#
+
+
+def get_repo_dir(input_dir: Path = None):
+    input_dir = Path.cwd() if not input_dir else input_dir
+    input_dir = input_dir.resolve()
+
+    if input_dir == Path(input_dir.root):
+        return None
+    git_path = input_dir / ".git"
+    if git_path.exists() and git_path.is_dir():
+        return input_dir
+    else:
+        return get_repo_dir(input_dir.parent)
+
+
+def is_repo_path(input_dir: str):
+    return str(input_dir)[0] == "/"
+
+
+def get_full_path(repo_path: str, repo_dir: Path = None):
+    assert is_repo_path(repo_path)
+    repo_dir = get_repo_dir() if not repo_dir else repo_dir
+    return repo_dir / repo_path[1:]
+
+
+def get_repo_path(path: Path, repo_dir: Path = None):
+    repo_dir = get_repo_dir(path) if not repo_dir else repo_dir
+    relative_path = path.relative_to(repo_dir)
+    return f"/{str(relative_path)}"
+
+
+# Model Directory management
+# Should this be a class ModelStore, especially given that
+# we are managing a models.yml as well.
+
+
+def get_model_stub(model_name):
+    if ":" in model_name:
+        model_src, model_repo = model_name.split(":", 1)
+        return Path(model_src) / Path(model_repo)
+    else:
+        return model_name
+
+
+def get_git_url(model_name):
+    model_src, model_repo = model_name.split(":", 1)
+    if model_src == "huggingface":
+        return f"https://huggingface.co/{model_repo}"
+    else:
+        raise NotImplementedError(f"Cannot download {model_name}")
+
+
+def is_model_downloaded(model_name, model_root_dir):
+    model_path = get_model_path(model_name, model_root_dir)
+    return model_path.is_dir() and any(model_path.iterdir())
+
+
+def download_model(model_name, model_root_dir, over_write=False):
+    is_downloaded = is_model_downloaded(model_name, model_root_dir)
+    assert (not over_write) and not is_downloaded
+
+    git_url = get_git_url(model_name)
+    model_path = get_model_path(model_name, model_root_dir)
+
+    completed_process = run(["git", "clone", git_url, str(model_path)], capture_output=True, text=True)
+    if completed_process.returncode != 0:
+        err_str = completed_process.stderr
+        raise RuntimeError(f"git failed, with {err_str}")
+
+
+def get_model_path(model_name, model_root_dir):
+    model_repo_path = Path(model_root_dir) / get_model_stub(model_name)
+    if model_repo_path.exists():
+        return model_repo_path
+
+    model_dot_path = Path(".model") / get_model_stub(model_name)
+    if model_dot_path.exists():
+        return model_dot_path
+
+    raise ValueError(f"Unable to find {model_name} in {model_dot_path} or {model_repo_path}")
+
+
+def add_model(model_name, model_root_dir):
+    model_src, model_repo = model_name.split(":", 1)
+    models_dict = read_config_from_disk(Path(model_root_dir) / "models.yml")
+    if model_name not in models_dict:
+        if model_name.startswith("huggingface"):
+            models_dict[model_name] = {"path": get_git_url(model_name)}
+        else:
+            models_dict[model_name] = {"path": get_git_url(model_name)}
