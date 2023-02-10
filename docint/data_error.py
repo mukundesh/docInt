@@ -7,24 +7,21 @@ from pydantic import BaseModel
 class DataError(BaseModel):
     path: str
     msg: str
-    doc: Any
-
-    class Config:
-        fields = {"doc": {"exclude": True}}
+    name: str
 
     def __str__(self):
-        if self.doc:
-            return f"{self.name}: {self.doc.pdf_name} {self.path} {self.msg}"
-        else:
-            return f"{self.name}: {self.path} {self.msg}"
+        # if self.doc:
+        #     return f"{self.name}: {self.doc.pdf_name} {self.path} {self.msg}"
+        # else:
+        return f"{self.name}: {self.path} {self.msg}"
 
     @property
-    def name(self):
+    def error_name(self):
         return type(self).__name__
 
     @classmethod
     def error_counts(cls, errors):
-        ctr = Counter(e.name for e in errors)
+        ctr = Counter(e.error_name for e in errors)
         type_str = " ".join(f"{n}={ct}" for n, ct in ctr.most_common(None))
         return f"Errors={sum(ctr.values())} {type_str}"
 
@@ -40,4 +37,4 @@ class UnmatchedTextsError(DataError):
     @classmethod
     def build(cls, path, unmatched_texts, post_str="", word_idxs=[]):
         msg = f'{",".join(unmatched_texts)}|{", ".join(word_idxs)}|{post_str}'
-        return UnmatchedTextsError(path=path, msg=msg, texts=unmatched_texts)
+        return UnmatchedTextsError(path=path, msg=msg, texts=unmatched_texts, name="UnmatchedTexts")

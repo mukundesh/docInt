@@ -85,11 +85,17 @@ class ParaFixer:
             "indop",
         ]
 
-        u_lines = [line.split() for line in Path(self.unicode_file).read_text().split("\n") if line.strip()]
+        u_lines = [
+            line.split() for line in Path(self.unicode_file).read_text().split("\n") if line.strip()
+        ]
         self.unicode_dict = dict((u, a if a != "<ignore>" else "") for u, a in u_lines)
 
         # TODO PLEASE MOVE THIS TO OPTIONS
-        from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
+        from transformers import (
+            AutoModelForTokenClassification,
+            AutoTokenizer,
+            pipeline,
+        )
 
         # tokenizer = AutoTokenizer.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
         # model = AutoModelForTokenClassification.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
@@ -266,11 +272,15 @@ class ParaFixer:
 
         if self.officer_at_start and non_zero_spans:
             msg = f'incorrect span: {",".join(str(s) for s in non_zero_spans)}'
-            errors.append(OfficerMisalignedError(path=path, msg=msg))
+            errors.append(OfficerMisalignedError(path=path, msg=msg, name="OfficerMisaligned"))
 
         if len(person_spans) > 2:
             msg = f'incorrect span: {",".join(str(s) for s in person_spans)}'
-            errors.append(OfficerMultipleError(path=path, msg=msg, num_officers=len(person_spans)))
+            errors.append(
+                OfficerMultipleError(
+                    path=path, msg=msg, num_officers=len(person_spans), name="OfficerMultiple"
+                )
+            )
         return errors
 
     def set_config(self, doc_config):

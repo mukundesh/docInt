@@ -90,7 +90,9 @@ class HtmlGenerator:
             word_strs = []
             for row_idx, col_idx, cell in table.iter_body_cells():
                 w_color = color["row2"] if row_idx % 2 == 0 else color["row1"]
-                word_strs += [self.get_svg_str(w, w_color, page, item_name=item_name) for w in cell.words]
+                word_strs += [
+                    self.get_svg_str(w, w_color, page, item_name=item_name) for w in cell.words
+                ]
             return "\n".join(word_strs)
         elif isinstance(object, TableEdges):
             te = object
@@ -105,7 +107,9 @@ class HtmlGenerator:
             return "\n".join(r + c)
         elif isinstance(object, Word):
             word = object
-            return self.get_svg_str(word.shape, color, page, word.path_abbr, word.text, item_name=item_name)
+            return self.get_svg_str(
+                word.shape, color, page, word.path_abbr, word.text, item_name=item_name
+            )
         elif isinstance(object, Poly) or isinstance(object, Edge):
             coords = object.coords
             path_abbr = path_abbr if path_abbr else object.path_abbr
@@ -131,7 +135,9 @@ class HtmlGenerator:
             return svg_str
         elif isinstance(object, Region):
             region = object
-            return self.get_svg_str(region.shape, color, page, "region", "region", item_name=item_name)
+            return self.get_svg_str(
+                region.shape, color, page, "region", "region", item_name=item_name
+            )
         else:
             raise NotImplementedError(f"not implemented {type(object)}")
 
@@ -244,7 +250,9 @@ class HtmlGenerator:
             svg_dir_path.mkdir(exist_ok=True, parents=True)
             self.write_svg(page_idx, page, img_url, svg_path)
 
-            html_svg = f'<object data="{doc.pdf_stem}/{svg_path.name}" type="image/svg+xml"></object>'
+            html_svg = (
+                f'<object data="{doc.pdf_stem}/{svg_path.name}" type="image/svg+xml"></object>'
+            )
             svgs.append(html_svg)
 
         html_path = self.html_root / f"{doc_name}.html"

@@ -49,7 +49,9 @@ def check_datset(data_dict):
     for page_id, example in zip(data_dict["id"], data_dict["bboxes"]):
         for idx, box in enumerate(example):
             for coord_val in box:
-                assert 0 <= coord_val <= max_val, f"incorrect coord_val: {coord_val} {page_id} word: {idx}"
+                assert (
+                    0 <= coord_val <= max_val
+                ), f"incorrect coord_val: {coord_val} {page_id} word: {idx}"
 
     assert all(0 <= c <= max_val for e in data_dict["bboxes"] for b in e for c in b)
     assert all(len(b) == 4 for e in data_dict["bboxes"] for b in e)
@@ -338,7 +340,9 @@ class LearnLayout:
                 print("MODEL PATH FOUND")
                 model = pretrained(model_path, num_labels=len(class_labels))
             else:
-                model = pretrained("microsoft/layoutlmv2-base-uncased", num_labels=len(class_labels))
+                model = pretrained(
+                    "microsoft/layoutlmv2-base-uncased", num_labels=len(class_labels)
+                )
 
             trainer = build_trainer(model, train_dataset, test_dataset)
 
@@ -370,7 +374,9 @@ class LearnLayout:
         learn_pages = [p for d in docs for p in d.pages if hasattr(p, "word_labels")]
         print(f"LEARN PAGES: {len(learn_pages)}")
 
-        hf_dataset, class_labels, ner_tags = generate_dataset(learn_pages, self.model_dir, self.model_name)
+        hf_dataset, class_labels, ner_tags = generate_dataset(
+            learn_pages, self.model_dir, self.model_name
+        )
 
         self.run_cross_validation(hf_dataset, class_labels, ner_tags)
         print(f"Docs: {len(docs)}")

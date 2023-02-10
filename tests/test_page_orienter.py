@@ -5,7 +5,9 @@ import pytest
 import docint
 
 docker_config = {
-    "post_install_lines": ["ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"],
+    "post_install_lines": [
+        "ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"
+    ],
     "is_recognizer": True,
     "delete_container_dir": True,
 }

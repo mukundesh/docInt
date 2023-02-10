@@ -7,7 +7,17 @@ from .page_image import PageImage
 
 # from .doc import Doc
 from .region import Region
-from .shape import Box, Coord, Edge, Poly, Shape, doc_to_image, image_to_doc, rotate_image_coord, size_after_rotation
+from .shape import (
+    Box,
+    Coord,
+    Edge,
+    Poly,
+    Shape,
+    doc_to_image,
+    image_to_doc,
+    rotate_image_coord,
+    size_after_rotation,
+)
 from .word import BreakType, Word
 
 
@@ -39,7 +49,13 @@ class Page(BaseModel):
 
     @classmethod
     def from_page(cls, page, words):
-        return Page(doc=page.doc, page_idx=page.page_idx, words=words, width_=page.width_, height_=page.height_)
+        return Page(
+            doc=page.doc,
+            page_idx=page.page_idx,
+            words=words,
+            width_=page.width_,
+            height_=page.height_,
+        )
 
     # def get_region(self, shape, overlap=100):
     #     assert False

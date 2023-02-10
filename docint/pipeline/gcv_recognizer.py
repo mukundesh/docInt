@@ -173,7 +173,9 @@ class CloudVisionRecognizer:
         input_config = vision_v1.InputConfig(gcs_source=gcs_source, mime_type=mime_type)
 
         gcs_destination = vision_v1.GcsDestination(uri=gcs_destination_uri)
-        output_config = vision_v1.OutputConfig(gcs_destination=gcs_destination, batch_size=batch_size)
+        output_config = vision_v1.OutputConfig(
+            gcs_destination=gcs_destination, batch_size=batch_size
+        )
 
         async_request = vision_v1.AsyncAnnotateFileRequest(
             features=[feature], input_config=input_config, output_config=output_config

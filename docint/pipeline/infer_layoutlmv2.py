@@ -104,7 +104,11 @@ class InferLayoutLMv2:
 
                 # Remove ignored index (special tokens)
                 true_predictions = [
-                    [model.config.id2label[p.item()] for (lb, p) in zip(label, prediction) if lb != -100]
+                    [
+                        model.config.id2label[p.item()]
+                        for (lb, p) in zip(label, prediction)
+                        if lb != -100
+                    ]
                     for label, prediction in zip(labels, predictions)
                 ]
 
@@ -122,7 +126,9 @@ class InferLayoutLMv2:
         docs = list(docs)
         for chunk_idx, docs_chunk in enumerate(chunks(docs, self.batch_size * 5)):
             infer_pages = [d[self.page_idx] for d in docs_chunk]
-            hf_dataset, _, _ = generate_dataset(infer_pages, self.model_dir, self.proc_model_name, has_labels=False)
+            hf_dataset, _, _ = generate_dataset(
+                infer_pages, self.model_dir, self.proc_model_name, has_labels=False
+            )
 
             self.logger.info("Generated pytorch dataset")
 
@@ -134,7 +140,9 @@ class InferLayoutLMv2:
                 doc.add_extra_page_field("word_labels", ("dict", "docint.region", "Region"))
 
             for (word_labels, page) in zip(word_labels_list, infer_pages):
-                print(f"{page.doc.pdf_name} words: {len(page.words)} labels: {len(word_labels)} -----------")
+                print(
+                    f"{page.doc.pdf_name} words: {len(page.words)} labels: {len(word_labels)} -----------"
+                )
                 label_word_dict = {}
                 for (word_idx, label) in enumerate(word_labels[: len(page.words)]):
                     label_word_dict.setdefault(iob2label(label), []).append(page[word_idx])

@@ -64,7 +64,9 @@ class FindBodyMarker:
         body_marker_words = [doc[page_idx][w_idx] for w_idx in body_labels["word_idxs"]]
 
         nl_ht_multiple = doc_config.get("newline_height_multiple", 1.0)
-        word_lines = words_in_lines(first_page, newline_height_multiple=nl_ht_multiple, para_indent=True)
+        word_lines = words_in_lines(
+            first_page, newline_height_multiple=nl_ht_multiple, para_indent=True
+        )
 
         bm_idxs = set(w.word_idx for w in body_marker_words)
         bm_lines = [[w for w in line if w.word_idx in bm_idxs] for line in word_lines]

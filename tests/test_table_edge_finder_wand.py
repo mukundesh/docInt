@@ -3,7 +3,9 @@ import pytest  # noqa
 import docint
 
 docker_config = {
-    "post_install_lines": ["ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"],
+    "post_install_lines": [
+        "ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"
+    ],
     "is_recognizer": True,
     "delete_container_dir": True,
 }
@@ -12,11 +14,15 @@ docker_config = {
 
 
 def test_pdftable_finder(table_path):
-    ppln = docint.empty(config={"docker_pipes": ["table_edge_finder_wand"], "docker_config": docker_config})
+    ppln = docint.empty(
+        config={"docker_pipes": ["table_edge_finder_wand"], "docker_config": docker_config}
+    )
     ppln.add_pipe("pdf_reader")
     ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("num_marker")
-    ppln.add_pipe("table_edge_finder_wand", pipe_config={"expected_columns": 4, "skew_threshold": 0.0})
+    ppln.add_pipe(
+        "table_edge_finder_wand", pipe_config={"expected_columns": 4, "skew_threshold": 0.0}
+    )
     doc = ppln(table_path)
 
     vert_edges = [e for e in doc.pages[0].edges if e.orientation == "v"]
@@ -44,16 +50,24 @@ def test_pdftable_finder(table_path):
 # @pytest.mark.skip("skipping for now")
 def test_pdftable_rota_finder(table_rota_path):
     ppln = docint.empty(
-        config={"docker_pipes": ["gcv_recognizer", "table_edge_finder_wand"], "docker_config": docker_config}
+        config={
+            "docker_pipes": ["gcv_recognizer", "table_edge_finder_wand"],
+            "docker_config": docker_config,
+        }
     )
     ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgfound"})
     ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("num_marker")
-    ppln.add_pipe("table_edge_finder_wand", pipe_config={"expected_columns": 4, "skew_threshold": 1.0})
+    ppln.add_pipe(
+        "table_edge_finder_wand", pipe_config={"expected_columns": 4, "skew_threshold": 1.0}
+    )
     ppln.add_pipe("table_builder_on_edges")
     ppln.add_pipe(
         "html_generator",
-        pipe_config={"html_root": "output/html", "color_dict": {"word": "blue", "table_edges": "green"}},
+        pipe_config={
+            "html_root": "output/html",
+            "color_dict": {"word": "blue", "table_edges": "green"},
+        },
     )
 
     doc = ppln(table_rota_path)
@@ -67,4 +81,15 @@ def test_pdftable_rota_finder(table_rota_path):
 
     horz_edges_image_y = [doc[0].get_image_coord(e.coord1).y for e in horz_edges]
     print(horz_edges_image_y)
-    assert horz_edges_image_y == [386.0, 418.0, 447.0, 481.0, 510.0, 542.0, 572.0, 603.0, 635.0, 669.0]
+    assert horz_edges_image_y == [
+        386.0,
+        418.0,
+        447.0,
+        481.0,
+        510.0,
+        542.0,
+        572.0,
+        603.0,
+        635.0,
+        669.0,
+    ]

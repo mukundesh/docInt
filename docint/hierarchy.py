@@ -125,7 +125,11 @@ class HierarchyNode:
         return all_spans
 
     def find_adjoin_span_groups(self, span, span_groups, text):
-        return [span_group for span_group in span_groups if span.adjoins(span_group.full_span, text, " (),.;")]
+        return [
+            span_group
+            for span_group in span_groups
+            if span.adjoins(span_group.full_span, text, " (),.;")
+        ]
 
     def find_child_span_groups(self, span, span_groups):
         span_path, child_sgs = self.full_path, []
@@ -157,7 +161,9 @@ class HierarchyNode:
 
         if spans and span_groups:
             spans_str = ", ".join(f">{s.span_str(text)}<" for s in spans)
-            lgr.debug(f"\t#Handling span_groups[{len(span_groups)}] spans[{len(spans)}]: {spans_str}")
+            lgr.debug(
+                f"\t#Handling span_groups[{len(span_groups)}] spans[{len(spans)}]: {spans_str}"
+            )
 
             for span in spans:
                 # Hierarchy could have two nodes with same names - possible (not ideal)
@@ -175,7 +181,9 @@ class HierarchyNode:
                     lgr.debug("\t\t#Multiple merge_sgs")
                     hier_span = HierarchySpan.build(self, span)
                     [m_sg.add(hier_span) for m_sg in merge_sgs]
-                    lgr.debug(f"\t\t#Merged >{span.span_str(text)}< with {Hierarchy.to_str(merge_sgs)}")
+                    lgr.debug(
+                        f"\t\t#Merged >{span.span_str(text)}< with {Hierarchy.to_str(merge_sgs)}"
+                    )
                 else:
                     hier_span = HierarchySpan.build(self, span)
                     span_groups.append(HierarchySpanGroup.build(text, hier_span))

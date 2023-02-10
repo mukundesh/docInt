@@ -255,7 +255,9 @@ class FindNumMarker:
             return False
 
         if not (word.box.in_xrange(self.x_range) and word.box.in_yrange(self.y_range)):
-            self.lgr.debug(f"\t{word.text} {word.xmin}:{word.xmax} outside {self.x_range} {self.y_range}")
+            self.lgr.debug(
+                f"\t{word.text} {word.xmin}:{word.xmax} outside {self.x_range} {self.y_range}"
+            )
             return False
 
         lt_words = page.words_to("left", word)
@@ -316,6 +318,7 @@ class FindNumMarker:
                     exp_val=exp_val,
                     act_val=marker.num_val,
                     word_idx=word_idx,
+                    name="MarkerMisalgined",
                 )
                 exp_val = marker.num_val
                 # marker.errors.append(err)

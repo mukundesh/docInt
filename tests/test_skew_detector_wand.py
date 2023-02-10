@@ -3,13 +3,17 @@ import math
 import docint
 
 docker_config = {
-    "post_install_lines": ["ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"],
+    "post_install_lines": [
+        "ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"
+    ],
     "delete_container_dir": True,
 }
 
 
 def test_skew_finder(table_path):
-    ppln = docint.empty(config={"docker_pipes": ["skew_detector_wand"], "docker_config": docker_config})
+    ppln = docint.empty(
+        config={"docker_pipes": ["skew_detector_wand"], "docker_config": docker_config}
+    )
     ppln.add_pipe("pdf_reader")
     ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("skew_detector_wand")
@@ -19,7 +23,9 @@ def test_skew_finder(table_path):
 
 
 def test_rota_skew_finder(table_rota_path):
-    ppln = docint.empty(config={"docker_pipes": ["skew_detector_wand"], "docker_config": docker_config})
+    ppln = docint.empty(
+        config={"docker_pipes": ["skew_detector_wand"], "docker_config": docker_config}
+    )
     ppln.add_pipe("pdf_reader")  # doesn't matter as we only need page_image
     ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("skew_detector_wand")

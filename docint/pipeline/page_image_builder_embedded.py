@@ -104,7 +104,9 @@ class PageImageBuilderEmbedded:
         page_images = []
         for (page, pdf_page) in zip(doc.pages, pdf.pages):
             if len(pdf_page.images) == 1:
-                page_image = build_embedded_page_image(page, pdf_page, self.image_dir, image_dir_path)
+                page_image = build_embedded_page_image(
+                    page, pdf_page, self.image_dir, image_dir_path
+                )
             else:
                 page_image = build_raster_page_image(page, pdf_page, self.image_dir)
             page.page_image = page_image

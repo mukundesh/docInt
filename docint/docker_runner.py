@@ -82,7 +82,9 @@ class DockerRunner:
 
         docker_lines.extend(docker_config.get("pre_install_lines", []))
 
-        apt_depends = DEFAULT_OS_PACKAGES + [d[len("apt:") :] for d in depends if d.startswith("apt:")]
+        apt_depends = DEFAULT_OS_PACKAGES + [
+            d[len("apt:") :] for d in depends if d.startswith("apt:")
+        ]
         if apt_depends:
             packages = " ".join(apt_depends)
             docker_lines.append(f"RUN apt-get update && apt-get install {packages} -y")
@@ -175,7 +177,9 @@ class DockerRunner:
                 (image_dir / "stderr.out").write_text(completed_process.stderr)
                 (image_dir / "stdout.out").write_text(completed_process.stdout)
                 exit_code = completed_process.returncode
-                raise RuntimeError(Errors.E031.format(exit_code=exit_code, image_dir=str(image_dir)))
+                raise RuntimeError(
+                    Errors.E031.format(exit_code=exit_code, image_dir=str(image_dir))
+                )
 
         return image_name, image_dir
 
@@ -288,7 +292,9 @@ class DockerRunner:
 
         [doc.add_pipe(name) for doc in docs]
 
-        task_dir = self.build_task_dir(image_dir, name, docs, is_recognizer, pipe_config, docker_config)
+        task_dir = self.build_task_dir(
+            image_dir, name, docs, is_recognizer, pipe_config, docker_config
+        )
 
         container_name = task_dir.name
 
@@ -311,11 +317,15 @@ class DockerRunner:
             exit_code = completed_process.returncode
             log_path = output_dir / "pipe.log"
             last_lines = tail(log_path, 3) if log_path.exists() else "No file created"
-            raise RuntimeError(Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines))
+            raise RuntimeError(
+                Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines)
+            )
 
         output_paths = list(output_dir.glob("*.doc.json"))
         if len(output_paths) != len(docs):
-            raise RuntimeError(Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines))
+            raise RuntimeError(
+                Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines)
+            )
 
         # Reading output file and also updating doc.pdffile_path from input_doc
         output_docs = []

@@ -38,7 +38,9 @@ REL_TOL = 1e-5
 
 def float_eq(a, b):
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
-        return len(a) == len(b) and all(isclose(a1, b1, rel_tol=REL_TOL, abs_tol=REL_TOL) for (a1, b1) in zip(a, b))
+        return len(a) == len(b) and all(
+            isclose(a1, b1, rel_tol=REL_TOL, abs_tol=REL_TOL) for (a1, b1) in zip(a, b)
+        )
     else:
         return isclose(a, b, rel_tol=REL_TOL)
 
@@ -85,7 +87,9 @@ elif len(sys.argv) > 1:
 
     for page1, page2 in zip(pdf1.pages, pdf2.pages):
         print(f"#Words: {len(page1.words)} {len(page2.words)}")
-        print(f"#Word Lengths: {sum([len(w.text) for w in page1.words])} {sum([len(w.text) for w in page2.words])}")
+        print(
+            f"#Word Lengths: {sum([len(w.text) for w in page1.words])} {sum([len(w.text) for w in page2.words])}"
+        )
 
     # This is expensive operation aligns the sequences of strs
     # a = ' '.join(w.text for w in page1.words)

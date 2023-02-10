@@ -135,7 +135,11 @@ class TableFinder:
                 marker_word = list_item.marker.words[0]
                 yrange = (marker_word.ymin - 0.05, marker_word.ymin)
                 title_words = page.words_in_yrange(yrange, partial=True)
-                title_words = [w for w in title_words if (w.text.isupper() or w.text in "()") and "." not in w.text]
+                title_words = [
+                    w
+                    for w in title_words
+                    if (w.text.isupper() or w.text in "()") and "." not in w.text
+                ]
                 # remove these title words
 
                 if body_rows:
@@ -183,7 +187,9 @@ class TableFinder:
             if list_item.marker:
                 marker_cell = Cell.build(list_item.marker.words)
                 m_str = list_item.marker.raw_text()
-                self.lgr.info(f"> {path} {m_str}|{lt_cell.raw_text()}|{rt_cell.raw_text()} #={strategy}")
+                self.lgr.info(
+                    f"> {path} {m_str}|{lt_cell.raw_text()}|{rt_cell.raw_text()} #={strategy}"
+                )
 
                 body_rows.append(Row.build([marker_cell, lt_cell, rt_cell]))
             else:
@@ -211,7 +217,9 @@ class TableFinder:
         for page in doc.pages:
             if page.list_items:
                 page_path = f"pa{page.page_idx}"
-                tables = self.find_inpage(page, page.list_items, boundary_texts, boundary_words, page_path)
+                tables = self.find_inpage(
+                    page, page.list_items, boundary_texts, boundary_words, page_path
+                )
                 page.tables = tables
             else:
                 page.tables = []

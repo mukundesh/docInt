@@ -190,7 +190,9 @@ class InferLayoutLM:
             }
         )
         columnNames = selHfDatasets.column_names
-        ptDataset = selHfDatasets.map(preprocess_data, batched=True, remove_columns=columnNames, features=features)
+        ptDataset = selHfDatasets.map(
+            preprocess_data, batched=True, remove_columns=columnNames, features=features
+        )
         ptDataset.set_format(type="torch")
         return ptDataset, docWords, imagePaths
 
@@ -264,7 +266,11 @@ class InferLayoutLM:
 
                 # Remove ignored index (special tokens)
                 true_predictions = [
-                    [model.config.id2label[p.item()] for (lb, p) in zip(label, prediction) if lb != -100]
+                    [
+                        model.config.id2label[p.item()]
+                        for (lb, p) in zip(label, prediction)
+                        if lb != -100
+                    ]
                     for label, prediction in zip(labels, predictions)
                 ]
 
@@ -272,7 +278,11 @@ class InferLayoutLM:
                 imgSizesBatch = [img.size for img in imageBatch]
 
                 true_boxes = [
-                    [unnormalize_box(box, width, height) for (lb, box) in zip(label, boxes) if lb != -100]
+                    [
+                        unnormalize_box(box, width, height)
+                        for (lb, box) in zip(label, boxes)
+                        if lb != -100
+                    ]
                     for (label, boxes, (width, height)) in zip(labels, batch["bbox"], imgSizesBatch)
                 ]
 
@@ -287,9 +297,13 @@ class InferLayoutLM:
                 assert len(true_words) == len(true_boxes) == len(true_predictions)
 
                 docDicts = []
-                for (doc_preds, doc_words, doc_boxes) in zip(true_predictions, true_words, true_boxes):
+                for (doc_preds, doc_words, doc_boxes) in zip(
+                    true_predictions, true_words, true_boxes
+                ):
                     docDict = {}
-                    for (wordIdx, (pred, word, box)) in enumerate(zip(doc_preds, doc_words, doc_boxes)):
+                    for (wordIdx, (pred, word, box)) in enumerate(
+                        zip(doc_preds, doc_words, doc_boxes)
+                    ):
                         wordDict = {"text": word, "box": box, "idx": wordIdx}
                         docDict.setdefault(pred[2:], []).append(wordDict)
                     docDicts.append(docDict)
@@ -325,9 +339,15 @@ class InferLayoutLM:
             page = doc[0]
             print(f"{pdf_name} ****************")
             for label, wordDicts in docDict.items():
-                words = [page[w["idx"]] for w in wordDicts if w["idx"] < len(page.words) and w["idx"] >= 0]
+                words = [
+                    page[w["idx"]]
+                    for w in wordDicts
+                    if w["idx"] < len(page.words) and w["idx"] >= 0
+                ]
 
-                wrong_idxs = [w["idx"] for w in wordDicts if (w["idx"] >= len(page.words)) or (w["idx"] < 0)]
+                wrong_idxs = [
+                    w["idx"] for w in wordDicts if (w["idx"] >= len(page.words)) or (w["idx"] < 0)
+                ]
                 if wrong_idxs:
                     print(f'WRONG IDXS: {" ".join(str(idx) for idx in wrong_idxs)}')
 

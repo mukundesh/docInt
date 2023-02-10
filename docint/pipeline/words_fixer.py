@@ -79,14 +79,18 @@ class WordsFixer:
             "indop",
         ]
 
-        u_lines = [line.split() for line in Path(self.unicode_file).read_text().split("\n") if line.strip()]
+        u_lines = [
+            line.split() for line in Path(self.unicode_file).read_text().split("\n") if line.strip()
+        ]
         self.unicode_dict = dict((u, a if a != "<ignore>" else "") for u, a in u_lines)
 
         # TODO PLEASE MOVE THIS TO OPTIONS
         from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 
         tokenizer = AutoTokenizer.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
-        model = AutoModelForTokenClassification.from_pretrained("/Users/mukund/Github/huggingface/bert-base-NER")
+        model = AutoModelForTokenClassification.from_pretrained(
+            "/Users/mukund/Github/huggingface/bert-base-NER"
+        )
 
         self.nlp = pipeline("ner", model=model, tokenizer=tokenizer)
         # self.nlp = pipeline("ner")

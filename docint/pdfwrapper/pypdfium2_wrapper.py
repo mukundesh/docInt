@@ -241,7 +241,9 @@ class Page(pdf.Page):
 
         page_text = self.extract_text(lib_textpage)
         count_chars = lib_textpage.count_chars()
-        assert count_chars == len(page_text), f"count_chars mismatch {count_chars} {len(page_text)}\n{page_text}"
+        assert count_chars == len(
+            page_text
+        ), f"count_chars mismatch {count_chars} {len(page_text)}\n{page_text}"
 
         words = []
         page_text = page_text.replace(chr(65534), " ")
@@ -270,7 +272,9 @@ class Page(pdf.Page):
     def build_chars(self, lib_textpage):
         page_text = lib_textpage.get_text_range()
         count_chars = lib_textpage.count_chars()
-        assert count_chars == len(page_text), f"count_chars mismatch {count_chars} {len(page_text)}\n{page_text}"
+        assert count_chars == len(
+            page_text
+        ), f"count_chars mismatch {count_chars} {len(page_text)}\n{page_text}"
 
         chars = []
         for (char_idx, char_text) in enumerate(page_text):

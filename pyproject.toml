@@ -5,6 +5,26 @@ description = "Extracting information from DOCuments INTelligently."
 authors = ["mukundesh <mukundesh@outlook.com>"]
 license = "MIT"
 readme = "README.md"
+keywords = ["information extraction", "document intelligence", "computer vision"]
+classifiers=[
+    'Development Status :: 2 - Pre-Alpha',
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: MIT License',
+    'Natural Language :: English',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Topic :: Scientific/Engineering :: Artificial Intelligence',
+    'Topic :: Scientific/Engineering :: Information Analysis',
+    'Topic :: Scientific/Engineering :: Image Processing',
+]
+
+[tool.poetry.urls]
+"homepage" = "https://github.com/mukundesh/docInt"
+"repository" = "https://github.com/mukundesh/docInt"
 
 [tool.poetry.dependencies]
 python = "!=3.7.6,!=3.8.1,>3.7.1"
@@ -21,22 +41,19 @@ pypdfium2 = "^3.20.1"
 pytest = "^7.1.3"
 pytest-cov = "^4.0.0"
 
-
-
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
-flake8 = "3.9.2"
-
+ruff = "^0.0.243"
 
 [tool.poetry.group.docs.dependencies]
-mkdocs-material = "^8.5.6"
+
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-line-length = 120
+line-length = 100
 # skip-string-normalization = true
 target-version = ['py36', 'py37', 'py38', 'py39', 'py310']
 include = '\.pyi?$'
@@ -54,17 +71,6 @@ exclude = '''
   | dist
 )/
 '''
-
-[tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-line_length = 120
-skip_gitignore = true
-# you can skip files as below
-#skip_glob = docs/conf.py
 
 [tool.coverage.run]
 # uncomment the following to omit files during running
@@ -138,3 +144,36 @@ commands =
     mkdocs build
     twine check dist/*
 """
+
+[tool.ruff]
+# Enable Pyflakes `E` and `F` codes by default.
+select = ["E", "F", "W", "I001"]
+ignore = []
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["I001"] # fix only isort issues
+unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".nox",
+    ".ruff_cache",
+    ".tox",
+    "__pypackages__",
+    "dist",
+    "node_modules",
+    "venv",
+    ".bak",
+]
+per-file-ignores = {}
+
+# Same as Black.
+line-length = 100
+
+# Allow unused variables when underscore-prefixed.
+#dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Assume Python 3.7
+target-version = "py37"

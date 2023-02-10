@@ -4,7 +4,9 @@ import docint
 from docint.doc import Doc
 
 
-@pytest.mark.skip(reason="need to implement this inside docker as datasets.py has lot of dependencies")
+@pytest.mark.skip(
+    reason="need to implement this inside docker as datasets.py has lot of dependencies"
+)
 def test_learn_layout(layout_paths):
     docker_config = {
         "pre_install_lines": ["RUN pip install transformers[torch]"],
@@ -12,7 +14,9 @@ def test_learn_layout(layout_paths):
         "do_dry_run": False,
     }
 
-    ppl = docint.empty(config={"docker_pipes": ["learn_layoutlmv2"], "docker_config": docker_config})
+    ppl = docint.empty(
+        config={"docker_pipes": ["learn_layoutlmv2"], "docker_config": docker_config}
+    )
     ppl.add_pipe("pdf_reader")
     ppl.add_pipe("page_image_builder_raster")
     ppl.add_pipe("learn_layoutlmv2", pipe_config={"num_folds": 3})
@@ -20,7 +24,9 @@ def test_learn_layout(layout_paths):
     docs = list(docs)
 
 
-@pytest.mark.skip(reason="need to implement this inside docker as datasets.py has lot of dependencies")
+@pytest.mark.skip(
+    reason="need to implement this inside docker as datasets.py has lot of dependencies"
+)
 def test_learn_layout_one_fold(layout_paths):
     docker_config = {
         "pre_install_lines": ["RUN pip install transformers[torch]"],

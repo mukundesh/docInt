@@ -207,7 +207,9 @@ class Box(Shape):
         top, bot = yrange
         ymin, ymax = self.top.y, self.bot.y
         if partial:
-            return (top <= ymin <= bot) or (top <= ymax <= bot) or (ymin < top < bot < ymax)  # noqa: W503  # noqa: W503
+            return (
+                (top <= ymin <= bot) or (top <= ymax <= bot) or (ymin < top < bot < ymax)
+            )  # noqa: W503  # noqa: W503
         else:
             return (top < ymin < bot) and (top < ymax < bot)
 

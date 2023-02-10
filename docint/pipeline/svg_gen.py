@@ -124,7 +124,9 @@ class SVGGenerator:
         with open(svg_path, "w") as svg_file:
             pw, ph = page.image_size
             svg_file.write(
-                SVGHeader.replace("WIDTH", f"{pw:.0f}").replace("HEIGHT", f"{ph:.0f}").replace("IMG_URL", img_url)
+                SVGHeader.replace("WIDTH", f"{pw:.0f}")
+                .replace("HEIGHT", f"{ph:.0f}")
+                .replace("IMG_URL", img_url)
             )
             svg_words = []
             for word in page.words:

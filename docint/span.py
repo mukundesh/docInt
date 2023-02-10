@@ -263,7 +263,11 @@ class Span(BaseModel):
         return self.start_in_boundary(text, bc) or self.end_in_boundary(text, bc)
 
     def is_valid(self, text):
-        return (0 <= self.start <= len(text)) and (0 <= self.end <= len(text)) and (self.start <= self.end)
+        return (
+            (0 <= self.start <= len(text))
+            and (0 <= self.end <= len(text))
+            and (self.start <= self.end)
+        )
 
 
 class SpanGroup(BaseModel):

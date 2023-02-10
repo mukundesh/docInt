@@ -50,7 +50,9 @@ class RotationDetector:
         num_type_counter = Counter(m.num_type for m in num_markers)
         max_type = max(num_type_counter, key=num_type_counter.get)
 
-        marker_words = [m.words[0] for m in num_markers if m.num_type == max_type and m.num_val != 0]
+        marker_words = [
+            m.words[0] for m in num_markers if m.num_type == max_type and m.num_val != 0
+        ]
 
         m_xmids = [w.xmid for w in marker_words]
         m_ymids = [w.ymid for w in marker_words]

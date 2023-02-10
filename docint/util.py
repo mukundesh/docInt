@@ -340,7 +340,9 @@ def download_model(model_name, model_root_dir, over_write=False):
     git_url = get_git_url(model_name)
     model_path = get_model_path(model_name, model_root_dir)
 
-    completed_process = run(["git", "clone", git_url, str(model_path)], capture_output=True, text=True)
+    completed_process = run(
+        ["git", "clone", git_url, str(model_path)], capture_output=True, text=True
+    )
     if completed_process.returncode != 0:
         err_str = completed_process.stderr
         raise RuntimeError(f"git failed, with {err_str}")

@@ -62,12 +62,18 @@ class LineFinder:
         self.file_handler = None
 
     def get_word_lines(self, page, angle, newline_height_multiple):
-        print(f"nhm: {newline_height_multiple} angle: {angle} coords: {str(page.words[0].coords)} >>>")
+        print(
+            f"nhm: {newline_height_multiple} angle: {angle} coords: {str(page.words[0].coords)} >>>"
+        )
         if angle:
             rota_page = Page.build_rotated(page, angle)
-            word_lines = words_in_lines(rota_page, newline_height_multiple=newline_height_multiple, is_page=True)
+            word_lines = words_in_lines(
+                rota_page, newline_height_multiple=newline_height_multiple, is_page=True
+            )
             page_word_lines = [[page.words[w.word_idx] for w in wl] for wl in word_lines]
-            print(f"nhm: {newline_height_multiple} angle: {angle} coords: {str(page.words[0].coords)} <<<")
+            print(
+                f"nhm: {newline_height_multiple} angle: {angle} coords: {str(page.words[0].coords)} <<<"
+            )
             return page_word_lines
         else:
             return words_in_lines(page, newline_height_multiple=newline_height_multiple)

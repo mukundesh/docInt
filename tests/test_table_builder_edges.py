@@ -6,7 +6,9 @@ docker_config = {
 
 
 def test_table_builder_edges(table_path):
-    ppln = docint.empty(config={"docker_pipes": ["table_edge_finder"], "docker_config": docker_config})
+    ppln = docint.empty(
+        config={"docker_pipes": ["table_edge_finder"], "docker_config": docker_config}
+    )
     ppln.add_pipe("pdf_reader")
     ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("num_marker")

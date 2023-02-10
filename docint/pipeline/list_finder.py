@@ -157,7 +157,9 @@ class ListFinder:
         for word_line in [wl for wl in word_lines if wl]:
             ymin = statistics.mean([w.box.ymin for w in word_line])
             if prev_ymin != -1.0 and (ymin - prev_ymin) > height_cutoff:
-                self.lgr.debug(f"line break found {to_str(last_word_lines)} {ymin-prev_ymin} > {height_cutoff}")
+                self.lgr.debug(
+                    f"line break found {to_str(last_word_lines)} {ymin-prev_ymin} > {height_cutoff}"
+                )
                 break
             prev_ymin = ymin
 

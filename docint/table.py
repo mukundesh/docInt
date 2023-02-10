@@ -45,7 +45,11 @@ class Cell(Para):
         page_idx = words[0].page_idx if words else None
         word_lines_idxs = [[w.word_idx for w in words]]
         return Cell(
-            words=words, word_lines=[words], word_idxs=word_idxs, word_lines_idxs=word_lines_idxs, page_idx_=page_idx
+            words=words,
+            word_lines=[words],
+            word_idxs=word_idxs,
+            word_lines_idxs=word_lines_idxs,
+            page_idx_=page_idx,
         )
 
 
@@ -72,7 +76,7 @@ class Row(Region):
         errors = []
         if num_cols is not None and len(self.cells) != num_cols:
             msg = f"{path}: expected {num_cols} columns, but actual {len(self.cells)}"
-            errors.append(TableMismatchColsError(path=path, msg=msg))
+            errors.append(TableMismatchColsError(path=path, msg=msg, name="TableMismatchCols"))
 
         for (idx, cell) in enumerate(self.cells):
             if not cell:
@@ -80,9 +84,17 @@ class Row(Region):
                 is_none = True if cell is None else False
                 msg = f"{cell_path}: emtpy cell is_none: {is_none}"
                 if is_header:
-                    errors.append(TableEmptyHeaderCellError(path=cell_path, msg=msg, is_none=is_none))
+                    errors.append(
+                        TableEmptyHeaderCellError(
+                            path=cell_path, msg=msg, is_none=is_none, name="TableEmptyHeaderCell"
+                        )
+                    )
                 else:
-                    errors.append(TableEmptyBodyCellError(path=cell_path, msg=msg, is_none=is_none))
+                    errors.append(
+                        TableEmptyBodyCellError(
+                            path=cell_path, msg=msg, is_none=is_none, name="TableEmptyBodyCell"
+                        )
+                    )
         return errors
 
     def get_html_json(self):
@@ -154,17 +166,19 @@ class Table(Region):
         all_tests = ["TableEmptyError", "TableEmptyBodyError", "TableEmptyHeaderError"]
         do_tests = [t for t in all_tests if t not in ignore]
 
-        if "TableEmptyError" in do_tests and not self.header_rows and not self.body_rows:  # noqa: W503  # noqa: W503
+        if (
+            "TableEmptyError" in do_tests and not self.header_rows and not self.body_rows
+        ):  # noqa: W503  # noqa: W503
             msg = f"{path}: Both header and body rows are empty"
-            errors.append(TableEmptyError(path=path, msg=msg))
+            errors.append(TableEmptyError(path=path, msg=msg, name="TableEmpty"))
 
         if "TableEmptyHeaderError" in do_tests and not self.header_rows:
             msg = f"{path}: no header rows"
-            errors.append(TableEmptyHeaderError(path=path, msg=msg))
+            errors.append(TableEmptyHeaderError(path=path, msg=msg, name="TableEmptyHeader"))
 
         if "TableEmptyBodyError" in do_tests and not self.body_rows:
             msg = f"{path}: no body rows"
-            errors.append(TableEmptyBodyError(path=path, msg=msg))
+            errors.append(TableEmptyBodyError(path=path, msg=msg, name="TableEmptyBody"))
 
         en_b, en_h = enumerate(self.body_rows), enumerate(self.header_rows)
         errors += chain(*(r.test(f"{path}.b{idx}") for (idx, r) in en_b))

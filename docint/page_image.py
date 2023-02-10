@@ -87,7 +87,9 @@ class ImageContext:
                 top, bot = trans_tuple[1], trans_tuple[2]
                 cur_w, cur_h = (bot.x - top.x), (bot.y - top.y)
                 if not image_coord.inside(Coord(x=0, y=0), Coord(x=cur_w, y=cur_h)):
-                    print(f"\t\t !!!Failing coord: {image_coord} outside width:{cur_w}, height:{cur_h}]")
+                    print(
+                        f"\t\t !!!Failing coord: {image_coord} outside width:{cur_w}, height:{cur_h}]"
+                    )
                     assert False, f"coord: {image_coord} outside [{cur_w}, {cur_h}]"
                     raise ValueError(f"coord: {image_coord} outside ({cur_w}, {cur_h})")
                 image_coord = Coord(x=top.x + image_coord.x, y=top.y + image_coord.y)

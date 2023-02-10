@@ -254,7 +254,9 @@ class TableEdgeFinder:
 
         if conf.rm_column_atidxs:
             self.lgr.info(f"\t\tRemoving columns: {conf.rm_column_atidxs}")
-            col_img_xs = [img_xs for idx, img_xs in enumerate(col_img_xs) if idx not in conf.rm_column_atidxs]
+            col_img_xs = [
+                img_xs for idx, img_xs in enumerate(col_img_xs) if idx not in conf.rm_column_atidxs
+            ]
 
         if conf.add_column_atpos:
             col_img_xs.extend(conf.add_column_atpos)
@@ -357,17 +359,25 @@ class TableEdgeFinder:
 
                 top, bot = Coord(x=0.0, y=top_y), Coord(x=1.0, y=bot_y)
                 crop_coords.extend([top, bot])
-                self.lgr.debug(f"\tCropping Image [{top},{bot}] because {(ymax-ymin)*100} < {conf.crop_threshold}")
+                self.lgr.debug(
+                    f"\tCropping Image [{top},{bot}] because {(ymax-ymin)*100} < {conf.crop_threshold}"
+                )
             else:
                 top, bot = Coord(x=0.0, y=0.0), Coord(x=1.0, y=1.0)
 
             with ImageContext(page.page_image) as page_image_ctx:
-                col_edges, col_img_xs = self.get_column_edges(page_image_ctx, page.page_idx, crop_coords, conf)
+                col_edges, col_img_xs = self.get_column_edges(
+                    page_image_ctx, page.page_idx, crop_coords, conf
+                )
 
             with ImageContext(page.page_image) as page_image_ctx:
-                row_edges = self.get_row_edges(page_image_ctx, page.page_idx, row_markers, crop_coords, conf)
+                row_edges = self.get_row_edges(
+                    page_image_ctx, page.page_idx, row_markers, crop_coords, conf
+                )
 
-            table_edges = TableEdges(row_edges=row_edges, col_edges=col_edges, col_img_xs=col_img_xs)
+            table_edges = TableEdges(
+                row_edges=row_edges, col_edges=col_edges, col_img_xs=col_img_xs
+            )
             table_edges_list.append(table_edges)
             self.prev_row_ht = row_ht
         return table_edges_list
@@ -403,7 +413,11 @@ class TableEdgeFinder:
         file_page_configs = doc_config.get("page_configs", [])
         for file_page_config in file_page_configs:
             page_idx = file_page_config["page_idx"]
-            [setattr(self.page_configs[page_idx], k, v) for (k, v) in file_page_config.items() if k != "page_idx"]
+            [
+                setattr(self.page_configs[page_idx], k, v)
+                for (k, v) in file_page_config.items()
+                if k != "page_idx"
+            ]
 
     def get_fix_str(self, doc, error):
         page_path, te_path = error.path.split(".")
@@ -453,7 +467,9 @@ class TableEdgeFinder:
             errors += self.test(page, page.table_edges_list)
             total_tables += len(page.table_edges_list)
 
-        self.lgr.info(f"=={doc.pdf_name}.num_marker {total_tables} {DataError.error_counts(errors)}")
+        self.lgr.info(
+            f"=={doc.pdf_name}.num_marker {total_tables} {DataError.error_counts(errors)}"
+        )
         [self.lgr.info(e.msg) for e in errors]
 
         self.write_fixes(doc, errors)

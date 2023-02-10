@@ -65,14 +65,26 @@ class TableBuilderOnEdges:
             path = f"p{page_idx}.ta{table_idx}.ro{row_idx}.co{col_idx}"
             if not cell_text:
                 msg = "Emtpy cell"
-                errors.append(TableEmptyBodyCellError(path=path, msg=msg, is_none=False))
+                errors.append(
+                    TableEmptyBodyCellError(
+                        path=path, msg=msg, is_none=False, name="TableEmptyBodyCell"
+                    )
+                )
 
             if col_idx == 0:
                 act_val = get_num(cell_text.strip(" .,"))
                 exp_val = act_val if row_idx == 0 and act_val else exp_val
                 if not act_val or act_val != exp_val:
                     msg = f"Expected: {exp_val} Actual: {cell_text}"
-                    errors.append(TableIncorectSeqError(path=path, msg=msg, exp_val=exp_val, act_val=cell_text))
+                    errors.append(
+                        TableIncorectSeqError(
+                            path=path,
+                            msg=msg,
+                            exp_val=exp_val,
+                            act_val=cell_text,
+                            name="TableIncorectSeq",
+                        )
+                    )
                     exp_val = act_val if act_val else exp_val + 1
                 exp_val += 1
         return errors
@@ -178,9 +190,14 @@ class TableBuilderOnEdges:
 
             total_tables += len(page.tables)
 
-            [errors.extend(self.test(page_idx, table_idx, table)) for table_idx, table in enumerate(page.tables)]
+            [
+                errors.extend(self.test(page_idx, table_idx, table))
+                for table_idx, table in enumerate(page.tables)
+            ]
 
-        self.lgr.info(f"=={doc.pdf_name}.table_builder_edges {total_tables} {DataError.error_counts(errors)}")
+        self.lgr.info(
+            f"=={doc.pdf_name}.table_builder_edges {total_tables} {DataError.error_counts(errors)}"
+        )
         [self.lgr.info(str(e)) for e in errors]
         self.remove_log_handler(doc)
         return doc

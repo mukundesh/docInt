@@ -75,7 +75,9 @@ class Vision:
             raise ValueError(Errors.E004.format(name=name, opts=self.component_names))
 
         if factory_name not in self.factories:
-            raise ValueError(Errors.E005.format(factory_name=factory_name, opts=self.factories.keys()))
+            raise ValueError(
+                Errors.E005.format(factory_name=factory_name, opts=self.factories.keys())
+            )
 
         factory_meta = self.factories_meta[factory_name]
         default_config = factory_meta.default_config

@@ -10,7 +10,9 @@ def test_infer_layout(layout_paths):
         "delete_container_dir": False,
     }
 
-    ppl = docint.empty(config={"docker_pipes": ["infer_layoutlmv2"], "docker_config": docker_config})
+    ppl = docint.empty(
+        config={"docker_pipes": ["infer_layoutlmv2"], "docker_config": docker_config}
+    )
     ppl.add_pipe("pdf_reader")
     ppl.add_pipe("page_image_builder_raster")
     pipe_config = {

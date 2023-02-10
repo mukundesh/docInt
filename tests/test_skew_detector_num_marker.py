@@ -3,14 +3,18 @@ import math
 import docint
 
 docker_config = {
-    "post_install_lines": ["ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"],
+    "post_install_lines": [
+        "ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"
+    ],
     "is_recognizer": True,
     "delete_container_dir": True,
 }
 
 
 def test_skew_finder(table_path):
-    ppln = docint.empty(config={"docker_pipes": ["skew_detector_num_marker"], "docker_config": docker_config})
+    ppln = docint.empty(
+        config={"docker_pipes": ["skew_detector_num_marker"], "docker_config": docker_config}
+    )
     ppln.add_pipe("pdf_reader")
     ppln.add_pipe("num_marker")
     ppln.add_pipe("skew_detector_num_marker")
@@ -21,7 +25,10 @@ def test_skew_finder(table_path):
 
 def test_rota_skew_finder(table_rota_path):
     ppln = docint.empty(
-        config={"docker_pipes": ["gcv_recognizer", "skew_detector_num_marker"], "docker_config": docker_config}
+        config={
+            "docker_pipes": ["gcv_recognizer", "skew_detector_num_marker"],
+            "docker_config": docker_config,
+        }
     )
     ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgfound"})
     ppln.add_pipe("num_marker")
@@ -34,7 +41,10 @@ def test_rota_skew_finder(table_rota_path):
 
 def test_rota_skew_finder_max_num_marker(table_rota_path):
     ppln = docint.empty(
-        config={"docker_pipes": ["gcv_recognizer", "skew_detector_num_marker"], "docker_config": docker_config}
+        config={
+            "docker_pipes": ["gcv_recognizer", "skew_detector_num_marker"],
+            "docker_config": docker_config,
+        }
     )
     ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgfound"})
     ppln.add_pipe("num_marker", pipe_config={"min_marker": 10})

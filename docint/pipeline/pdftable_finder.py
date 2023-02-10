@@ -96,7 +96,9 @@ class PDFTableFinder:
             return page_idx == 0 and row_idx == 0
 
         elif self.header_row == "new_page_first_row":
-            return (page_idx == 0 and row_idx == 0) or (page_idx != 0 and table_idx > 0 and row_idx == 0)
+            return (page_idx == 0 and row_idx == 0) or (
+                page_idx != 0 and table_idx > 0 and row_idx == 0
+            )
 
         else:
             return False
@@ -127,7 +129,9 @@ class PDFTableFinder:
 
         doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
         old_skip_row_with_merged_cells = self.skip_row_with_merged_cells
-        self.skip_row_with_merged_cells = doc_config.get("skip_row_with_merged_cells", self.skip_row_with_merged_cells)
+        self.skip_row_with_merged_cells = doc_config.get(
+            "skip_row_with_merged_cells", self.skip_row_with_merged_cells
+        )
 
         pdf = pdfplumber.open(doc.pdf_path)
 
@@ -168,7 +172,9 @@ class PDFTableFinder:
                         status = "B"
                         body_rows.append(row)
                     row_text = ", ".join(cell_texts)
-                    self.lgr.debug(f"{page_idx}>{table_idx}:{row_idx} {len(cells)} {status} {row_text}")
+                    self.lgr.debug(
+                        f"{page_idx}>{table_idx}:{row_idx} {len(cells)} {status} {row_text}"
+                    )
                     row_idx += 1 if status != "S" else 0
 
                 tables.append(Table.build(body_rows, header_rows))

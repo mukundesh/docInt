@@ -3,7 +3,9 @@ import pytest
 import docint
 
 docker_config = {
-    "post_install_lines": ["ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"],
+    "post_install_lines": [
+        "ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"
+    ],
     "is_recognizer": True,
     "delete_container_dir": False,
 }
@@ -11,7 +13,9 @@ docker_config = {
 
 @pytest.mark.skip(reason="temporarily removing")
 def test_pdftable_finder(table_path):
-    ppln = docint.empty(config={"docker_pipes": ["table_edge_finder"], "docker_config": docker_config})
+    ppln = docint.empty(
+        config={"docker_pipes": ["table_edge_finder"], "docker_config": docker_config}
+    )
     ppln.add_pipe("pdf_reader")
     ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("num_marker")
@@ -51,7 +55,10 @@ def test_pdftable_rota_finder(table_rota_path):
     # ppln.add_pipe('table_builder_on_edges')
     ppln.add_pipe(
         "html_generator",
-        pipe_config={"html_root": "output/html", "color_dict": {"word": "blue", "table_edges": "green"}},
+        pipe_config={
+            "html_root": "output/html",
+            "color_dict": {"word": "blue", "table_edges": "green"},
+        },
     )
     doc = ppln(table_rota_path)
 
