@@ -9,7 +9,7 @@ from more_itertools import first
 
 from .doc import Doc
 from .errors import Errors
-from .util import get_repo_dir, get_uniq_str, tail
+from .util import get_repo_dir, get_uniq_str, is_repo_path, tail
 
 PYTHON_VERSION = "3.7-slim"
 WORK_DIR = Path("/usr/src/app")
@@ -227,8 +227,12 @@ class DockerRunner:
 
         ppln_path = task_dir / Path("src") / "pipeline.yml"
         ppln_dict = {"pipeline": [{"name": name, "config": pipe_config}]}
-        ppln_path.write_text(yaml.dump(ppln_dict))
 
+        model_dir = ppln_dict["pipeline"][0]["config"].get("model_dir", "")
+        if model_dir and is_repo_path(model_dir):
+            ppln_dict["pipeline"][0]["config"]["model_dir"] = f".model/{model_dir}"
+
+        ppln_path.write_text(yaml.dump(ppln_dict))
         ppln_ctnr_path = Path("src") / "pipeline.yml"
 
         cmd_path = task_dir / Path("src") / "cmd.py"

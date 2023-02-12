@@ -115,20 +115,20 @@ class CloudVisionRecognizer:
         return doc
 
     def run_sync_gcv(self, doc, output_path):
-        from google.cloud import vision_v1
+        from google.cloud import vision
         from google.protobuf.json_format import MessageToDict
 
         if doc.num_pages > 5:
             raise ValueError("Only < 5 pages")
 
-        image_client = vision_v1.ImageAnnotatorClient()
+        image_client = vision.ImageAnnotatorClient()
 
         mime_type = "application/pdf"
         with io.open(doc.pdf_path, "rb") as f:
             content = f.read()
 
         input_config = {"mime_type": mime_type, "content": content}
-        features = [{"type_": vision_v1.Feature.Type.TEXT_DETECTION}]
+        features = [{"type_": vision.Feature.Type.TEXT_DETECTION}]
 
         # The service can process up to 5 pages per document file. Here we specify
         # the first, second, and last page of the document to be processed.
@@ -147,7 +147,7 @@ class CloudVisionRecognizer:
         # https://cloud.google.com/vision/docs/reference/rest/v1/OutputConfig
         # TODO: better handling of operation failure/network failure
 
-        from google.cloud import storage, vision_v1
+        from google.cloud import storage, vision
 
         if doc.num_pages > 2000:
             raise ValueError("Only < 2000 pages")
@@ -167,17 +167,15 @@ class CloudVisionRecognizer:
         gcs_destination_uri = f"gs://{self.bucket_name}/{str(cloud_output_path)}"
         batch_size = min(doc.num_pages, 100)
 
-        image_client = vision_v1.ImageAnnotatorClient()
-        feature = vision_v1.Feature(type_=vision_v1.Feature.Type.DOCUMENT_TEXT_DETECTION)
-        gcs_source = vision_v1.GcsSource(uri=gcs_source_uri)
-        input_config = vision_v1.InputConfig(gcs_source=gcs_source, mime_type=mime_type)
+        image_client = vision.ImageAnnotatorClient()
+        feature = vision.Feature(type_=vision.Feature.Type.DOCUMENT_TEXT_DETECTION)
+        gcs_source = vision.GcsSource(uri=gcs_source_uri)
+        input_config = vision.InputConfig(gcs_source=gcs_source, mime_type=mime_type)
 
-        gcs_destination = vision_v1.GcsDestination(uri=gcs_destination_uri)
-        output_config = vision_v1.OutputConfig(
-            gcs_destination=gcs_destination, batch_size=batch_size
-        )
+        gcs_destination = vision.GcsDestination(uri=gcs_destination_uri)
+        output_config = vision.OutputConfig(gcs_destination=gcs_destination, batch_size=batch_size)
 
-        async_request = vision_v1.AsyncAnnotateFileRequest(
+        async_request = vision.AsyncAnnotateFileRequest(
             features=[feature], input_config=input_config, output_config=output_config
         )
         operation = image_client.async_batch_annotate_files(requests=[async_request])
@@ -262,7 +260,7 @@ class CloudVisionRecognizer:
             print("INSIDE GCV RECOGNIZER")
             # imports are expensive
             # from google.protobuf.json_format import MessageToDict
-            # from google.cloud import vision_v1
+            # from google.cloud import vision
             # from google.cloud import storage
             output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
 

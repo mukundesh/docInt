@@ -6,7 +6,15 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
 from .doc import Doc
 from .docker_runner import DockerRunner
 from .errors import Errors
-from .util import SimpleFrozenDict, SimpleFrozenList, get_arg_names, get_object_name, raise_error
+from .util import (
+    SimpleFrozenDict,
+    SimpleFrozenList,
+    get_arg_names,
+    get_full_path,
+    get_object_name,
+    is_repo_path,
+    raise_error,
+)
 
 # b  /Users/mukund/Software/docInt/docint/vision.py:208
 
@@ -47,7 +55,11 @@ class Vision:
         viz.ignore_docs = config.get("ignore_docs", [])
         viz.docker_pipes = config.get("docker_pipes", [])
         viz.docker_dir = config.get("docker_dir", viz.docker_dir)
+        if is_repo_path(viz.docker_dir):
+            viz.docker_dir = get_full_path(str(viz.docker_dir))
+
         viz.docker_config = config.get("docker_config", {})
+        viz.docker = DockerRunner(viz.docker_dir)
 
         for pipe_config in config.get("pipeline", []):
             viz.add_pipe(

@@ -5,7 +5,7 @@ from itertools import chain, islice
 from pathlib import Path
 
 from ..region import Region
-from ..util import get_model_path
+from ..util import get_full_path, get_model_path, is_repo_path
 from ..vision import Vision
 from .learn_layoutlmv2 import generate_dataset
 
@@ -44,9 +44,14 @@ class InferLayoutLMv2:
     ):
         self.page_idx = page_idx
         self.batch_size = batch_size
-        self.model_dir = Path(model_dir)
+        self.model_dir = model_dir
         self.proc_model_name = proc_model_name
         self.infer_model_name = infer_model_name
+
+        if is_repo_path(self.model_dir):
+            self.model_dir = get_full_path(self.model_dir)
+        else:
+            self.model_dir = Path(self.model_dir)
 
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)

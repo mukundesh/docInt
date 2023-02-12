@@ -25,9 +25,9 @@ def get_wand_array(page_image):
     import numpy as np
     from wand.image import Image as WandImage
 
-    image_path = Path(page_image.image_path)
-    if not image_path.exists():
-        image_path = Path(".img") / image_path.parent.name / Path(image_path.name)
+    image_path = Path(page_image.get_image_path())
+    # if not image_path.exists():
+    #     image_path = Path(".img") / image_path.parent.name / Path(image_path.name)
 
     with WandImage(filename=image_path) as image:
         orig_w, orig_h = image.size
@@ -178,7 +178,9 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
         "warmup_ratio": 0.1,
         "publish_name": "",
         "conf_stub": "learn_layout",
-        "model_name": "microsoft/layoutlmv2-base-uncased",
+        "model_dir": ".model",
+        "orig_model_name": "huggingface:microsoft/layoutlmv2-base-uncased",
+        "save_model_name": "huggingface:orgpedia-foundation/cabsec-layoutlmv2",
     },
 )
 class LearnLayout:
@@ -192,6 +194,11 @@ class LearnLayout:
 
         self.conf_dir = Path("conf")
         self.model_dir = Path(".model")
+
+        if is_repo_path(self.model_dir):
+            self.model_dir = get_full_path(self.model_dir)
+        else:
+            self.model_dir = Path(self.model_dir)
 
         print(f"num_folds: {self.num_folds}")
 
