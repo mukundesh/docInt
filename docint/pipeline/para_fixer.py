@@ -86,7 +86,9 @@ class ParaFixer:
         ]
 
         u_lines = [
-            line.split() for line in Path(self.unicode_file).read_text().split("\n") if line.strip()
+            line.split()
+            for line in Path(self.unicode_file).read_text(encoding="utf-8").split("\n")
+            if line.strip()
         ]
         self.unicode_dict = dict((u, a if a != "<ignore>" else "") for u, a in u_lines)
 

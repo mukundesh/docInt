@@ -41,3 +41,5 @@ from .list_finder2 import ListFinder2
 from .line_finder import LineFinder
 
 from .meta_writer import MetaWriter
+from .table_detector import TableDetector
+from .table_recognizer import TableRecognizer

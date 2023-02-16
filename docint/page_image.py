@@ -229,10 +229,8 @@ class PageImage(BaseModel):
 
     def get_image_path(self):
         if is_repo_path(self.image_path):
-            print(f"GET Repo {self.image_path}")
             image_path = get_full_path(self.image_path)
         else:
-            print(f"GET NON REPO {self.image_path}")
             print(self.image_path)
             image_path = self.image_path
 

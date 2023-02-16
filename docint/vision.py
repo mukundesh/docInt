@@ -10,10 +10,10 @@ from .util import (
     SimpleFrozenDict,
     SimpleFrozenList,
     get_arg_names,
-    get_full_path,
     get_object_name,
-    is_repo_path,
     raise_error,
+    is_repo_path,
+    get_full_path,
 )
 
 # b  /Users/mukund/Software/docInt/docint/vision.py:208
@@ -167,11 +167,9 @@ class Vision:
             ## TODO doc.add_pipe is needed here, please do it...
 
             if hasattr(proc, "pipe"):
-                print(">> PIPE")
                 return proc.pipe(doc, **kwargs)  # type: ignore[call-arg]
             else:
                 doc.add_pipe(name)  # Added
-                print(">> PROC")
                 return proc(doc)
 
     def __call__(
@@ -201,7 +199,6 @@ class Vision:
             if hasattr(proc, "get_error_handler"):
                 error_handler = proc.get_error_handler()  # noqa: F841 todo
             try:
-                print(">> __call__")
                 doc = self.exec_task(name, doc, proc)
             except KeyError as e:
                 # This typically happens if a component is not initialized
@@ -242,15 +239,13 @@ class Vision:
             )
             pipes.append(f)
 
-        print(f"Building docs... #paths: {len(paths)}")
+        # print(f"Building docs... #paths: {len(paths)}")
         paths = (Path(p) for p in paths if get_pdf_name(p) not in self.ignore_docs)
-        docs = list(self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths)
+        docs = (self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths)
 
-        print(f"Read #docs: {len(docs)}")
+        # print(f"Read #docs: {len(docs)}")
         for pipe in pipes:
-            print(f"\tPipe: {pipe}")
             docs = pipe(docs)
-        print("Leaving PIPE")
         return docs
 
     def pipe_partial(
@@ -261,10 +256,7 @@ class Vision:
         default_error_handler,
         kwargs: Mapping[str, Any],
     ):
-        print(f"INSIDE PIPE_PARTIALS {proc}")
         if hasattr(proc, "pipe"):
-            print(f"INSIDE _PIPE {proc}")
-            print(">> __pipe_partial.docs__")
             yield from self.exec_task(name, docs, proc, kwargs)
 
             # if name in self.docker_pipes:
@@ -309,7 +301,6 @@ class Vision:
                     #     doc = proc(doc, **kwargs)  # type: ignore[call-arg]
                     # yield doc
 
-                    print(">> __pipe_partial.proc__")
                     yield self.exec_task(name, doc, proc, kwargs)
                 except Exception as e:
                     error_handler(name, proc, [doc], e)

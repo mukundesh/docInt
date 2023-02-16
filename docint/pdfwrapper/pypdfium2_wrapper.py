@@ -161,6 +161,17 @@ class Image(pdf.Image):
     def save(self, file_path):
         self.to_pil().save(file_path)
 
+    def get_filters(self):
+        filters = []
+        num_filters = pdfium.FPDFImageObj_GetImageFilterCount(self.lib_image.raw)
+        for idx in range(num_filters):
+            buf_len = pdfium.FPDFImageObj_GetImageFilter(self.lib_image.raw, idx, None, 0)
+            buffer = ctypes.create_string_buffer(buf_len)
+            pdfium.FPDFImageObj_GetImageFilter(self.lib_image.raw, idx, buffer, buf_len)
+            filter = "".join(chr(i) for i in bytes(buffer)).rstrip("\x00")
+            filters.append(filter)
+        return filters
+
 
 class Page(pdf.Page):
     def __init__(self, page, page_idx):

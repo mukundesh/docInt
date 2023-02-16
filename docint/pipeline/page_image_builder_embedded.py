@@ -5,6 +5,7 @@ from typing import List
 
 from pydantic import parse_obj_as
 from pydantic.json import pydantic_encoder
+from PIL import Image
 
 from .. import pdfwrapper
 from ..page_image import PageImage
@@ -17,6 +18,15 @@ from .page_image_builder_raster import build_raster_page_image
 #       should also be adjusted.
 #       I.P.S.Transfer02082013_171139.pdf page_num=2 is rotated by 180.
 #
+
+
+def is_small_size(image_path, minimum_size):
+    image_path = get_full_path(str(image_path))
+    img = Image.open(image_path)
+    if img.width < minimum_size or img.height < minimum_size:
+        return True
+    else:
+        return False
 
 
 def extract_images(pdf_path, image_root, page_num):
@@ -36,7 +46,7 @@ def extract_images(pdf_path, image_root, page_num):
     subprocess.check_call(cmd)
 
 
-def build_embedded_page_image(page, pdf_page, image_dir_repo, image_dir_path):
+def build_embedded_page_image(page, pdf_page, image_dir_repo, image_dir_path, minimum_size):
     page_num = page.page_idx + 1
 
     image_root = image_dir_path / Path(page.doc.pdf_stem) / "embedded"
@@ -45,17 +55,19 @@ def build_embedded_page_image(page, pdf_page, image_dir_repo, image_dir_path):
     image_box = Box.from_bounding_box(pdf_page.images[0].bounding_box)
 
     extract_images(page.doc.pdf_path, image_root, page_num)
-
-    return PageImage(
-        image_width=image_width,
-        image_height=image_height,
-        image_path=str(image_path),
-        image_box=image_box,
-        image_type="embedded",
-        page_width=page.width,
-        page_height=page.height,
-        page_idx=page.page_idx,
-    )
+    if is_small_size(image_path, minimum_size):
+        return build_raster_page_image(page, pdf_page, image_dir_repo)
+    else:
+        return PageImage(
+            image_width=image_width,
+            image_height=image_height,
+            image_path=str(image_path),
+            image_box=image_box,
+            image_type="embedded",
+            page_width=page.width,
+            page_height=page.height,
+            page_idx=page.page_idx,
+        )
 
 
 @Vision.factory(
@@ -64,13 +76,15 @@ def build_embedded_page_image(page, pdf_page, image_dir_repo, image_dir_path):
     default_config={
         "image_dir": ".img",
         "use_cache": True,
+        "minimum_size": 500,
     },
 )
 class PageImageBuilderEmbedded:
-    def __init__(self, image_dir, use_cache):
+    def __init__(self, image_dir, use_cache, minimum_size):
         self.image_dir = image_dir
         self.use_cache = use_cache
         self.repo_dir = get_repo_dir()
+        self.minimum_size = minimum_size
 
         assert is_repo_path(self.image_dir) or Path(self.image_dir).exists()
 
@@ -104,11 +118,28 @@ class PageImageBuilderEmbedded:
         page_images = []
         for (page, pdf_page) in zip(doc.pages, pdf.pages):
             if len(pdf_page.images) == 1:
-                page_image = build_embedded_page_image(
-                    page, pdf_page, self.image_dir, image_dir_path
-                )
+                pdf_image = pdf_page.images[0]
+
+                # pdfimages is not able to handle stencil images, which have 1 bit per pixel
+                # it creates all black images that are hard for ML routines to handle
+                # here we generate a raster image in that case, ideally we should extract the data
+                # and build an image,
+                # https://stackoverflow.com/a/34555343
+                # note the commented code at bottom
+                if (
+                    pdf_image.colorspace_str == "FPDF_COLORSPACE_UNKNOWN"
+                    and pdf_image.bits_per_pixel == 1
+                    and "CCITTFaxDecode" in pdf_image.get_filters()
+                ):
+                    print("CCITTFaxDecode image, generating raster image")
+                    page_image = build_raster_page_image(page, pdf_page, self.image_dir)
+                else:
+                    page_image = build_embedded_page_image(
+                        page, pdf_page, self.image_dir, image_dir_path, self.minimum_size
+                    )
             else:
                 page_image = build_raster_page_image(page, pdf_page, self.image_dir)
+
             page.page_image = page_image
             page_images.append(page_image)
 
