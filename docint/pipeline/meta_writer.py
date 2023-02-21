@@ -28,7 +28,7 @@ class DocMeta(BaseModel):
         return doc_metas
 
     def get_html_json(self):
-        return f"{{URL: {self.archive_url}, archive_sha: {self.archive_sha}, matched: {self.sha_matched} }}"
+        return f"{{URL date: {str(self.archive_time)}, archive_sha: {self.archive_sha}, matched: {self.sha_matched} }}"  # noqa
 
     def get_svg_info(self):
         return {}
