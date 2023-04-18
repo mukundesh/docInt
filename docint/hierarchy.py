@@ -40,6 +40,7 @@ class MatchOptions:
     merge_strategy: str = "adjoin"  # child_span
     select_strategy: str = "non_overlapping"  # at_start, sum_span_len, first,
     select_level: str = ""
+    allow_overlap: bool = False  # TODO: Should this be on hierarchy ?
 
 
 class HierarchyNode:
@@ -189,7 +190,11 @@ class HierarchyNode:
                     span_groups.append(HierarchySpanGroup.build(text, hier_span))
                     lgr.debug(f"\t\t#Creating 1 span_group for >{span.span_str(text)}<")
         elif spans:
-            assert Span.is_non_overlapping(spans), print_groups([])
+            if not match_options.allow_overlap:
+                # if not Span.is_non_overlapping(spans):
+                #    import pdb
+                #    pdb.set_trace()
+                assert Span.is_non_overlapping(spans), f"{text} {print_groups([])}"
             hier_spans = [HierarchySpan.build(self, span) for span in spans]
             span_groups = [HierarchySpanGroup.build(text, h) for h in hier_spans]
             lgr.debug(f"\t#Creating {len(span_groups)} new span_groups")
@@ -273,7 +278,7 @@ class HierarchySpanGroup(SpanGroup):
     def select_connected_sum_span_len(cls, span_groups, min_depth=2):
         sgs = []
         for sg in span_groups:
-            print(sg.new_str())
+            # print(sg.new_str())
             if sg.is_connected(min_depth):
                 sgs.append(sg)
         return cls.select_sum_span_len(sgs)
@@ -390,7 +395,7 @@ class HierarchySpan(Span):
         return HierarchySpan(start=span.start, end=span.end, node=node)
 
     def clone(self):
-        return HierarchySpan(self.node)
+        return Span(start=self.start, end=self.end)
 
     @property
     def depth(self):
@@ -505,7 +510,7 @@ class Hierarchy:
 
     def find_match(self, text, match_options):
         lgr.debug(f"find_match: {text}")
-        print(f"Hierarchy: {text}")
+        # print(f"Hierarchy: {text}")
 
         if self._match_options and self._match_options != match_options:
             lgr.debug("New match options, clearing names")
@@ -587,7 +592,8 @@ class Hierarchy:
         names = []
 
         def save_name(node):
-            names.append(node.name)
+            if not (node.name.startswith("__") and node.name.endswith("__")):
+                names.append(node.name)
 
         self.visit_breadth_first(save_name)
         return names

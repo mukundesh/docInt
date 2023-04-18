@@ -73,7 +73,7 @@ class Doc(BaseModel):
         if isinstance(idx, slice) or isinstance(idx, int):
             return self.pages[idx]
         else:
-            raise TypeError("Unknown type {type(idx)} this method can handle")
+            raise TypeError(f"Unknown type {idx} {type(idx)} this method can handle")
 
     @property
     def num_pages(self):
@@ -133,6 +133,12 @@ class Doc(BaseModel):
             pipe_name=self.pipe_names[-1],
         )
         self.page_extract_infos[field_name] = extract_info
+
+    def has_page_extract(self, field_name):
+        return field_name in self.page_extract_infos
+
+    def has_doc_extract(self, field_name):
+        return field_name in self.doc_extract_infos
 
     def add_extra_page_field(self, field_name, field_tuple):
         (extra_type, module_name, class_name) = field_tuple

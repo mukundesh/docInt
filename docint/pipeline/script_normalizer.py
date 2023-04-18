@@ -21,7 +21,9 @@ class MismatchedScriptError(DataError):
     @classmethod
     def build(cls, doc, text, path):
         msg = f"MismatchedScriptError {path}: {text}"
-        return MismatchedScriptError(msg=msg, path=path, text=text, doc=doc)
+        return MismatchedScriptError(
+            msg=msg, path=path, text=text, doc=doc, name="MismatchedScript"
+        )
 
 
 @Vision.factory(

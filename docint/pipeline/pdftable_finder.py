@@ -8,6 +8,7 @@ from ..table import Cell, Row, Table
 from ..util import load_config
 from ..vision import Vision
 
+
 # TODO 1: rename body_rows to rows, keep header_rows as it is
 # TODO 2: don't add heading detection in this, it should be a separate component
 # TODO 3: explore if skip_rows_with_merged_cells can be moved to a separate component

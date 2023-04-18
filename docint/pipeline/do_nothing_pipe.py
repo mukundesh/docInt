@@ -14,5 +14,10 @@ class DoNothingPipe:
         self.nothing = nothing
 
     def pipe(self, docs):
-        print(f"*** Running do_nothing_pipe {platform.system()}-{platform.release()}")
-        return docs
+        print(f"*** Running do_nothing_pipe {platform.system()}-{platform.release()}, {type(docs)}")
+
+        for doc in docs:
+            yield doc
+
+        # print(f"docs: {type(docs)}")
+        # return docs

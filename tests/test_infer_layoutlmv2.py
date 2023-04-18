@@ -1,7 +1,9 @@
+import pytest
+
 import docint
 
 
-# @pytest.mark.skip("This takes a very long time")
+@pytest.mark.skip("need to upgrade to python 3.8 as transformers have done that")
 def test_infer_layout(layout_paths):
     docker_config = {
         "pre_install_lines": ["RUN pip install transformers[torch]"],

@@ -181,6 +181,7 @@ def find_date(date_line):
 
 
 def raise_error(proc_name, proc, docs, e):
+    # print(f'**** ERRORR IN {docs[0].pdf_name} --> {e}')
     raise e
 
 
@@ -368,3 +369,7 @@ def add_model(model_name, model_root_dir):
             models_dict[model_name] = {"path": get_git_url(model_name)}
         else:
             models_dict[model_name] = {"path": get_git_url(model_name)}
+
+
+def mklist(lst):
+    return lst if isinstance(list, lst) else [lst]

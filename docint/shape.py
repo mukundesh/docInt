@@ -63,6 +63,26 @@ class Coord(BaseModel):
     def inside(self, top, bot):
         return (top.x <= self.x <= bot.x) and (top.y <= self.y <= bot.y)
 
+    def move_left(self, percent):
+        assert 0 <= percent <= 100
+        new_x = max(0.0, self.x - (percent / 100))
+        return Coord(x=new_x, y=self.y)
+
+    def move_right(self, percent):
+        assert 0 <= percent <= 100
+        new_x = min(1.0, (self.x + percent / 100))
+        return Coord(x=new_x, y=self.y)
+
+    def move_up(self, percent):
+        assert 0 <= percent <= 100
+        new_y = max(0.0, self.y - (percent / 100))
+        return Coord(x=self.x, y=new_y)
+
+    def move_down(self, percent):
+        assert 0 <= percent <= 100
+        new_y = min(1.0, (self.y + percent / 100))
+        return Coord(x=self.x, y=new_y)
+
 
 class Shape(BaseModel):
     @classmethod
@@ -212,6 +232,16 @@ class Box(Shape):
             )  # noqa: W503  # noqa: W503
         else:
             return (top < ymin < bot) and (top < ymax < bot)
+
+    def get_expand_box(self, percent=5):
+        top = self.top.move_left(percent).move_up(percent)
+        bot = self.bot.move_right(percent).move_down(percent)
+        return Box(top=top, bot=bot)
+
+    def get_shrink_box(self, percent=5):
+        top = self.top.move_right(percent).move_down(percent)
+        bot = self.top.move_left(percent).move_up(percent)
+        return Box(top=top, bot=bot)
 
 
 class Poly(Shape):

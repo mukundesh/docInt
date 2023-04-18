@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 from pathlib import Path
@@ -22,6 +23,8 @@ from ..word_line import words_in_lines
             "rotation_min_angle": 0.05,
         },
         "conf_stub": "linefinder",
+        "keep_empty_lines": False,
+        "output_dir": "output",
     },
 )
 class LineFinder:
@@ -32,12 +35,16 @@ class LineFinder:
         newline_height_multiple,
         rotation_config,
         conf_stub,
+        keep_empty_lines,
+        output_dir,
     ):
         self.doc_confdir = doc_confdir
         self.pre_edit = pre_edit
         self.newline_height_multiple = newline_height_multiple
         self.rotation_config = rotation_config
         self.conf_stub = conf_stub
+        self.keep_empty_lines = keep_empty_lines
+        self.output_dir = Path(output_dir)
 
         self.lgr = logging.getLogger(f"docint.pipeline.{self.conf_stub}")
         self.lgr.setLevel(logging.DEBUG)
@@ -62,6 +69,9 @@ class LineFinder:
         self.file_handler = None
 
     def get_word_lines(self, page, angle, newline_height_multiple):
+        if not page.words:
+            return []
+
         print(
             f"nhm: {newline_height_multiple} angle: {angle} coords: {str(page.words[0].coords)} >>>"
         )
@@ -120,15 +130,46 @@ class LineFinder:
         self.add_log_handler(doc)
         self.lgr.info(f"line_finder: {doc.pdf_name}")
         cfg = self.load_config(doc)
+
+        edits = cfg.get("edits", [])
+        if edits:
+            print(f"Edited document: {doc.pdf_name}")
+            doc.edit(edits)
+
         doc.add_extra_page_field("lines", ("list", "docint.region", "Region"))
         doc.add_extra_page_field("page_rota_angle", ("noparse", "", ""))
+
+        json_path = self.output_dir / f"{doc.pdf_name}.{self.conf_stub}.json"
+        if json_path.exists():
+            jd = json.loads(json_path.read_text())
+            for (page, lines_word_idxs) in zip(doc.pages, jd["lines_info"]):
+                lines = [[page[idx] for idx in line_idxs] for line_idxs in lines_word_idxs]
+                page.lines = [
+                    Region.from_words(wl) if wl else Region.no_words(page.page_idx) for wl in lines
+                ]
+
+            self.teardown_config()
+            self.remove_log_handler(doc)
+            return doc
 
         for page in doc.pages:
             angle = self.get_page_angle(page, cfg)
             newline_height_multiple = self.get_newline_height_multiple(page, cfg)
             word_lines = self.get_word_lines(page, angle, newline_height_multiple)
-            page.lines = [Region.from_words(wl) for wl in word_lines if wl]
+            if not self.keep_empty_lines:
+                page.lines = [Region.from_words(wl) for wl in word_lines if wl]
+            else:
+                page.lines = [
+                    Region.from_words(wl) if wl else Region.no_words(page.page_idx)
+                    for wl in word_lines
+                ]
             page.page_rota_angle = angle
+
+        line_word_idxs = []
+        for page in doc.pages:
+            page_idxs = [[w.word_idx for w in line] for line in page.lines]
+            line_word_idxs.append(page_idxs)
+        json_path.write_text(json.dumps({"lines_info": line_word_idxs}))
 
         self.teardown_config()
         self.remove_log_handler(doc)

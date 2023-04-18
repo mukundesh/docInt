@@ -25,8 +25,11 @@ def test_pdftable_finder(table_path):
     )
     doc = ppln(table_path)
 
-    vert_edges = [e for e in doc.pages[0].edges if e.orientation == "v"]
-    horz_edges = [e for e in doc.pages[0].edges if e.orientation == "h"]
+    # vert_edges = [e for e in doc.pages[0].table_edges_list if e.orientation == "v"]
+    # horz_edges = [e for e in doc.pages[0].table_edges_list if e.orientation == "h"]
+
+    vert_edges = doc.pages[0].table_edges_list[0].col_edges
+    horz_edges = doc.pages[0].table_edges_list[0].row_edges
 
     vert_edges_image_x = [doc[0].get_image_coord(e.coord1).x for e in vert_edges]
     assert vert_edges_image_x == [145.0, 326.0, 506.0, 686.0, 867.0]
@@ -72,12 +75,15 @@ def test_pdftable_rota_finder(table_rota_path):
 
     doc = ppln(table_rota_path)
 
-    vert_edges = [e for e in doc.pages[0].edges if e.orientation == "v"]
-    horz_edges = [e for e in doc.pages[0].edges if e.orientation == "h"]
+    # vert_edges = [e for e in doc.pages[0].edges if e.orientation == "v"]
+    # horz_edges = [e for e in doc.pages[0].edges if e.orientation == "h"]
+
+    vert_edges = doc.pages[0].table_edges_list[0].col_edges
+    horz_edges = doc.pages[0].table_edges_list[0].row_edges
 
     vert_edges_image_x = [doc[0].get_image_coord(e.coord1).x for e in vert_edges]
     # Table extraction is wrong but till then..
-    assert vert_edges_image_x == [217.0, 403.0, 588.0, 772.0, 958.0]
+    assert vert_edges_image_x == [217.0, 402.0, 587.0, 772.0, 957.0]
 
     horz_edges_image_y = [doc[0].get_image_coord(e.coord1).y for e in horz_edges]
     print(horz_edges_image_y)

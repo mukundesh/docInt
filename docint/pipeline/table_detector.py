@@ -68,6 +68,7 @@ class TableDetector:
             for page, table_info in zip(doc.pages, json_dict["table_box_infos"]):
                 page.table_boxes = [Box(**d) for d in table_info["table_boxes"]]
                 page.table_boxes_confidence = table_info["table_boxes_confidence"]
+            self.remove_log_handler(doc)
             return doc
 
         print(f"Number of pages: {len(doc.pages)}")
@@ -77,6 +78,7 @@ class TableDetector:
             image = image.convert("RGB")
 
             (width, height) = image.size
+            print(f"page_image size: {width}, {height}")
 
             inputs = self.processor(images=image, return_tensors="pt")
             outputs = self.model(**inputs)

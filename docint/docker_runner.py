@@ -22,7 +22,7 @@ DEFAULT_PY_PACKAGES = [  # move this to docint
     "pydantic",
     "Pillow",
     "python-dateutil",
-    "pypdfium2",
+    "pypdfium2  >= 3.20.1, < 4.0",
     # "wand", # temporary TODO
 ]
 
@@ -191,7 +191,9 @@ class DockerRunner:
         s += 'if __name__ == "__main__":\n'
         s += f'    viz = docint.load("{str(ppln_path)}")\n'
         s += f"    docs = viz.pipe_all([{all_input_paths_str}])\n"
+        s += "    print(f'docs: {type(docs)}')\n"
         s += f"    for doc, output_doc_str in zip(docs, [{all_output_paths_str}]):\n"
+        s += "        print(f'Saving {output_doc_str}')\n"
         s += "        doc.to_disk(output_doc_str)\n"
         return s
 
@@ -279,8 +281,12 @@ class DockerRunner:
 
         mnts += ["-v", f"{str(self.docint_dir)}:{str(task_ctnr_dir / 'docint')}"]
 
-        mnts += ["-v", f"{str(repo_dir / 'import' / 'models')}:{str(task_ctnr_dir / '.model')}"]
-        mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.img')}"]
+        # mnts += ["-v", f"{str(repo_dir / 'import' / 'models')}:{str(task_ctnr_dir / '.model')}"]
+        mnts += ["-v", f"/Users/mukund/Software/docInt/.model:{str(task_ctnr_dir / '.model')}"]
+
+        # mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.img')}"]
+        mnts += ["-v", f"/Users/mukund/Software/docInt/.img:{str(task_ctnr_dir / '.img')}"]
+
         mnts += [
             "-v",
             f"{str(repo_dir / '.secrets')}:{str(task_ctnr_dir / '.secrets')}",
@@ -317,16 +323,18 @@ class DockerRunner:
         completed_process = run(docker_cmds)
 
         output_dir = task_dir / "output"
+        log_path = output_dir / "pipe.log"
         if completed_process.returncode != 0:
-            exit_code = completed_process.returncode
-            log_path = output_dir / "pipe.log"
             last_lines = tail(log_path, 3) if log_path.exists() else "No file created"
+            exit_code = completed_process.returncode
             raise RuntimeError(
                 Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines)
             )
 
         output_paths = list(output_dir.glob("*.doc.json"))
         if len(output_paths) != len(docs):
+            last_lines = tail(log_path, 3) if log_path.exists() else "No file created"
+            exit_code = completed_process.returncode
             raise RuntimeError(
                 Errors.E035.format(log_path=str(log_path), exit_code=exit_code, err_str=last_lines)
             )
@@ -342,6 +350,9 @@ class DockerRunner:
 
         if docker_config.get("delete_container_dir", True):
             shutil.rmtree(task_dir)
+
+        print(f"OUTPUT_DOCS: {len(output_docs)}")
+
         return output_docs if isinstance(input_docs, (list, GeneratorType)) else output_docs[0]
 
 

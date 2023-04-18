@@ -4,11 +4,11 @@ sources = docint tests
 test: format lint unittest
 
 format:
-	isort $(sources)
+	ruff $(sources)
 	black $(sources)
 
 lint:
-	flake8 $(sources)
+	ruff $(sources)
 
 unittest:
 	pytest

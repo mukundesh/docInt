@@ -1,10 +1,10 @@
 from operator import itemgetter
 
-from polyleven import levenshtein
-
 
 class Vocab:
     def __init__(self, texts, *, case_sensitive=False):
+        from polyleven import levenshtein
+
         self.case_sensitive = case_sensitive
 
         # order of words is important, hence storing in dict (py >=3.7)
@@ -18,8 +18,10 @@ class Vocab:
         return text in self._texts
 
     def has_text(self, text, dist_cutoff=0):
+        from polyleven import levenshtein  # noqa
+
         def similar(t1, t2):
-            return levenshtein(t1, t2, dist_cutoff) <= dist_cutoff
+            return levenshtein(t1, t2, dist_cutoff) <= dist_cutoff  # noqa
 
         text = text if self.case_sensitive else text.lower()
         if dist_cutoff == 0:
@@ -31,6 +33,8 @@ class Vocab:
             return any(t for t in self._texts if similar(text, t))
 
     def find_texts(self, text, dist_cutoff=0):
+        from polyleven import levenshtein  # noqa
+
         text = text if self.case_sensitive else text.lower()
 
         if dist_cutoff == 0:
@@ -41,7 +45,7 @@ class Vocab:
 
             result = []
             for t in self._texts.keys():
-                dist = levenshtein(text, t)
+                dist = levenshtein(text, t)  # noqa
                 if dist < 5:
                     print(f"\t{text} == {t} {dist}")
                 if dist <= dist_cutoff:

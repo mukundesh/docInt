@@ -7,4 +7,6 @@ def test_learn_layout(layout_paths):
     ppl.add_pipe("do_nothing_pipe")
 
     docs = ppl.pipe_all(layout_paths)
+
+    print("DONE CREATING")
     docs = list(docs)

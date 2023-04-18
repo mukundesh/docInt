@@ -144,8 +144,8 @@ class HtmlGenerator:
 
             if isinstance(object[0], Box):
                 boxes = object
-                path_abbr = f"pa{page.page_idx}.table_box{idx}"
-                alt_text = f"pa{page.page_idx}.table_box{idx}"
+                path_abbr = f"pa{page.page_idx}.table_box"
+                alt_text = f"pa{page.page_idx}.table_box"
                 svgs = [self.get_svg_str(b, color, page, path_abbr, alt_text, "box") for b in boxes]
                 return "\n".join(svgs)
             else:

@@ -153,7 +153,7 @@ class InferLayoutLMv2:
                     label_word_dict.setdefault(iob2label(label), []).append(page[word_idx])
 
                 lw_iter = label_word_dict.items()
-                page.word_labels = dict((l, Region.from_words(ws)) for (l, ws) in lw_iter)
+                page.word_labels = dict((l, Region.from_words(ws)) for (l, ws) in lw_iter)  # noqa
 
                 for label, region in page.word_labels.items():
                     print(f"{label}: {region.raw_text()}")

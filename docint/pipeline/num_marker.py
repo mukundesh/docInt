@@ -111,6 +111,7 @@ class MarkerMisalginedError(DataError):
         "max_number": 49,
         "page_idxs": [],
         "include_zero": False,
+        "use_table_boxes": False,
     },
 )
 class FindNumMarker:
@@ -129,6 +130,7 @@ class FindNumMarker:
         max_number,
         page_idxs,
         include_zero,
+        use_table_boxes,
     ):
         self.conf_dir = Path(conf_dir)
         self.conf_stub = conf_stub
@@ -143,6 +145,7 @@ class FindNumMarker:
         self.max_number = max_number
         self.page_idxs = page_idxs
         self.include_zero = include_zero
+        self.use_table_boxes = use_table_boxes
 
         self.roman_dict = self.build_roman_dict()
         self.alpha_dict = self.build_alphabet_dict()
@@ -374,9 +377,21 @@ class FindNumMarker:
                 continue
 
             num_markers.sort(key=lambda m: m.ymin)
-            [m.set_idx(idx) for idx, m in enumerate(num_markers)]
-            page.num_markers = num_markers
             self.lgr.info(f"> Page {page.page_idx} {[str(m) for m in num_markers]}")
+
+            if self.use_table_boxes:
+                table_boxes = getattr(page, "table_boxes", [])
+                if table_boxes:
+                    print(len(table_boxes))
+                    for table_box in table_boxes:
+                        num_markers = [n for n in num_markers if n.shape.overlaps(table_box)]
+                else:
+                    num_markers = []
+
+            [m.set_idx(idx) for idx, m in enumerate(num_markers)]
+            self.lgr.info(f"> *Page {page.page_idx} {[str(m) for m in num_markers]}")
+
+            page.num_markers = num_markers
 
         errors = list(chain(*[self.test(doc, num_type) for num_type in NumType]))
 

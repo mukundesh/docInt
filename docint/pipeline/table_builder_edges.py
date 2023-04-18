@@ -122,7 +122,7 @@ class TableBuilderOnEdges:
                 in_col_box = functools.partial(in_box, box=cell_box)
                 remain_row_words, cell_words = partition(in_col_box, remain_row_words)
                 remain_row_words, cell_words = list(remain_row_words), list(cell_words)
-                cells.append(Cell.build(cell_words))
+                cells.append(Cell.build2(cell_words, page.page_idx))
 
                 self.lgr.debug(f'\t\t{"|".join(w.text for w in cell_words)}')
             #

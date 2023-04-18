@@ -62,6 +62,20 @@ class Para(Region):
             word_lines_idxs=word_lines_idxs,
         )
 
+    # @classmethod
+    # def build_with_lines(cls, words, word_lines):
+    #     word_idxs = [w.word_idx for w in words]
+    #     page_idx = words[0].page_idx if words else None
+    #     word_lines_idxs = [[w.word_idx for w in wl] for wl in word_lines]
+
+    #     return Para(
+    #         words=words,
+    #         word_lines=word_lines,
+    #         word_idxs=word_idxs,
+    #         page_idx_=page_idx,
+    #         word_lines_idxs=word_lines_idxs,
+    #     )
+
     def __str__(self):
         s = f"Text: {self.text}\n"
         for label, spans in self.label_spans.items():
@@ -225,7 +239,7 @@ class Para(Region):
         base_spans = [s for s in base_spans if s]
         return base_spans
 
-    def add_label(self, span, label, text_config=None, suppress_warning=True):
+    def add_label(self, spans, label, text_config=None, suppress_warning=True):
         def fix_boundary_span(span, text):
             s, e = span.start, span.end
             s = s + 1 if text[s] in " " else s
@@ -247,7 +261,7 @@ class Para(Region):
             return Span(start=s, end=e)
 
         base_spans = []
-        for s in flatten_spans(span):
+        for s in flatten_spans(spans):
             base_spans += self.get_base_spans3(s, text_config)
 
         invalid_spans = [s for s in base_spans if not s.is_valid(self.text)]
@@ -271,7 +285,7 @@ class Para(Region):
 
             s = Span.to_str(self.text, new_span)
             assert s[0] != " "
-            print(f"Add label {label}: >{s}< {span} ->{new_span}")
+            print(f"Add label {label}: >{s}< {new_span}")
             self.label_spans.setdefault(label, []).append(new_span)
 
     def label_regex(self, regexes, label, text_config=None):

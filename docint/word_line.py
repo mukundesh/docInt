@@ -18,6 +18,15 @@ class Config:
     prev_ymin: float = -1.0
 
 
+def get_text(line_words):
+    if isinstance(line_words, list):
+        lw_str = ",".join(w.text for lw in line_words for w in lw.words)
+        return f"[{len(line_words)}]>{lw_str}<"
+    else:
+        lw_str = ",".join(w.text for lw in [line_words] for w in lw.words)
+        return f">{lw_str}<"
+
+
 class LineWord(Region):
     lt_lwords: List["LineWord"] = []
     rt_lwords: List["LineWord"] = []
@@ -115,7 +124,9 @@ class LineWord(Region):
         lt_ov_words = [lw for lw in self.lt_lwords if sbox.overlaps(lw.shape.box, 0.5)]
         rt_ov_words = [lw for lw in self.rt_lwords if sbox.overlaps(lw.shape.box, 0.5)]
 
-        # print(f'Remove {self.words[0].text} lt: {len(lt_ov_words)} rt: {len(rt_ov_words)}')
+        if lt_ov_words or rt_ov_words:
+            gt = get_text  # noqa
+            # print(f'remove_side_overlap: {gt(self)} lt: {gt(lt_ov_words)} rt: {gt(rt_ov_words)}')
 
         scw = self.char_width
         if lt_ov_words:
@@ -123,12 +134,13 @@ class LineWord(Region):
             [lw.reduce_width_at("right", self.shape) for lw in lt_ov_long_words]
 
             # l_strs = [f'Reducing {lw.to_str()} at right' for lw in lt_ov_long_words]
-            # print('\n'.join(l_strs))
+            # print(f'\treduce_width_at: lt: {gt(lt_ov_long_words)}')
         elif rt_ov_words:
             rt_ov_long_words = [lw for lw in rt_ov_words if lw.char_width > scw]
             [lw.reduce_width_at("left", self.shape) for lw in rt_ov_long_words]
             # r_strs = [f'Reducing {lw.to_str()} at left' for lw in rt_ov_long_words]
-            # print('\n'.join(r_strs))
+
+            # print(f'\treduce_width_at: rt: {gt(rt_ov_long_words)}')
 
     def merge_side_words(self, conf):
         if self.text_len() > conf.merge_word_len:
@@ -211,7 +223,6 @@ def words_in_lines(
 ):
     if not region or not region.words:
         return []
-
     first_word = region.words[0]
     avg_height = statistics.mean([w.box.height for w in region.words])
     conf = Config(merge_word_len, newline_height_multiple, avg_height)
@@ -237,11 +248,11 @@ def words_in_lines(
     # end
 
     # Using side words remove side overlap
-    [lw.remove_side_overlap() for lw in lWords]
+    [lw.remove_side_overlap() for lw in lWords]  # TODO
 
     # print(f'# Before lWords: {len(lWords)} {[lW.idx_str for lW in lWords]}')
     # merge short words and remove merged words
-    [lw.merge_side_words(conf) for lw in lWords if lw.is_short(conf)]
+    [lw.merge_side_words(conf) for lw in lWords if lw.is_short(conf)]  # TODOD
     lWords = [lw for lw in lWords if not lw.is_merged]
     # print(f'# After lWords: {len(lWords)} {[lW.idx_str for lW in lWords]}')
 
@@ -261,7 +272,7 @@ def words_in_lines(
     num_words = sum([len(wl) for wl in word_lines])
     assert len(region.words) == num_words
 
-    print_word_lines(word_lines)
+    # print_word_lines(word_lines)
     return word_lines
 
 

@@ -9,7 +9,7 @@ from .word import Word
 
 class Region(BaseModel):
     word_idxs: List[int]
-    page_idx_: int = None
+    page_idx_: int
 
     words: List[Word] = None
     shape_: Box = None
@@ -24,6 +24,10 @@ class Region(BaseModel):
     def from_words(cls, words):
         word_idxs = [w.word_idx for w in words]
         return Region(words=words, word_idxs=word_idxs, page_idx_=words[0].page_idx)
+
+    @classmethod
+    def no_words(cls, page_idx):
+        return Region(words=[], word_idxs=[], page_idx_=page_idx)
 
     # TODO REMOVE
     @classmethod
@@ -54,6 +58,24 @@ class Region(BaseModel):
     def __len__(self):
         return len(self.words)
 
+    def __getitem__(self, idx):
+        print("Inside __get__item")
+        if isinstance(idx, slice):
+            sl = idx
+            return Region.build(self.words[sl], self.page_idx)
+        elif isinstance(idx, int):
+            if idx >= len(self.words):
+                print(f"Unknown idx: {idx}")
+            return self.words[idx]
+        else:
+            raise TypeError("Unknown type {type(idx)} this method can handle")
+
+    def __iter__(self):
+        return iter(self.words)
+
+    def __bool__(self):
+        return True if self.word_idxs else False
+
     # TODO_MUST shouldn't this be in para.py ???
     def remove_word_ifpresent(self, word):
         rm_idx = word.word_idx
@@ -74,10 +96,10 @@ class Region(BaseModel):
             #         word_lines_idxs.append([idx for idx in word_line_idx if idx != rm_idx])
             #     self.word_lines_idxs = word_lines_idxs
 
-    def __bool__(self):
-        # What is an empty region, what if remove the words from a
-        # a region after words
-        return bool(self.words)
+    # def __bool__(self):
+    #     # What is an empty region, what if remove the words from a
+    #     # a region after words
+    #     return bool(self.words)
 
     @property
     def doc(self):

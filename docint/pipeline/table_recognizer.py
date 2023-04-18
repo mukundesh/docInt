@@ -1,15 +1,15 @@
 import logging
 import sys
-from pathlib import Path
 from functools import partial, reduce
 from itertools import chain
+from pathlib import Path
 
-from more_itertools import flatten, first
+from more_itertools import first, flatten
 
 from ..shape import Coord, Edge
+from ..table import TableEdges
 from ..util import get_full_path, get_model_path
 from ..vision import Vision
-from ..table import TableEdges
 
 
 @Vision.factory(
@@ -29,8 +29,7 @@ class TableRecognizer:
 
         table_model_dir = get_model_path(self.model_name, self.model_dir)
 
-        from transformers import TableTransformerForObjectDetection
-        from transformers import DetrFeatureExtractor
+        from transformers import DetrFeatureExtractor, TableTransformerForObjectDetection
 
         self.feature_extractor = DetrFeatureExtractor()
         self.model = TableTransformerForObjectDetection.from_pretrained(table_model_dir)
@@ -83,8 +82,8 @@ class TableRecognizer:
         col_code = first([k for (k, v) in id2label.items() if v == "table column"])
         row_code = first([k for (k, v) in id2label.items() if v == "table row"])
 
-        col_boxes = [b for (l, b) in zip(labels, boxes) if l == col_code]
-        row_boxes = [b for (l, b) in zip(labels, boxes) if l == row_code]
+        col_boxes = [b for (l, b) in zip(labels, boxes) if l == col_code]  # noqa
+        row_boxes = [b for (l, b) in zip(labels, boxes) if l == row_code]  # noqa
 
         print(f"\tROWS: {len(row_boxes)} COLS: {len(col_boxes)}")
 

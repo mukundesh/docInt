@@ -3,9 +3,9 @@ import subprocess
 from pathlib import Path
 from typing import List
 
+from PIL import Image
 from pydantic import parse_obj_as
 from pydantic.json import pydantic_encoder
-from PIL import Image
 
 from .. import pdfwrapper
 from ..page_image import PageImage
@@ -21,7 +21,8 @@ from .page_image_builder_raster import build_raster_page_image
 
 
 def is_small_size(image_path, minimum_size):
-    image_path = get_full_path(str(image_path))
+    if is_repo_path(image_path):
+        image_path = get_full_path(str(image_path))
     img = Image.open(image_path)
     if img.width < minimum_size or img.height < minimum_size:
         return True

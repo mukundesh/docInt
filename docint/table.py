@@ -1,4 +1,5 @@
 from itertools import chain
+from operator import attrgetter
 from typing import List
 
 from pydantic import BaseModel
@@ -38,11 +39,27 @@ class TableIncorectSeqError(DataError):
     act_val: str
 
 
+class TableMultipleSeqError(DataError):
+    pass
+
+
 class Cell(Para):
     @classmethod
     def build(cls, words):
         word_idxs = [w.word_idx for w in words]
         page_idx = words[0].page_idx if words else None
+        word_lines_idxs = [[w.word_idx for w in words]]
+        return Cell(
+            words=words,
+            word_lines=[words],
+            word_idxs=word_idxs,
+            word_lines_idxs=word_lines_idxs,
+            page_idx_=page_idx,
+        )
+
+    @classmethod
+    def build2(cls, words, page_idx):
+        word_idxs = [w.word_idx for w in words]
         word_lines_idxs = [[w.word_idx for w in words]]
         return Cell(
             words=words,
@@ -64,6 +81,12 @@ class Row(Region):
         page_idx = words[0].page_idx if words else None
         return Row(words=words, cells=cells, word_idxs=word_idxs, page_idx_=page_idx)
 
+    @classmethod
+    def build2(cls, cells, page_idx):
+        words = [w for cell in cells for w in cell.words]
+        word_idxs = [w.word_idx for w in words]
+        return Row(words=words, cells=cells, word_idxs=word_idxs, page_idx_=page_idx)
+
     def get_regions(self):
         cells = [c for b in self.body_rows for c in b.cells]
         return [self] + cells
@@ -71,6 +94,9 @@ class Row(Region):
     def remove_word(self, word):
         self.remove_word_ifpresent(word)
         [c.remove_word_ifpresent(word) for c in self.cells]
+
+    def __getitem__(self, index):
+        return self.cells[index]
 
     def test(self, path, num_cols=None, is_header=False):
         errors = []
@@ -104,6 +130,9 @@ class Row(Region):
     def get_svg_info(self):
         return {"idxs": {"cells": [[w.word_idx for w in c.words] for c in self.cells]}}
 
+    def delete_cells(self, idxs):
+        self.cells = [c for (idx, c) in enumerate(self.cells) if idx not in idxs]
+
 
 class TableEdges(BaseModel):
     row_edges: List[Edge]
@@ -113,6 +142,20 @@ class TableEdges(BaseModel):
 
     class Config:
         fields = {"col_img_xs": {"exclude": True}}
+
+    def add_row_edges(self, ys):
+        x1 = min(e.xmin for e in self.row_edges)
+        x2 = min(e.xmax for e in self.row_edges)
+
+        self.row_edges += [Edge.build_h(x1, y, x2, y) for y in ys]
+        self.row_edges.sort(key=attrgetter("ymin"))
+
+    def add_col_edges(self, xs):
+        y1 = min(e.ymin for e in self.col_edges)
+        y2 = min(e.ymax for e in self.col_edges)
+
+        self.col_edges += [Edge.build_h(x, y1, x, y2) for x in xs]
+        self.col_edges.sort(key=attrgetter("xmin"))
 
 
 class Table(Region):
@@ -149,6 +192,27 @@ class Table(Region):
                 if shape.box.overlaps(row.shape.box, 80):
                     relevant_rows.append(row)
         return relevant_rows
+
+    @property
+    def num_columns(self):
+        row = self.body_rows[0] if self.body_rows else self.header_rows[0]
+        return len(row.cells)
+
+    @property
+    def num_rows(self):
+        return len(self.body_rows)
+
+    def get_column_cells(self, idx, include_header=True):
+        if include_header:
+            all_rows = self.header_rows + self.body_rows
+        else:
+            all_rows = self.body_rows
+        return [r[idx] for r in all_rows]
+
+    def delete_columns(self, idxs):
+        idxs = idxs if isinstance(idxs, list) else [idxs]
+        for row in self.header_rows + self.body_rows:
+            row.delete_cells(idxs)
 
     def get_regions(self):
         all_rows = self.body_rows + self.header_rows

@@ -43,3 +43,7 @@ from .line_finder import LineFinder
 from .meta_writer import MetaWriter
 from .table_detector import TableDetector
 from .table_recognizer import TableRecognizer
+from .learn_ner import LearnNER
+from .table_builder_edges2 import TableBuilderOnEdges2
+from .org_meta_writer import OrgMetaWriter
+from .page_rotator import RotatePage

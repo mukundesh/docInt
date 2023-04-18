@@ -10,10 +10,10 @@ from .util import (
     SimpleFrozenDict,
     SimpleFrozenList,
     get_arg_names,
-    get_object_name,
-    raise_error,
-    is_repo_path,
     get_full_path,
+    get_object_name,
+    is_repo_path,
+    raise_error,
 )
 
 # b  /Users/mukund/Software/docInt/docint/vision.py:208
@@ -150,6 +150,7 @@ class Vision:
         raise ValueError(Errors.E006.format(args=all_args, opts=self.component_names))
 
     def exec_task(self, name, doc, proc, kwargs={}):
+        print(f"exec_task: {name}")
         if name in self.docker_pipes:
             print(">> Docker")
             depends = self.factories_meta[name].depends
@@ -193,7 +194,8 @@ class Vision:
             component_cfg = {}
 
         for name, proc in self.pipeline:
-            if not hasattr(proc, "__call__"):
+            if not (hasattr(proc, "__call__") or hasattr(proc, "pipe")):
+                print(f"ERROR: {type(proc)} name={name}")
                 raise ValueError(Errors.E003.format(component=type(proc), name=name))
             error_handler = self.default_error_handler
             if hasattr(proc, "get_error_handler"):
@@ -243,9 +245,11 @@ class Vision:
         paths = (Path(p) for p in paths if get_pdf_name(p) not in self.ignore_docs)
         docs = (self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths)
 
-        # print(f"Read #docs: {len(docs)}")
+        print(f"Read #docs: {type(docs)}, {type(pipes)}")
         for pipe in pipes:
+            print(f"Processing {type(pipe)}")
             docs = pipe(docs)
+            print(f"docs {type(docs)}")
         return docs
 
     def pipe_partial(
@@ -257,6 +261,7 @@ class Vision:
         kwargs: Mapping[str, Any],
     ):
         if hasattr(proc, "pipe"):
+            print("Pipe_partial->pipe")
             yield from self.exec_task(name, docs, proc, kwargs)
 
             # if name in self.docker_pipes:
@@ -282,6 +287,23 @@ class Vision:
             for arg in ["batch_size"]:
                 if arg in kwargs:
                     kwargs.pop(arg)
+
+            if name in self.docker_pipes:
+                print(">> NEW Docker")
+                depends = self.factories_meta[name].depends
+                is_recognizer = self.factories_meta[name].is_recognizer
+                pipe_config = self.all_pipe_config[name]
+                result_docs = self.docker.pipe(
+                    name,
+                    docs,
+                    depends,
+                    is_recognizer,
+                    pipe_config,
+                    docker_config=self.docker_config,
+                )
+                for rdoc in result_docs:
+                    yield rdoc
+
             for doc in docs:
                 try:
                     # if name in self.docker_pipes:

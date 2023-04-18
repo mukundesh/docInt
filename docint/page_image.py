@@ -6,7 +6,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from .shape import Box, Coord, rotate_image_coord
-from .util import get_full_path, is_repo_path
+from .util import get_full_path, get_repo_path, is_repo_path
 
 
 class ImageContext:
@@ -81,7 +81,7 @@ class ImageContext:
         return image_coord
 
     def inverse_transform(self, image_coord):
-        print(f"\t>inverse_transform image_coord: {image_coord}")
+        # print(f"\t>inverse_transform image_coord: {image_coord}")
         for trans_tuple in reversed(self.transformations):
             if trans_tuple[0] == "crop":
                 top, bot = trans_tuple[1], trans_tuple[2]
@@ -93,7 +93,7 @@ class ImageContext:
                     assert False, f"coord: {image_coord} outside [{cur_w}, {cur_h}]"
                     raise ValueError(f"coord: {image_coord} outside ({cur_w}, {cur_h})")
                 image_coord = Coord(x=top.x + image_coord.x, y=top.y + image_coord.y)
-                print(f"\t>inverse_crop image_coord: {image_coord}")
+                # print(f"\t>inverse_crop image_coord: {image_coord}")
             else:
                 angle, prev_size, curr_size = (
                     trans_tuple[1],
@@ -103,7 +103,7 @@ class ImageContext:
                 angle = self.normalize_angle(angle)
                 # image_coord = self.transform_rotate(image_coord, -angle, curr_size, prev_size)
                 image_coord = rotate_image_coord(image_coord, -angle, curr_size, prev_size)
-                print(f"\t>inverse_rotate image_coord: {image_coord}")
+                # print(f"\t>inverse_rotate image_coord: {image_coord}")
         return image_coord
 
     def get_image_coord(self, doc_coord):
@@ -137,7 +137,7 @@ class ImageContext:
 
     def crop(self, top, bot):
         img_top, img_bot = self.get_image_coord(top), self.get_image_coord(bot)
-        print(f"[{top},{bot}] -> [{img_top}, {img_bot}]")
+        # print(f"[{top},{bot}] -> [{img_top}, {img_bot}]")
         self._image_crop(img_top, img_bot)
         print(
             f"\tCrop top: {top} bot: {bot} img_top: {img_top} img_bot: {img_bot} Size: {self.image.size} width:{self.image.width} height:{self.image.height}"
@@ -242,13 +242,13 @@ class PageImage(BaseModel):
         #     # are properly arranged docker won't be needed.
         #     image_path = Path(".img") / image_path.parent.name / Path(image_path.name)
 
-        return image_path
+        return Path(image_path)
 
     def prepend_image_stub(self, stub):
         assert stub[-1] != "/"
         if is_repo_path(self.image_path):
             self.image_path = f"{stub}{self.image_path}"
-        print(f"PREPEND image_path: {self.image_path}")
+        # print(f"PREPEND image_path: {self.image_path}")
 
     def remove_image_stub(self, stub):
         assert stub[-1] != "/"
@@ -256,6 +256,22 @@ class PageImage(BaseModel):
             self.image_path = self.image_path[len(stub) :]
             assert is_repo_path(self.image_path)
         print(f"REMOVE image_path: {self.image_path}")
+
+    def update_image_path(self, new_image_path, new_size):
+        new_image_path = Path(new_image_path)
+        print(f"INSIDE update_image_path: {new_image_path}")
+        if is_repo_path(self.image_path):
+            if is_repo_path(new_image_path):
+                self.image_path = new_image_path
+            else:
+                self.image_path = get_repo_path(new_image_path)
+        else:
+            if is_repo_path(new_image_path):
+                self.image_path = get_full_path(new_image_path)
+            else:
+                self.image_path = new_image_path
+
+        self.image_width, self.image_height = new_size
 
     def to_pil_image(self, image_size=None):
         pil_image = Image.open(self.get_image_path())

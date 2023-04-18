@@ -41,6 +41,7 @@ _break_type_dict = {
         "output_stub": "ocr",
         "overwrite_cloud": False,
         "check_stub_modified": "doc",  # this should be part of pipeline
+        "process_page_image": False,
     },
 )
 class CloudVisionRecognizer:
@@ -52,6 +53,7 @@ class CloudVisionRecognizer:
         output_stub,
         overwrite_cloud,
         check_stub_modified,
+        process_page_image,
     ):
 
         self.bucket_name = bucket
@@ -60,6 +62,7 @@ class CloudVisionRecognizer:
         self.output_stub = output_stub
         self.overwrite_cloud = overwrite_cloud
         self.check_stub_modified = check_stub_modified
+        self.process_page_image = process_page_image
 
     def build_word(self, doc, page_idx, word_idx, ocr_word):
         coords = []
@@ -246,9 +249,6 @@ class CloudVisionRecognizer:
         # output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
         print(f"Processing {doc.pdf_name}")
 
-        pdf = pdf_open(doc.pdf_path)
-        num_pdf_pages = len(pdf.pages)
-
         output_paths = self.output_dir_path.glob(f"{doc.pdf_name}.{self.output_stub}.*json")
         output_paths = list(output_paths)
 
@@ -257,12 +257,16 @@ class CloudVisionRecognizer:
             doc_path = Path(ocr_path[: ocr_path.index(".ocr.")] + ".doc.json")
             if doc_path.exists():
                 print("Reading doc.json")
-                return Doc.from_disk(doc_path)
+                doc = Doc.from_disk(doc_path)
+                doc.pipe_names[:-1] = []
+                return doc
 
         if output_paths:
             print("Reading output_paths")
             return self.read_gcv(doc, output_paths)
         else:
-            print("INSIDE GCV RECOGNIZER")
+            print(f"INSIDE GCV RECOGNIZER {doc.pdf_name}")
+            pdf = pdf_open(doc.pdf_path)
+            num_pdf_pages = len(pdf.pages)
             result = self.run_gcv(doc, num_pdf_pages)
             return self.build_pages(doc, result)
