@@ -30,8 +30,8 @@ def is_small_size(image_path, minimum_size):
         return False
 
 
-def extract_images(pdf_path, image_root, page_num):
-
+def extract_images(pdf_path, image_root, page_num, format="png"):
+    assert format in ("png", "tiff")
     cmd = [
         "pdfimages",
         "-f",
@@ -39,7 +39,7 @@ def extract_images(pdf_path, image_root, page_num):
         "-l",
         str(page_num),
         "-p",
-        "-png",
+        f"-{format}",
         str(pdf_path),
         str(image_root),
     ]
@@ -47,15 +47,19 @@ def extract_images(pdf_path, image_root, page_num):
     subprocess.check_call(cmd)
 
 
-def build_embedded_page_image(page, pdf_page, image_dir_repo, image_dir_path, minimum_size):
+def build_embedded_page_image(
+    page, pdf_page, image_dir_repo, image_dir_path, minimum_size, image_format
+):
     page_num = page.page_idx + 1
 
+    ext = "tif" if image_format == "tiff" else "png"
+
     image_root = image_dir_path / Path(page.doc.pdf_stem) / "embedded"
-    image_path = image_dir_repo / Path(page.doc.pdf_stem) / f"embedded-{page_num:03d}-000.png"
+    image_path = image_dir_repo / Path(page.doc.pdf_stem) / f"embedded-{page_num:03d}-000.{ext}"
     image_width, image_height = pdf_page.images[0].size
     image_box = Box.from_bounding_box(pdf_page.images[0].bounding_box)
 
-    extract_images(page.doc.pdf_path, image_root, page_num)
+    extract_images(page.doc.pdf_path, image_root, page_num, image_format)
     if is_small_size(image_path, minimum_size):
         return build_raster_page_image(page, pdf_page, image_dir_repo)
     else:
@@ -65,8 +69,8 @@ def build_embedded_page_image(page, pdf_page, image_dir_repo, image_dir_path, mi
             image_path=str(image_path),
             image_box=image_box,
             image_type="embedded",
-            page_width=page.width,
-            page_height=page.height,
+            page_width=pdf_page.width,
+            page_height=pdf_page.height,
             page_idx=page.page_idx,
         )
 
@@ -78,14 +82,17 @@ def build_embedded_page_image(page, pdf_page, image_dir_repo, image_dir_path, mi
         "image_dir": ".img",
         "use_cache": True,
         "minimum_size": 500,
+        "image_format": "png",
     },
 )
 class PageImageBuilderEmbedded:
-    def __init__(self, image_dir, use_cache, minimum_size):
+    def __init__(self, image_dir, use_cache, minimum_size, image_format):
         self.image_dir = image_dir
         self.use_cache = use_cache
         self.repo_dir = get_repo_dir()
         self.minimum_size = minimum_size
+        self.image_format = image_format
+        assert self.image_format in ("png", "tiff")
 
         assert is_repo_path(self.image_dir) or Path(self.image_dir).exists()
 
@@ -136,10 +143,17 @@ class PageImageBuilderEmbedded:
                     page_image = build_raster_page_image(page, pdf_page, self.image_dir)
                 else:
                     page_image = build_embedded_page_image(
-                        page, pdf_page, self.image_dir, image_dir_path, self.minimum_size
+                        page,
+                        pdf_page,
+                        self.image_dir,
+                        image_dir_path,
+                        self.minimum_size,
+                        self.image_format,
                     )
             else:
-                page_image = build_raster_page_image(page, pdf_page, self.image_dir)
+                page_image = build_raster_page_image(
+                    page, pdf_page, self.image_dir, self.image_format
+                )
 
             page.page_image = page_image
             page_images.append(page_image)

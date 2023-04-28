@@ -12,10 +12,12 @@ from ..util import get_full_path, get_repo_dir, is_repo_path
 from ..vision import Vision
 
 
-def build_raster_page_image(page, pdf_page, image_dir):
+def build_raster_page_image(page, pdf_page, image_dir, image_format):
     page_num = page.page_idx + 1
 
-    image_stub = Path(page.doc.pdf_stem) / f"raster-{page_num:03d}-000.png"
+    ext = "tif" if image_format == "tiff" else "png"
+
+    image_stub = Path(page.doc.pdf_stem) / f"raster-{page_num:03d}-000.{ext}"
     if is_repo_path(image_dir):
         image_path = get_full_path(image_dir) / image_stub
     else:
@@ -43,13 +45,17 @@ def build_raster_page_image(page, pdf_page, image_dir):
     default_config={
         "image_dir": ".img",
         "use_cache": True,
+        "image_format": "png",
     },
 )
 class PageImageBuilderRaster:
-    def __init__(self, image_dir, use_cache):
+    def __init__(self, image_dir, use_cache, image_format):
         self.image_dir = image_dir
         self.use_cache = use_cache
         self.repo_dir = get_repo_dir()
+
+        self.image_format = image_format
+        assert self.image_format in ("png", "tiff")
 
         assert is_repo_path(self.image_dir) or Path(self.image_dir).exists()
 
@@ -80,7 +86,7 @@ class PageImageBuilderRaster:
 
         page_images = []
         for (page, pdf_page) in zip(doc.pages, pdf.pages):
-            page_image = build_raster_page_image(page, pdf_page, self.image_dir)
+            page_image = build_raster_page_image(page, pdf_page, self.image_dir, self.image_format)
             page.page_image = page_image
             page_images.append(page_image)
 

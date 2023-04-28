@@ -321,6 +321,14 @@ class Para(Region):
                 overlap_words.append(word)
         return overlap_words
 
+    def get_words_for_substr(self, substr, text_config=None):
+        line_text = self.line_text(text_config)
+        start_idx = line_text.find(substr)
+        if start_idx == -1:
+            return []
+        span = Span(start=start_idx, end=start_idx + len(substr))
+        return self.get_words_for_spans([span], text_config)
+
     def line_text(self, text_config=None):
         if not text_config:
             word_texts = [w.text for wl in self.word_lines for w in wl if w]
@@ -538,6 +546,9 @@ class Para(Region):
     def str_spans(self, indent=""):
         text_config = TextConfig(rm_labels=["ignore", "puncts", "person"])
         return self.line_text(text_config)
+
+    def get_first_word_idx(self):
+        return first((w_idx for ln in self.word_lines_idxs for w_idx in ln), default=None)
 
 
 #        return "|".join(f'{l}: {Span.to_str(line_text, self.label_spans[l])}' for l in self.label_spans)

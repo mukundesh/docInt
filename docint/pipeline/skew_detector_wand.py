@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import subprocess
@@ -14,24 +15,30 @@ from ..vision import Vision
     default_config={
         "conf_stub": "skew_detector_wand",
         "wand_library": True,
+        "shave_percent": 0.0,
     },
 )
 class SkewDetectorWand:
-    def __init__(self, conf_stub, wand_library):
+    def __init__(self, conf_stub, wand_library, shave_percent):
         self.conf_stub = conf_stub
         self.wand_library = wand_library
+        self.output_dir = Path("output")
+        self.shave_percent = shave_percent
 
     def get_skew_cmdline_angle(self, page, orientation):
         bColor = "white"
         thresh = "80%"
 
         image_path = page.page_image.get_image_path()
+        print(image_path)
 
         if orientation == "h":
             # compute horizontal angle
             cmdList = [
                 "convert",
                 image_path,
+                "-shave",
+                f"{self.shave_percent}%",
                 "-background",
                 bColor,
                 "-deskew",
@@ -40,6 +47,7 @@ class SkewDetectorWand:
                 "%[deskew:angle]",
                 "null:",
             ]
+            print(" ".join(str(c) for c in cmdList))
             horzAngle = subprocess.check_output(cmdList)
             return float(horzAngle)
         else:
@@ -51,6 +59,8 @@ class SkewDetectorWand:
                 cmdList = [
                     "convert",
                     temp_file_path,
+                    "-shave",
+                    f"{self.shave_percent}%",
                     "-background",
                     bColor,
                     "-deskew",
@@ -65,7 +75,7 @@ class SkewDetectorWand:
     def get_skew_angle(self, page, orientation):
         from wand.image import Image
 
-        print(type(page.page_image))
+        print(page.page_image.get_image_path())
 
         with Image(
             filename=page.page_image.get_image_path()
@@ -89,6 +99,20 @@ class SkewDetectorWand:
         doc.add_extra_page_field("horz_skew_angle", ("noparse", "", ""))
         doc.add_extra_page_field("horz_skew_method", ("noparse", "", ""))
 
+        json_path = self.output_dir / f"{doc.pdf_name}.skew_wand.json"
+        if json_path.exists():
+            jd = json.loads(json_path.read_text())
+            skew_infos = jd["skew_infos"]
+            assert len(doc.pages) == len(skew_infos)
+            for (page, skew_info) in zip(doc.pages, skew_infos):
+                page.horz_skew_angle = skew_info["horz_skew_angle"]
+                page.horz_skew_method = skew_info["horz_skew_method"]
+
+                page.vert_skew_angle = skew_info["vert_skew_angle"]
+                page.vert_skew_method = skew_info["vert_skew_method"]
+            return doc
+
+        skew_infos = []
         for page in doc.pages:
             if self.wand_library:
                 page.horz_skew_angle = self.get_skew_angle(page, "h")
@@ -103,6 +127,15 @@ class SkewDetectorWand:
                 page.vert_skew_angle = self.get_skew_cmdline_angle(page, "v")
             page.vert_skew_method = "wand"
 
+            skew_infos.append(
+                {
+                    "horz_skew_angle": page.horz_skew_angle,
+                    "horz_skew_method": page.horz_skew_method,
+                    "vert_skew_angle": page.vert_skew_angle,
+                    "vert_skew_method": page.vert_skew_method,
+                }
+            )
             print(f"> Page {page.page_idx} marker_angle={page.horz_skew_angle:.4f}")
 
+        json_path.write_text(json.dumps({"skew_infos": skew_infos}))
         return doc

@@ -96,7 +96,7 @@ class PDFReader:
             box = Shape.build_box(doc_bbox)
             return Word(
                 doc=doc,
-                page_idx=page_idx,
+                page_idx=page.page_idx,
                 word_idx=word_idx,
                 text_=word.text,
                 break_type=BreakType.Space,
@@ -104,16 +104,7 @@ class PDFReader:
             )
 
         pdf = pdfwrapper.open(doc.pdf_path)
-        for page_idx, pdf_page in enumerate(pdf.pages):
-            words = [build_word(w, idx, pdf_page) for (idx, w) in enumerate(pdf_page.words)]
+        for page, pdf_page in zip(doc.pages, pdf.pages):
+            page.words = [build_word(w, idx, page) for (idx, w) in enumerate(pdf_page.words)]
 
-            page = Page(
-                doc=doc,
-                page_idx=page_idx,
-                words=words,
-                width_=pdf_page.width,
-                height_=pdf_page.height,
-            )
-            # print(page[0].text, page[0].shape)
-            doc.pages.append(page)
         return doc

@@ -47,3 +47,4 @@ from .learn_ner import LearnNER
 from .table_builder_edges2 import TableBuilderOnEdges2
 from .org_meta_writer import OrgMetaWriter
 from .page_rotator import RotatePage
+from .ascii_converter import AsciiConverter

@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 from more_itertools import flatten
 from pydantic import BaseModel, parse_obj_as
 
+from . import pdfwrapper
 from .data_edit import DataEdit
 from .data_error import DataError
 from .errors import Errors
@@ -94,7 +95,18 @@ class Doc(BaseModel):
     # move this to document factory
     @classmethod
     def build_doc(cls, pdf_path):
-        return Doc(pdffile_path=pdf_path)
+        doc = Doc(pdffile_path=pdf_path)
+        pdf = pdfwrapper.open(pdf_path)
+        for page_idx, pdf_page in enumerate(pdf.pages):
+            page = Page(
+                doc=doc,
+                page_idx=page_idx,
+                words=[],
+                width_=pdf_page.width,
+                height_=pdf_page.height,
+            )
+            doc.pages.append(page)
+        return doc
 
     def to_json(self, exclude_defaults=True):
         return self.json(exclude_defaults=exclude_defaults, sort_keys=True, separators=(",", ":"))
@@ -203,6 +215,7 @@ class Doc(BaseModel):
                 update_region_links(doc, region)
 
         def build_extract(obj, extract_info):
+            # print(f'Extracting: {extract_info.field_name}')
             extract_dict = getattr(obj, extract_info.field_name, None)
             if not extract_dict:
                 return

@@ -64,11 +64,22 @@ class CloudVisionRecognizer:
         self.check_stub_modified = check_stub_modified
         self.process_page_image = process_page_image
 
-    def build_word(self, doc, page_idx, word_idx, ocr_word):
+    def build_word(self, doc, page_idx, word_idx, ocr_word, page_size):
         coords = []
-        for v in ocr_word["boundingBox"]["normalizedVertices"]:
+        if "normalizedVertices" in ocr_word["boundingBox"]:
+            normalized = True
+            vertices = ocr_word["boundingBox"]["normalizedVertices"]
+        else:
+            normalized = False
+            width, height = page_size
+            vertices = ocr_word["boundingBox"]["vertices"]
+
+        for v in vertices:
             try:
-                coords.append(Coord(x=v["x"], y=v["y"]))
+                if normalized:
+                    coords.append(Coord(x=v["x"], y=v["y"]))
+                else:
+                    coords.append(Coord(x=v["x"] / width, y=v["y"] / height))
             except KeyError:
                 if not v:
                     coords.append(0.0, 0.0)
@@ -113,7 +124,7 @@ class CloudVisionRecognizer:
             for ocr_page in ocr_pages:
                 yield ocr_page
 
-    def build_pages(self, doc, output_path):
+    def build_pages_old(self, doc, output_path):
         def get_words(pg):
             if pg:
                 return [w for b in pg["blocks"] for p in b["paragraphs"] for w in p["words"]]
@@ -121,6 +132,7 @@ class CloudVisionRecognizer:
                 return []
 
         for (page_idx, ocr_page) in enumerate(self.get_ocr_pages(output_path)):
+
             ocr_words = get_words(ocr_page)
 
             words = []
@@ -130,6 +142,28 @@ class CloudVisionRecognizer:
             width, height = ocr_page.get("width", 0), ocr_page.get("height", 0)
             page = Page(doc=doc, page_idx=page_idx, words=words, width_=width, height_=height)
             doc.pages.append(page)
+        return doc
+
+    def build_pages(self, doc, output_path):
+        if not output_path:
+            return doc
+
+        def get_words(pg):
+            if pg:
+                return [w for b in pg["blocks"] for p in b["paragraphs"] for w in p["words"]]
+            else:
+                return []
+
+        for (page_idx, ocr_page) in enumerate(self.get_ocr_pages(output_path)):
+            ocr_words = get_words(ocr_page)
+            width, height = ocr_page.get("width", 0), ocr_page.get("height", 0)
+            page_size = (width, height)
+
+            page = doc.pages[page_idx]
+
+            for (word_idx, ocr_word) in enumerate(ocr_words):
+                page.words.append(self.build_word(doc, page_idx, word_idx, ocr_word, page_size))
+
         return doc
 
     def run_sync_gcv(self, doc, output_path):
@@ -158,6 +192,49 @@ class CloudVisionRecognizer:
         responsesDict = MessageToDict(response._pb)
         responseDict = responsesDict["responses"][0]
         output_path.write_text(json.dumps(responseDict, sort_keys=True, separators=(",", ":")))
+        return output_path
+
+    def run_sync_gcv_image(self, doc, output_path):
+        from google.cloud import vision
+        from google.protobuf.json_format import MessageToDict
+
+        image_client = vision.ImageAnnotatorClient()
+
+        mime_type = "image/tiff"
+        all_responses_dict = {"responses": []}
+        for (page_idx, page) in enumerate(doc.pages):
+            print(f"Fetching image for page: {page_idx}")
+            image_path = page.page_image.get_image_path()
+
+            if image_path.suffix.lower() == ".png":
+                pil_image = page.page_image.to_pil_image()
+                tiff_in_mem = io.BytesIO()
+                pil_image.save(tiff_in_mem, format="tiff")
+                content = tiff_in_mem.getvalue()
+            else:
+                if image_path.stat().st_size > 41943040:
+                    print("*** FAILED {doc.pdf_name}")
+                    return None
+
+                with io.open(page.page_image.get_image_path(), "rb") as f:
+                    content = f.read()
+
+            input_config = {"mime_type": mime_type, "content": content}
+            features = [{"type_": vision.Feature.Type.TEXT_DETECTION}]
+
+            pages = [1]
+            requests = [{"input_config": input_config, "features": features, "pages": pages}]
+            response = image_client.batch_annotate_files(requests=requests)
+
+            # get the protobuffer
+            responsesDict = MessageToDict(response._pb)
+            responseDict = responsesDict["responses"][0]
+            page_response = responseDict["responses"][0]
+            page_response["context"] = {"pageNumber": page_idx + 1}
+            all_responses_dict["responses"].append(page_response)
+        output_path.write_text(
+            json.dumps(all_responses_dict, sort_keys=True, separators=(",", ":"))
+        )
         return output_path
 
     def run_async_gcv(self, doc, num_pdf_pages):
@@ -232,7 +309,11 @@ class CloudVisionRecognizer:
             raise RuntimeError(f"{doc.pdf_name}: No output blobs found")
 
     def run_gcv(self, doc, num_pdf_pages):
-        if num_pdf_pages < 5:
+        if self.process_page_image:
+            print("IMAGES")
+            output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
+            return self.run_sync_gcv_image(doc, output_path)
+        elif num_pdf_pages < 5:
             print("Running in sync")
             output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
             return self.run_sync_gcv(doc, output_path)

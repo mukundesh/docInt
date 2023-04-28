@@ -4,8 +4,8 @@ sources = docint tests
 test: format lint unittest
 
 format:
-	ruff $(sources)
 	black $(sources)
+	ruff $(sources)
 
 lint:
 	ruff $(sources)

@@ -359,6 +359,15 @@ class PDF(pdf.PDF):
     def pages(self):
         return self._pages
 
+    def del_page(self, page_idx):
+        self.lib_pdf.del_page(page_idx)
+
+    def save(self, new_path):
+        import builtins
+
+        with builtins.open(new_path, "wb") as n:
+            self.lib_pdf.save(n)
+
 
 #     #print(f'Multiple rects {len(rects)} >{text}< {to_texts(rects)}')
 #     merged_text = ''.join(get_text(r) for r in rects).strip()

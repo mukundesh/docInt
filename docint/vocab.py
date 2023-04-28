@@ -51,3 +51,7 @@ class Vocab:
                 if dist <= dist_cutoff:
                     result.append((t, dist))
             return sorted(result, key=itemgetter(1))
+
+    def add_text(self, text):
+        assert text not in self._texts
+        self._texts[text] = None

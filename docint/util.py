@@ -181,8 +181,8 @@ def find_date(date_line):
 
 
 def raise_error(proc_name, proc, docs, e):
-    # print(f'**** ERRORR IN {docs[0].pdf_name} --> {e}')
-    raise e
+    print(f"**** PIPEERROR IN {docs[0].pdf_name} --> {e}")
+    # raise e
 
 
 def _pipe(
@@ -299,7 +299,7 @@ def is_repo_path(input_dir: str):
 def get_full_path(repo_path: str, repo_dir: Path = None):
     assert is_repo_path(repo_path)
     repo_dir = get_repo_dir() if not repo_dir else repo_dir
-    return repo_dir / repo_path[1:]
+    return repo_dir / str(repo_path)[1:]
 
 
 def get_repo_path(path: Path, repo_dir: Path = None):

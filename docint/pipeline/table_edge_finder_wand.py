@@ -34,6 +34,7 @@ class WandImageContext(ImageContext):
         else:
             # TODO THIS IS NEEDED FOR DOCKER, once directories
             # are properly arranged docker won't be needed.
+            print(f"WAND IMAGE -> {str(image_path)}")
             image_path = Path(".img") / image_path.parent.name / Path(image_path.name)
             print(image_path)
             self.image = WandImage(filename=image_path)
@@ -149,23 +150,25 @@ class TableEdgeFinderWand:
 
     def get_image_path(self, page):
         # TODO this should be moved to page_image
-        page_num = page.page_idx + 1
-        angle = getattr(page, "reoriented_angle", 0)
-        if angle != 0:
-            angle = page.reoriented_angle
-            print(f"Page: {page_num} Rotated: {angle}")
-            img_filename = Path(f"orig-{page_num:03d}-000-r{angle}.png")
-        else:
-            img_filename = Path(f"orig-{page_num:03d}-000.png")
+        return page.page_image.get_image_path()
 
-        return self.image_root / page.doc.pdf_stem / img_filename
+        # page_num = page.page_idx + 1
+        # angle = getattr(page, "reoriented_angle", 0)
+        # if angle != 0:
+        #     angle = page.reoriented_angle
+        #     print(f"Page: {page_num} Rotated: {angle}")
+        #     img_filename = Path(f"orig-{page_num:03d}-000-r{angle}.png")
+        # else:
+        #     img_filename = Path(f"orig-{page_num:03d}-000.png")
+
+        # return self.image_root / page.doc.pdf_stem / img_filename
 
     def save_image(self, cv_img, stub, page_idx, work_dir=".tmp/"):
         from PIL import Image
 
-        work_dir = "logs"
-        img_file_name = Path(work_dir) / f"{stub}-{page_idx}.png"  # noqa
-        img_pil = cv_img if isinstance(cv_img, Image.Image) else Image.fromarray(cv_img)  # noqa
+        work_dir = "logs"  # noqa
+        # img_file_name = Path(work_dir) / f"{stub}-{page_idx}.png"  # noqa
+        # img_pil = cv_img if isinstance(cv_img, Image.Image) else Image.fromarray(cv_img)  # noqa
         # print("**** SAVING THE FILE ***")
         # img_pil.save(img_file_name)  # TODO
 
@@ -526,6 +529,18 @@ class TableEdgeFinderWand:
                 col_edges, col_img_xs = self.get_column_edges(
                     page_image_ctx, page.page_idx, crop_coords, conf
                 )
+                xmin, xmax = table_box.xmin, table_box.xmax
+                # Add some gutter
+                xmin, xmax = xmin - 0.05, xmax + 0.075
+
+                new_edges = []
+                for idx, c in enumerate(col_edges):
+                    if c.xmin < xmin or c.xmax > xmax:
+                        print(f"** DELETING EDGE {idx}")
+                    else:
+                        new_edges.append(c)
+
+                col_edges = new_edges
                 print("EXIT COLUMN EDGES")
 
             with WandImageContext(page.page_image) as page_image_ctx:

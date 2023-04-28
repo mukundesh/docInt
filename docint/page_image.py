@@ -261,15 +261,9 @@ class PageImage(BaseModel):
         new_image_path = Path(new_image_path)
         print(f"INSIDE update_image_path: {new_image_path}")
         if is_repo_path(self.image_path):
-            if is_repo_path(new_image_path):
-                self.image_path = new_image_path
-            else:
-                self.image_path = get_repo_path(new_image_path)
+            self.image_path = get_repo_path(new_image_path)
         else:
-            if is_repo_path(new_image_path):
-                self.image_path = get_full_path(new_image_path)
-            else:
-                self.image_path = new_image_path
+            self.image_path = new_image_path
 
         self.image_width, self.image_height = new_size
 

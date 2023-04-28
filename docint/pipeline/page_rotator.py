@@ -1,3 +1,4 @@
+import subprocess
 from collections import Counter
 from pathlib import Path
 
@@ -20,8 +21,8 @@ class RotatePage:
         self.skew_method = skew_method
         self.skew_cutoff = skew_cutoff
 
-    def rotate_image(self, image_path, angle):
-        angle_str = f"-s{angle}".replace(".", "_")
+    def wand_rotate_image(self, image_path, angle):
+        angle_str = f"-s{angle:.5}".replace(".", "_")
         new_image_path = image_path.parent / (image_path.stem + angle_str + image_path.suffix)
         print(new_image_path)
 
@@ -33,8 +34,22 @@ class RotatePage:
             new_size = (image.width, image.height)
         return new_image_path, new_size
 
+    def wand_cmdline_rotate_image(self, image_path, angle):
+        angle_str = f"-s{angle:.5}".replace(".", "_")
+        new_image_path = image_path.parent / (image_path.stem + angle_str + image_path.suffix)
+        print(new_image_path)
+
+        subprocess.check_call(
+            ["convert", image_path, "-rotate", str(angle), "+repage", new_image_path]
+        )
+
+        from PIL import Image as PILImage
+
+        new_size = PILImage.open(new_image_path).size
+        return new_image_path, new_size
+
     def pil_rotate_image(self, image_path, angle):
-        angle_str = f"-s{angle}".replace(".", "_")
+        angle_str = f"-s{angle:.5}".replace(".", "_")
         new_image_path = image_path.parent / (image_path.stem + angle_str + image_path.suffix)
         print(new_image_path)
 
@@ -62,7 +77,7 @@ class RotatePage:
             print(f"page_idx: {page.page_idx} Rotating Angle: {angle}")
             page_image_path = Path(page.page_image.get_image_path())
 
-            new_image_path, new_size = self.pil_rotate_image(page_image_path, angle)
+            new_image_path, new_size = self.wand_cmdline_rotate_image(page_image_path, angle)
 
             page.page_image.update_image_path(new_image_path, new_size)
 

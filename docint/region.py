@@ -9,7 +9,7 @@ from .word import Word
 
 class Region(BaseModel):
     word_idxs: List[int]
-    page_idx_: int
+    page_idx_: int = None
 
     words: List[Word] = None
     shape_: Box = None

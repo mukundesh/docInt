@@ -196,18 +196,20 @@ class TableBuilderOnEdges2:
         def is_header(row):
             cell_text = row[0].text.lower()
             row_text = "|".join(c.raw_text() for c in row.cells)
-            if cell_text.isascii() and (("s." in cell_text) or ("no." in cell_text)):
+            if cell_text.isascii() and (
+                ("s." in cell_text) or ("no." in cell_text) or ("sno" in cell_text)
+            ):
                 print(f"### {cell_text} True|{row_text}")
                 return True
 
-            header_str = "क्र|सं|क.|क ०|कम|कृ0स०|क .|क्र.स.|कृ ० स ०|क स ०"
+            header_str = "क्र|सं|क.|क ०|कम|कृ0स०|क .|क्र.स.|कृ ० स ०|क स ०|क्रस"
 
             # if (not cell_text.isascii()) and (('क्र' in cell_text) or ('सं' in cell_text) or ('क.' in cell_text) or ('क ०' in cell_text)):
             if (not cell_text.isascii()) and any(h in cell_text for h in header_str.split("|")):
                 print(f"### {cell_text} True |{row_text}")
                 return True
 
-            print(f"### {cell_text} False")
+            print(f"### >{cell_text}< False")
             return False
 
         row_edges, col_edges = table_edges.row_edges, table_edges.col_edges
