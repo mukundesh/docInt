@@ -4,7 +4,7 @@ from pathlib import Path
 
 from more_itertools import flatten
 
-from ..util import get_model_path
+from ..util import get_full_path, get_model_path, is_repo_path
 from ..vision import Vision
 
 MarathiNums = "१२३४५६७८९०.() "
@@ -66,6 +66,11 @@ class DocTranslatorAI4Bharat:
         self.stub = stub
         self.model_dir = Path(model_dir)
         self.model_name = model_name
+
+        if is_repo_path(self.model_dir):
+            self.model_dir = get_full_path(self.model_dir)
+        else:
+            self.model_dir = Path(self.model_dir)
 
         self.translations_file = self.conf_dir / translations_file
         self.indic2en_trans = self.load_translations()
