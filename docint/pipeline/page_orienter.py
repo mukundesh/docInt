@@ -88,7 +88,7 @@ class OrientPage:
         doc.add_extra_page_field("reoriented_angle", ("noparse", "", ""))
         for page in doc.pages:
             angle = self.calc_reorient_angle(page)
-            print(f"page_idx: {page.page_idx} Angle: {angle}")
+            # print(f"page_idx: {page.page_idx} Angle: {angle}")
             if angle != 0:
                 print(f"Orienting page_idx: {page.page_idx}")
                 self.orient_page(page, angle)

@@ -98,7 +98,7 @@ class DockerRunner:
 
         docker_lines.extend(docker_config.get("post_install_lines", []))
 
-        docker_lines.append("ENV PYTHONPATH .")
+        docker_lines.append('ENV PYTHONPATH="${PYTHONPATH}:."')
         docker_lines.append("WORKDIR /usr/src/app/task_")
         return "\n".join(docker_lines), reqs_txt
 
@@ -232,7 +232,7 @@ class DockerRunner:
 
         model_dir = ppln_dict["pipeline"][0]["config"].get("model_dir", "")
         if model_dir and is_repo_path(model_dir):
-            ppln_dict["pipeline"][0]["config"]["model_dir"] = f".model/{model_dir}"
+            ppln_dict["pipeline"][0]["config"]["model_dir"] = f".model{model_dir}"
 
         ppln_path.write_text(yaml.dump(ppln_dict))
         ppln_ctnr_path = Path("src") / "pipeline.yml"
@@ -281,7 +281,9 @@ class DockerRunner:
 
         mnts += ["-v", f"{str(self.docint_dir)}:{str(task_ctnr_dir / 'docint')}"]
 
-        # mnts += ["-v", f"{str(repo_dir / 'import' / 'models')}:{str(task_ctnr_dir / '.model')}"]
+        # mnts += ["-v", f"{str(repo_dir / 'import' / 'models')}:{str(task_ctnr_dir / '.model')}"] #old
+
+        # mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.model')}"]
         mnts += ["-v", f"/Users/mukund/Software/docInt/.model:{str(task_ctnr_dir / '.model')}"]
 
         # mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.img')}"]

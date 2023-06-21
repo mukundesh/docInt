@@ -1,6 +1,7 @@
 import inspect
 import os
 import random
+import statistics
 import string
 from pathlib import Path
 from subprocess import run
@@ -373,3 +374,10 @@ def add_model(model_name, model_root_dir):
 
 def mklist(lst):
     return lst if isinstance(list, lst) else [lst]
+
+
+def avg(iter, default):
+    try:
+        return statistics.mean(iter)
+    except statistics.StatisticsError:
+        return default

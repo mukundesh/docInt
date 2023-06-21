@@ -61,7 +61,7 @@ def build_embedded_page_image(
 
     extract_images(page.doc.pdf_path, image_root, page_num, image_format)
     if is_small_size(image_path, minimum_size):
-        return build_raster_page_image(page, pdf_page, image_dir_repo)
+        return build_raster_page_image(page, pdf_page, image_dir_repo, image_format)
     else:
         return PageImage(
             image_width=image_width,

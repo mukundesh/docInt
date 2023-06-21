@@ -1,15 +1,17 @@
+import functools
 import io
 import json
-import pathlib
+import statistics
 from pathlib import Path
 
-from more_itertools import first, flatten
+from more_itertools import first, flatten, partition
 
 from ..doc import Doc
 from ..page import Page
 from ..pdfwrapper import open as pdf_open
 from ..region import Region
 from ..shape import Box, Coord, Poly
+from ..util import avg
 from ..vision import Vision
 from ..word import BreakType, Word
 
@@ -33,7 +35,7 @@ _break_type_dict = {
 
 
 @Vision.factory(
-    "gcv_recognizer",
+    "gcv_recognizer2",
     depends=["google-cloud-vision", "google-cloud-storage"],
     is_recognizer=True,
     default_config={
@@ -44,11 +46,10 @@ _break_type_dict = {
         "overwrite_cloud": False,
         "check_stub_modified": "doc",  # this should be part of pipeline
         "process_page_image": False,
-        "read_lines": False,  # TODO REMOVE PLEASE
-        "compress_output": False,
+        "read_lines": False,
     },
 )
-class CloudVisionRecognizer:
+class CloudVisionRecognizer2:
     def __init__(
         self,
         bucket,
@@ -59,18 +60,16 @@ class CloudVisionRecognizer:
         check_stub_modified,
         process_page_image,
         read_lines,
-        compress_output,
     ):
 
         self.bucket_name = bucket
-        self.cloud_dir_path = pathlib.Path(cloud_dir_path)
-        self.output_dir_path = pathlib.Path(output_dir_path)
+        self.cloud_dir_path = Path(cloud_dir_path)
+        self.output_dir_path = Path(output_dir_path)
         self.output_stub = output_stub
         self.overwrite_cloud = overwrite_cloud
         self.check_stub_modified = check_stub_modified
         self.process_page_image = process_page_image
         self.read_lines = read_lines
-        self.compress_output = compress_output
 
     def build_word(self, doc, page_idx, word_idx, ocr_word, page_size):
         coords = []
@@ -139,26 +138,6 @@ class CloudVisionRecognizer:
             for ocr_page in ocr_pages:
                 yield ocr_page
 
-    def build_pages_old(self, doc, output_path):
-        def get_words(pg):
-            if pg:
-                return [w for b in pg["blocks"] for p in b["paragraphs"] for w in p["words"]]
-            else:
-                return []
-
-        for (page_idx, ocr_page) in enumerate(self.get_ocr_pages(output_path)):
-            ocr_words = get_words(ocr_page)
-
-            words = []
-            for (word_idx, ocr_word) in enumerate(ocr_words):
-                words.append(self.build_word(doc, page_idx, word_idx, ocr_word))
-
-            width, height = ocr_page.get("width", 0), ocr_page.get("height", 0)
-            page = Page(doc=doc, page_idx=page_idx, words=words, width_=width, height_=height)
-
-            doc.pages.append(page)
-        return doc
-
     def build_pages(self, doc, output_path):
         if not output_path:
             return doc
@@ -169,18 +148,8 @@ class CloudVisionRecognizer:
             else:
                 return []
 
-        def get_paragraphs(pg):
-            if not pg:
-                return []
-
-            word_idx, paragraphs = 0, []
-            for paragraph in [p for b in pg["blocks"] for p in b["paragraphs"]]:
-                word_idxs = []
-                for word in paragraph["words"]:
-                    word_idxs.append(word_idx)
-                    word_idx += 1
-                paragraphs.append(word_idxs)
-            return paragraphs
+        def is_small_word(word):
+            return word.box.height < mean_height * 0.4
 
         for (page_idx, ocr_page) in enumerate(self.get_ocr_pages(output_path)):
             ocr_words = get_words(ocr_page)
@@ -195,22 +164,18 @@ class CloudVisionRecognizer:
                 page.page_image.image_box = Box.from_bounding_box([0, 0, width, height])
                 page.page_image.image_type = "raster"  # TODO CHANGE THIS TO ROTATED
 
+            page_words = []
             for (word_idx, ocr_word) in enumerate(ocr_words):
-                page.words.append(self.build_word(doc, page_idx, word_idx, ocr_word, page_size))
+                page_words.append(self.build_word(doc, page_idx, word_idx, ocr_word, page_size))
 
-            if self.read_lines:
-                # did not work out at all, all the words were jumbled around..
-                page.lines = []
-                ocr_paragraphs = get_paragraphs(ocr_page)
-                print(f"#paragraphs: {len(ocr_paragraphs)}")
-                for ocr_para in ocr_paragraphs:
-                    words = [page.words[w_idx] for w_idx in ocr_para]
-                    line = Region.from_words(words)
-                    page.lines.append(line)
+            mean_height = avg((w.box.height for w in page_words), default=0.02)
+            keep_words, elim_words = partition(is_small_word, page_words)
 
-                    print(f"{line.raw_text()}")
-                    print()
-            # endif
+            for (idx, word) in enumerate(keep_words):
+                word.word_idx = idx
+                page.words.append(word)
+
+            print(f'Eliminate: >{"|".join(w.text for w in elim_words)}<')
         return doc
 
     def run_sync_gcv(self, doc, output_path):
@@ -260,7 +225,7 @@ class CloudVisionRecognizer:
                 content = tiff_in_mem.getvalue()
             else:
                 if image_path.stat().st_size > 41943040:
-                    print(f"*** FAILED {doc.pdf_name} image_size is more than 4MB")
+                    print("*** FAILED {doc.pdf_name}")
                     return None
 
                 with io.open(page.page_image.get_image_path(), "rb") as f:
@@ -315,7 +280,7 @@ class CloudVisionRecognizer:
         storage_client = storage.Client()
         bucket = storage_client.get_bucket(self.bucket_name)
 
-        cloud_input_path = self.cloud_dir_path / "input" / pathlib.Path(doc.pdf_name)
+        cloud_input_path = self.cloud_dir_path / "input" / Path(doc.pdf_name)
         input_blob = bucket.blob(str(cloud_input_path))
         if not input_blob.exists():
             input_blob.upload_from_filename(doc.pdf_path, content_type=mime_type)

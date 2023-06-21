@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 
 from ..data_error import DataError
-from ..shape import Box, Coord
-from ..table import Cell, Row, Table
+from ..shape import Box, Coord, Edge
+from ..table import Cell, Row, Table, TableEdges
 from ..util import load_config
 from ..vision import Vision
 
@@ -78,8 +78,8 @@ class PDFTableFinder:
         self.lgr.removeHandler(self.file_handler)
         self.file_handler = None
 
-    def words_inxyrange(self, words, box, overlap_percent=80):
-        words = [w for w in words if w.shape.overlaps(box, overlap_percent)]
+    def words_inxyrange(self, words, box, overlap_percent=70):
+        words = [w for w in words if w.box.overlaps(box, overlap_percent)]
         return words
 
     def is_skip_row(self, pdf_row):
@@ -117,6 +117,20 @@ class PDFTableFinder:
         [self.lgr.debug(str(error)) for error in errors]
         return errors
 
+    def build_table_edges(self, page, pdftable_edges):
+        row_edges, col_edges = [], []
+        for e in pdftable_edges:
+            if e["orientation"] == "h":
+                c1 = Coord(x=e["x0"] / page.width, y=e["y0"] / page.height)
+                c2 = Coord(x=e["x1"] / page.width, y=e["y1"] / page.height)
+                row_edges.append(Edge.build_h_oncoords(c1, c2))
+            else:
+                c1 = Coord(x=e["x0"] / page.width, y=e["y0"] / page.height)
+                c2 = Coord(x=e["x1"] / page.width, y=e["y1"] / page.height)
+                col_edges.append(Edge.build_v_oncoords(c1, c2))
+
+        return TableEdges(row_edges=row_edges, col_edges=col_edges, col_img_xs=[])
+
     def __call__(self, doc):
         import pdfplumber
 
@@ -138,10 +152,14 @@ class PDFTableFinder:
 
         doc.add_extra_page_field("tables", ("list", "docint.table", "Table"))
         doc.add_extra_page_field("heading", ("obj", "docint.region", "Region"))
+        doc.add_extra_page_field("table_edges_list", ("list", __name__, "TableEdges"))
 
         for (page_idx, (page, pdf_page)) in enumerate(zip(doc.pages, pdf.pages)):
             pdf_page = pdf_page.dedupe_chars(tolerance=1)
+
             table_finder = pdf_page.debug_tablefinder(self.pdfplumber_config)
+            pdf_table_edges = table_finder.edges
+            page.table_edges_list = [self.build_table_edges(page, pdf_table_edges)]
 
             tables = []
             pdf_size = (pdf_page.width, pdf_page.height)
@@ -181,7 +199,7 @@ class PDFTableFinder:
                 tables.append(Table.build(body_rows, header_rows))
             page.tables = tables
 
-            if page_idx == 0:
+            if page_idx == 0 and self.heading_offset:
                 offset = self.heading_offset / page.height
                 page.heading = page.words_to("above", tables[0], offset)
                 heading_str = " ".join([w.text for w in page.heading.words])

@@ -3,6 +3,7 @@ from .body_marker import FindBodyMarker
 from .do_nothing import DoNothing
 
 from .gcv_recognizer import CloudVisionRecognizer
+from .gcv_recognizer2 import CloudVisionRecognizer2
 
 from .html_gen import HtmlGenerator
 from .svg_gen import SVGGenerator
@@ -48,3 +49,4 @@ from .table_builder_edges2 import TableBuilderOnEdges2
 from .org_meta_writer import OrgMetaWriter
 from .page_rotator import RotatePage
 from .ascii_converter import AsciiConverter
+from .doc_translator_a4b import DocTranslatorAI4Bharat

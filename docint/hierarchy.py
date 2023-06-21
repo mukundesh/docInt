@@ -105,11 +105,12 @@ class HierarchyNode:
         # Ignoring options like word_boundary
         all_spans = []
         for name in self.get_all_names(match_options):
+            lgr.debug(f"\t\tMatching level:{self.level} >{name}<")
             spans = list(iter_spans(name, text))
             if spans:
                 all_spans.extend(spans)
                 if self._debug:
-                    lgr.debug(f"\t\tMatching level:{self.level} >{name}<*")
+                    lgr.debug(f"\t\tMatching level:{self.level} >{name}< [{len(spans)}]********")
             # else:
             #     if self._debug:
             #         lgr.debug(f'\t\tMatching level:{self.level} >{name}<')
@@ -148,10 +149,10 @@ class HierarchyNode:
 
     def rec_find_match(self, text, match_options):
         def print_groups(span_groups):
-            print(f'>{self.name}< {[len(span_groups)]} {"|".join(str(sg) for sg in span_groups)}')
+            return f'>{self.name}< {[len(span_groups)]} {"|".join(str(sg) for sg in span_groups)}'
             # print(fn'{text} [{len(span_groups)}]')
 
-        # lgr.debug(f"\trec_find_match:{self.name}")
+        lgr.debug(f"\trec_find_match:{self.name}")
 
         span_groups = []  # child span_groups
         for child in self.children:
@@ -192,9 +193,9 @@ class HierarchyNode:
         elif spans:
             if not match_options.allow_overlap:
                 # if not Span.is_non_overlapping(spans):
-                #    import pdb
-                #    pdb.set_trace()
-                assert Span.is_non_overlapping(spans), f"{text} {print_groups([])}"
+                # import pdb
+                # pdb.set_trace()
+                assert Span.is_non_overlapping(spans), f"{text} {print_groups(spans)}"
             hier_spans = [HierarchySpan.build(self, span) for span in spans]
             span_groups = [HierarchySpanGroup.build(text, h) for h in hier_spans]
             lgr.debug(f"\t#Creating {len(span_groups)} new span_groups")
@@ -522,6 +523,7 @@ class Hierarchy:
 
         # self.record(text, span_groups)
         # return HierarchySpanGroup.select_non_overlapping(span_groups)
+        # print(f'Num span groups: {len(span_groups)}')
 
         return HierarchySpanGroup.select(span_groups, match_options.select_strategy)
 

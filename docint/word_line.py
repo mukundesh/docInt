@@ -6,6 +6,7 @@ from operator import attrgetter
 from typing import List, Union
 
 from .region import Region
+from .util import avg
 
 lgr = logging.getLogger(__name__)
 
@@ -272,7 +273,7 @@ def words_in_lines(
     num_words = sum([len(wl) for wl in word_lines])
     assert len(region.words) == num_words
 
-    # print_word_lines(word_lines)
+    print_word_lines(word_lines)
     return word_lines
 
 
@@ -284,9 +285,12 @@ def words_in_lines(
 # hopefully smaller and simpler method.
 
 
-def words_in_lines_short(words, cutoff_thous=5):
+def words_in_lines_short(words, cutoff_thous=5, newline_height_multiple=1.6):
     if not words:
         return []
+
+    avg_height = avg((w.box.height for w in words), default=0.0)
+    y_change_max = avg_height * newline_height_multiple
 
     word_lines = [[]]
     words = sorted(words, key=attrgetter("ymid"))
@@ -294,8 +298,11 @@ def words_in_lines_short(words, cutoff_thous=5):
 
     for word in words:
         last_ymid = word_lines[-1][-1].ymid
+        y_change = word.ymid - last_ymid
 
-        if (word.ymid - last_ymid) * 1000 > cutoff_thous:
+        if y_change * 1000 > cutoff_thous:
+            if y_change > y_change_max:
+                word_lines.append([])
             word_lines.append([word])
         else:
             word_lines[-1].append(word)

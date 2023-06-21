@@ -10,4 +10,5 @@ class OrgMeta(BaseModel):
     cadre: str
     order_type: str
     website: str = ""
+    file_name: str
     # is_multi_order: bool = False

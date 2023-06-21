@@ -14,6 +14,7 @@ class BreakType(IntEnum):
     Eol_sure_space = 3  # line wrapping break
     Hyphen = 4  # end line hyphen that is not in text
     Line_break = 5  # line break that ends paragraph
+    Not_present = 6  # there is no detectedBreak
 
 
 break_type_str = {
@@ -23,6 +24,7 @@ break_type_str = {
     BreakType.Eol_sure_space: " ",
     BreakType.Hyphen: " ",
     BreakType.Line_break: "\n",
+    BreakType.Not_present: "",
 }
 
 
@@ -62,7 +64,16 @@ class Word(BaseModel):
 
     @property
     def text_with_ws(self):
-        return self.text_ + break_type_str[self.break_type]
+        break_str = break_type_str[self.break_type]
+        return self.text_ + break_str
+
+    def text_with_break(self, ignore_line_break=False):
+        if ignore_line_break and self.break_type == BreakType.Line_break:
+            break_str = " "
+        else:
+            break_str = break_type_str[self.break_type]
+
+        return self.text_ + break_str
 
     @property
     def shape(self):

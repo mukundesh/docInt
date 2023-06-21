@@ -69,6 +69,14 @@ class Cell(Para):
             page_idx_=page_idx,
         )
 
+    def text_with_break(self):
+        arr_words = self.arranged_words(self.words)
+        cell_text = "".join(w.text_with_break(ignore_line_break=True) for w in arr_words)
+        return cell_text.strip()
+
+    def split_cell(self):
+        pass
+
 
 class Row(Region):
     cells: List[Cell]
@@ -133,6 +141,10 @@ class Row(Region):
     def delete_cells(self, idxs):
         self.cells = [c for (idx, c) in enumerate(self.cells) if idx not in idxs]
 
+    def get_markdown(self):
+        r = "|".join(c.text_with_break() for c in self.cells)
+        return f"|{r}|"
+
 
 class TableEdges(BaseModel):
     row_edges: List[Edge]
@@ -157,6 +169,13 @@ class TableEdges(BaseModel):
         self.col_edges += [Edge.build_h(x, y1, x, y2) for x in xs]
         self.col_edges.sort(key=attrgetter("xmin"))
 
+    def rm_row_edges_atidxs(self, rm_idxs):
+        rm_idxs = [idx if idx >= 0 else len(self.row_edges) + idx for idx in rm_idxs]
+        self.row_edges = [e for (idx, e) in enumerate(self.row_edges) if idx not in rm_idxs]
+
+    def rm_col_edges_atidxs(self, rm_idxs):
+        self.col_edges = [e for (idx, e) in enumerate(self.col_edges) if idx not in rm_idxs]
+
 
 class Table(Region):
     header_rows: List[Row]
@@ -169,6 +188,10 @@ class Table(Region):
         words += [w for row in header_rows for w in row.words]
         word_idxs = [w.word_idx for w in words]
         page_idx = words[0].page_idx if words else None
+
+        num_cols = len(body_rows[0].cells) if body_rows else 0
+        print(f"INSIDE: num_rows: {len(body_rows)} num_cols: {num_cols}")
+
         return Table(
             words=words,
             body_rows=body_rows,
@@ -210,9 +233,14 @@ class Table(Region):
         return [r[idx] for r in all_rows]
 
     def delete_columns(self, idxs):
+        print("INSIDE: deleting columns")
         idxs = idxs if isinstance(idxs, list) else [idxs]
         for row in self.header_rows + self.body_rows:
             row.delete_cells(idxs)
+
+    @property
+    def all_rows(self):
+        return self.header_rows + self.body_rows
 
     def get_regions(self):
         all_rows = self.body_rows + self.header_rows

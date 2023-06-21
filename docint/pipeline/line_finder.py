@@ -7,7 +7,7 @@ from ..page import Page
 from ..region import Region
 from ..util import load_config
 from ..vision import Vision
-from ..word_line import words_in_lines
+from ..word_line import words_in_lines, words_in_lines_short
 
 
 @Vision.factory(
@@ -25,6 +25,7 @@ from ..word_line import words_in_lines
         "conf_stub": "linefinder",
         "keep_empty_lines": False,
         "output_dir": "output",
+        "quick": False,
     },
 )
 class LineFinder:
@@ -37,6 +38,7 @@ class LineFinder:
         conf_stub,
         keep_empty_lines,
         output_dir,
+        quick,
     ):
         self.doc_confdir = doc_confdir
         self.pre_edit = pre_edit
@@ -45,6 +47,7 @@ class LineFinder:
         self.conf_stub = conf_stub
         self.keep_empty_lines = keep_empty_lines
         self.output_dir = Path(output_dir)
+        self.quick = quick
 
         self.lgr = logging.getLogger(f"docint.pipeline.{self.conf_stub}")
         self.lgr.setLevel(logging.DEBUG)
@@ -86,7 +89,12 @@ class LineFinder:
             )
             return page_word_lines
         else:
-            return words_in_lines(page, newline_height_multiple=newline_height_multiple)
+            if self.quick:
+                return words_in_lines_short(
+                    page.words, newline_height_multiple=newline_height_multiple
+                )
+            else:
+                return words_in_lines(page, newline_height_multiple=newline_height_multiple)
 
     def load_config(self, doc):
         doc_config = load_config(self.doc_confdir, doc.pdf_name, self.conf_stub)
@@ -127,8 +135,7 @@ class LineFinder:
         return self.newline_height_multiple
 
     def __call__(self, doc):
-        self.add_log_handler(doc)
-        self.lgr.info(f"line_finder: {doc.pdf_name}")
+
         cfg = self.load_config(doc)
 
         edits = cfg.get("edits", [])
@@ -149,9 +156,9 @@ class LineFinder:
                 ]
 
             self.teardown_config()
-            self.remove_log_handler(doc)
             return doc
 
+        self.add_log_handler(doc)
         for page in doc.pages:
             angle = self.get_page_angle(page, cfg)
             newline_height_multiple = self.get_newline_height_multiple(page, cfg)
@@ -163,6 +170,10 @@ class LineFinder:
                     Region.from_words(wl) if wl else Region.no_words(page.page_idx)
                     for wl in word_lines
                 ]
+
+            # write lines to log file
+            for line_idx, line in enumerate(page.lines):
+                self.lgr.debug(f"{page.page_idx}:{line_idx} {line.text_with_break()}")
             page.page_rota_angle = angle
 
         line_word_idxs = []

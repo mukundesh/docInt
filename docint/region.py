@@ -130,6 +130,9 @@ class Region(BaseModel):
         word_texts = [w.text for w in self.words if w]
         return " ".join(word_texts)
 
+    def text_with_break(self):
+        return "".join(w.text_with_break(ignore_line_break=True) for w in self.words)
+
     def arranged_words(self, words, cutoff_thous=5):
         def centroid(line):
             return line[-1].ymid
@@ -166,6 +169,10 @@ class Region(BaseModel):
         if self.shape_ is None:
             self.shape_ = Shape.build_box([w.box for w in self.words])
         return self.shape_
+
+    @property
+    def box(self):
+        return self.shape.box
 
     @property
     def xmin(self):

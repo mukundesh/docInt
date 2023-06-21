@@ -88,6 +88,15 @@ class Page(ABC):
 
         return len(self.images) == 1 and area(self.images[0]) >= 0.9 * area(self)
 
+    @property
+    def has_large_image(self, area_percent=90):
+        def area(obj):
+            return obj.width * obj.height
+
+        page_area_cutoff = area(self) * area_percent / 100.0
+
+        return any(img for img in self.images if area(img) >= page_area_cutoff)
+
     @abstractmethod
     def page_image_to_pil(self, *, dpi=None):
         raise NotImplementedError("implement width")

@@ -43,6 +43,9 @@ def build_polygon(coords, page, sort_coords=True):
         "doc_confdir": "conf",
         "conf_stub": "table_builder_on_edges",
         "delete_empty_columns": True,
+        "heading_offset": 0,
+        "add_top_row": True,
+        "add_bot_row": True,
     },
 )
 class TableBuilderOnEdges2:
@@ -51,18 +54,24 @@ class TableBuilderOnEdges2:
         doc_confdir,
         conf_stub,
         delete_empty_columns,
+        heading_offset,
+        add_top_row,
+        add_bot_row,
     ):
         self.doc_confdir = doc_confdir
         self.conf_stub = conf_stub
         self.delete_empty_columns = delete_empty_columns
         self.output_dir = Path("output")
+        self.heading_offset = heading_offset
+        self.add_top_row = add_top_row
+        self.add_bot_row = add_bot_row
 
         self.punc_tbl = str.maketrans(string.punctuation, " " * len(string.punctuation))
         self.lgr = logging.getLogger(f"docint.pipeline.{self.conf_stub}")
         self.lgr.setLevel(logging.DEBUG)
 
         stream_handler = logging.StreamHandler(sys.stdout)
-        stream_handler.setLevel(logging.DEBUG)
+        stream_handler.setLevel(logging.INFO)
         self.lgr.addHandler(stream_handler)
         self.file_handler = None
 
@@ -181,7 +190,7 @@ class TableBuilderOnEdges2:
             else:
                 w_line = w_polygon  # word shape is a line
                 i_line = polygon.intersection(w_line)
-                return i_line.length / w_line.length > 0.5
+                return i_line.length / w_line.length > 0.5 if w_line.length else True
 
         def get_col_gap(loc):
             if loc == "top":
@@ -202,7 +211,7 @@ class TableBuilderOnEdges2:
                 print(f"### {cell_text} True|{row_text}")
                 return True
 
-            header_str = "क्र|सं|क.|क ०|कम|कृ0स०|क .|क्र.स.|कृ ० स ०|क स ०|क्रस"
+            header_str = "क्र|सं|क.|क ०|कम|कृ0स०|क .|क्र.स.|कृ ० स ०|क स ०|क्रस|वा . स ."
 
             # if (not cell_text.isascii()) and (('क्र' in cell_text) or ('सं' in cell_text) or ('क.' in cell_text) or ('क ०' in cell_text)):
             if (not cell_text.isascii()) and any(h in cell_text for h in header_str.split("|")):
@@ -216,15 +225,17 @@ class TableBuilderOnEdges2:
         if len(row_edges) < 2:
             return None
 
+        print(f"Num Rows: {len(row_edges) - 1} Num Cols: {len(col_edges) - 1}")
+
         avg_row_ht = mean((r2.ymin - r1.ymin for (r1, r2) in pairwise(row_edges)))
         c_ymin, c_ymax = min(c.ymin for c in col_edges), max(c.ymax for c in col_edges)
 
-        if get_col_gap("top") > (avg_row_ht * 0.6):
+        if (get_col_gap("top") > (avg_row_ht * 0.6)) and self.add_top_row:
             top_row_edge = Edge.build_h_oncoords(Coord(x=0.0, y=c_ymin), Coord(x=1.0, y=c_ymin))
             row_edges = [top_row_edge] + row_edges
             print("*** Adding top row")
 
-        if get_col_gap("bot") > (avg_row_ht * 0.6):
+        if get_col_gap("bot") > (avg_row_ht * 0.6) and self.add_bot_row:
             bot_row_edge = Edge.build_h_oncoords(Coord(x=0.0, y=c_ymax), Coord(x=1.0, y=c_ymax))
             row_edges.append(bot_row_edge)
             print("*** Adding bot row")
@@ -263,7 +274,7 @@ class TableBuilderOnEdges2:
 
             remain_table_words += remain_row_words
             row = Row.build2(cells, page_idx)
-            if len(row.words) < 3:
+            if len([w for w in row.words if w.text]) < 3:
                 remain_row_words += row.words  # CHECK this..
                 continue
 
@@ -274,17 +285,30 @@ class TableBuilderOnEdges2:
 
             row_text = "|".join(c.raw_text() for c in row.cells)
             self.lgr.debug(f"{page_idx}>{table_idx}:{row_idx} {len(cells)}|{row_text}")
+
         table = Table.build(body_rows, header_rows=header_rows)
 
         # Remove empty column
+        num_rows = len(body_rows)
         if self.delete_empty_columns:
             empty_idxs = []
             for idx in range(len(col_edges) - 1):
-                num_col_words = sum(len(c.words) for c in table.get_column_cells(idx))
-                if num_col_words <= 2:
+                num_words = len([c for c in table.get_column_cells(idx) for w in c.words if w.text])
+                # num_col_words = sum(len(c.words) for c in table.get_column_cells(idx))
+                if (num_rows > 2) and num_words <= 1:  # TODO
                     empty_idxs.append(idx)
             print(f"DELETING COLUMNS: {empty_idxs}")
             table.delete_columns(empty_idxs)
+            table_edges.rm_col_edges_atidxs(empty_idxs)
+
+        if page_idx == 0 and self.heading_offset:
+            offset = self.heading_offset / page.height
+            page.heading = page.words_to("above", table, offset)
+            heading_str = " ".join([w.text for w in page.heading.words])
+            # regSearchInText 'addl[\. ]*s[\.]?p[\.]?' 'dy[\. ]*s[\.]?p[\.]?'
+            self.lgr.debug(f"Heading {offset}: {heading_str}")
+            # print(f'Heading {offset}: {heading_str}')
+
         return table
 
     def build_table2(self, page, table_edges, table_idx):
@@ -357,12 +381,15 @@ class TableBuilderOnEdges2:
                 json.dumps({"table_edges_infos": table_edges_infos}, default=pydantic_encoder)
             )
         else:
-            assert json_path.exists(), f"edges files is not present {json_path}"
             doc.add_extra_page_field("table_edges_list", ("list", __name__, "TableEdges"))
-            json_dict = json.loads(json_path.read_text())
-            for (page, jd_table_edges_list) in zip(doc.pages, json_dict["table_edges_infos"]):
-                page.table_edges_list = [TableEdges(**d) for d in jd_table_edges_list]
-        # end
+            if not any(page for page in doc.pages if page.table_boxes):
+                for page in doc.pages:
+                    page.table_edges_list = []
+            else:
+                assert json_path.exists(), f"edges files is not present {json_path}"
+                json_dict = json.loads(json_path.read_text())
+                for (page, jd_table_edges_list) in zip(doc.pages, json_dict["table_edges_infos"]):
+                    page.table_edges_list = [TableEdges(**d) for d in jd_table_edges_list]
 
     def build_tables(self, page, table_edges_list):
         tables = []
@@ -383,6 +410,7 @@ class TableBuilderOnEdges2:
         self.process_table_edges(doc)
 
         doc.add_extra_page_field("tables", ("list", "docint.table", "Table"))
+        doc.add_extra_page_field("heading", ("obj", "docint.region", "Region"))
 
         json_path = self.output_dir / f"{doc.pdf_name}.{self.conf_stub}.json"
         # if json_path.exists():
@@ -403,15 +431,32 @@ class TableBuilderOnEdges2:
         self.delete_empty_columns = doc_config.get(
             "delete_empty_columns", self.delete_empty_columns
         )
+        old_add_top_row, old_add_bot_row = self.add_top_row, self.add_bot_row
+        self.add_top_row = doc_config.get("add_top_row", self.add_top_row)
+        self.add_bot_row = doc_config.get("add_top_row", self.add_bot_row)
 
         table_configs = doc_config.get("table_configs", [])
         for table_config in table_configs:
             page_idx, table_idx = table_config["page_idx"], table_config["table_idx"]
             table_edges = doc[page_idx].table_edges_list[table_idx]
 
+            rm_idxs = table_config.get("rm_column_atidxs", [])
+            table_edges.rm_col_edges_atidxs(rm_idxs)
+
+            rm_idxs = table_config.get("rm_row_atidxs", [])
+            table_edges.rm_row_edges_atidxs(rm_idxs)
+
             xs = table_config.get("add_column_atpos", [])
             xs = [x / doc[page_idx].page_image.image_width for x in xs]
             table_edges.add_col_edges(xs)
+
+            ys = table_config.get("add_row_atpos", [])
+            ys = [y / doc[page_idx].page_image.image_height for y in ys]
+            table_edges.add_row_edges(ys)
+
+            idxs = table_config.get("add_row_atwordidxs", [])
+            idxs_ys = [doc[page_idx].words[idx].ymin for idx in idxs]
+            table_edges.add_row_edges(idxs_ys)
 
         total_tables, errors = 0, []
         for page in doc.pages:
@@ -437,6 +482,9 @@ class TableBuilderOnEdges2:
         json_path.write_text(json.dumps({"table_infos": table_infos}, default=pydantic_encoder))
 
         self.delete_empty_columns = old_delete_empty_columns
+
+        self.add_top_row, self.add_bot_row = old_add_top_row, old_add_bot_row
+
         self.remove_log_handler(doc)
         return doc
 

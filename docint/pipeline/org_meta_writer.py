@@ -131,7 +131,6 @@ class OrgMetaWriter:
         language, languages = get_language(doc)
 
         # multi_order = is_multi_order(doc, languages)
-
         doc.org_meta = OrgMeta(
             is_text=is_text(doc, doc_path),
             language=language,
@@ -139,6 +138,7 @@ class OrgMetaWriter:
             cadre=cadre,
             order_type=order_type,
             website=website,
+            file_name=doc_path.name,
         )
         # is_multi_order=multi_order)
         return doc

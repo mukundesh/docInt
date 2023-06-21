@@ -24,9 +24,7 @@ class AsciiConverter:
                     print(f"Path: {path} Failed: {err.msg}")
                 else:
                     new_text = new_text.replace("'", "")
-                    print(f"Replacing {word.text} -> {new_text}")
                     edits.append(f"replaceStr {path} <all> '{new_text}'")
-        print("\n".join(edits))
         print(f"Replaced text in {len(edits)} words")
         doc.edit(edits)
         return doc

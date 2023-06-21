@@ -1,5 +1,6 @@
 import copy
 import math
+from pathlib import Path
 
 from .. import pdfwrapper
 from ..page import Page
@@ -61,12 +62,14 @@ def rotate_words_inpage(page):
     default_config={
         "x_tol": 1,
         "y_tol": 1,
+        "output_dir_path": "output",
     },
 )
 class PDFReader:
-    def __init__(self, x_tol, y_tol):
+    def __init__(self, x_tol, y_tol, output_dir_path):
         self.x_tol = x_tol
         self.y_tol = y_tol
+        self.output_dir_path = Path(output_dir_path)
 
     def __call__(self, doc):
         def to_doc_coords(bbox, page):
@@ -106,5 +109,8 @@ class PDFReader:
         pdf = pdfwrapper.open(doc.pdf_path)
         for page, pdf_page in zip(doc.pages, pdf.pages):
             page.words = [build_word(w, idx, page) for (idx, w) in enumerate(pdf_page.words)]
+
+        doc_path = self.output_dir_path / f"{doc.pdf_name}.doc.json"
+        doc.to_disk(doc_path)
 
         return doc

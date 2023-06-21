@@ -233,6 +233,11 @@ class Box(Shape):
         else:
             return (top < ymin < bot) and (top < ymax < bot)
 
+    def subsumes(self, small_box):
+        return (self.xmin <= small_box.xmin <= small_box.xmax <= self.xmax) and (
+            self.ymin <= small_box.ymin <= small_box.ymax <= self.ymax
+        )
+
     def get_expand_box(self, percent=5):
         top = self.top.move_left(percent).move_up(percent)
         bot = self.bot.move_right(percent).move_down(percent)

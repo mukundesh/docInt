@@ -268,6 +268,11 @@ class TableEdgeFinderWand:
                 # edge_lengths.append(max_idx - min_idx)
 
                 edge_lengths.append(int(sum(edgeIdentity)))
+
+            if len(edge_lengths) < 2:
+                print("Not enough edges found")
+                return one_ranges
+
             max_gap, length_cutoff = max(
                 ((l2 - l1), l1) for (l1, l2) in pairwise(sorted(edge_lengths))
             )

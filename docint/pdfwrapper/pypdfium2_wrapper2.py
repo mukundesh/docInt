@@ -1,5 +1,6 @@
 import ctypes
 import re
+from collections import Counter
 from pathlib import Path
 
 import PIL.Image
@@ -8,6 +9,7 @@ import pypdfium2 as pdfium
 from docint.pdfwrapper import pdf
 
 DEFAULT_DPI = 72
+MaxFontNameLength = 255
 
 COLORSPACE_FAMILY = {
     0: "FPDF_COLORSPACE_UNKNOWN",
@@ -44,9 +46,10 @@ class Char(pdf.Char):
 
 
 class Word(pdf.Word):
-    def __init__(self, text, rect):
+    def __init__(self, text, rect, font_name):
         self._text = text
         self._rect = rect
+        self._font_name = font_name
 
     @property
     def text(self):
@@ -55,6 +58,18 @@ class Word(pdf.Word):
     @property
     def bounding_box(self):
         return self._rect
+
+    @property
+    def font_name(self):
+        return self._font_name
+
+    @property
+    def is_bold(self):
+        return "bold" in self._font_name.lower()
+
+    @property
+    def is_italics(self):
+        return "italics" in self._font_name.lower()
 
 
 class Image(pdf.Image):
@@ -173,13 +188,26 @@ class Image(pdf.Image):
         return filters
 
 
+class Line:
+    def __init__(self, rect):
+        self._rect = rect
+
+    def is_vertical(self):
+        pass
+
+    def is_horizontal(self):
+        pass
+
+
 class Page(pdf.Page):
     def __init__(self, page, page_idx):
         self.lib_page = page
         self.page_idx = page_idx
         self._words = None
         self._chars = None
-        self._images = None
+        self._lines = None
+        img_type = pdfium.FPDF_PAGEOBJ_IMAGE
+        self._images = [Image(o, self) for o in self.lib_page.get_objects() if o.type == img_type]
 
     def extract_text_old(self, lib_textpage):
         left = top = 0
@@ -200,6 +228,51 @@ class Page(pdf.Page):
     def extract_text(self, lib_textpage):
         return lib_textpage.get_text_range()
 
+    def build_lines(self, lib_page):
+        def get_bounds(pdf_path):
+            l, b, r, t = (  # noqa
+                ctypes.c_float(),
+                ctypes.c_float(),
+                ctypes.c_float(),
+                ctypes.c_float(),
+            )  # noqa
+            success = pdfium.FPDFPageObj_GetBounds(pdf_path.raw, l, b, r, t)  # noqa
+
+            stroke_width = ctypes.c_float()
+            pdfium.FPDFPageObj_GetStrokeWidth(pdf_path.raw, stroke_width)
+
+            num_segs = pdfium.FPDFPath_CountSegments(pdf_path.raw)
+
+            fillmode, stroke = ctypes.c_int(), ctypes.c_int()
+            draw_mode = pdfium.FPDFPath_GetDrawMode(pdf_path.raw, fillmode, stroke)
+
+            print(
+                f"{l.value:.2f},{b.value:.2f} {r.value:.2f},{t.value:.2f} w: {stroke_width.value} segs: {num_segs} mode: {draw_mode} stroke: {stroke}"
+            )
+
+            for seg_idx in range(num_segs):
+                seg_handle = pdfium.FPDFPath_GetPathSegment(pdf_path.raw, seg_idx)
+
+                seg_x, seg_y = ctypes.c_float(), ctypes.c_float()
+                pdfium.FPDFPathSegment_GetPoint(seg_handle, seg_x, seg_y)
+
+                seg_type = pdfium.FPDFPathSegment_GetType(seg_handle)
+                close_flag = pdfium.FPDFPathSegment_GetClose(seg_handle)
+
+                print(
+                    f"\t {seg_idx}: x:{seg_x.value:.2f} y:{seg_y.value:.2f} t:{seg_type} c:{close_flag}"
+                )
+            print()
+
+            return [l.value, b.value, r.value, t.value]
+
+        pdf_path_type = pdfium.FPDF_PAGEOBJ_PATH
+        pdf_paths = [o for o in lib_page.get_objects() if o.type == pdf_path_type]
+
+        bounds = [get_bounds(p) for p in pdf_paths]
+        lines = [Line(b) for b in bounds]
+        return lines
+
     def build_words(self, lib_textpage):
         def get_char(char_idx):
             buffer = ctypes.create_string_buffer(2 + 1)
@@ -210,6 +283,24 @@ class Page(pdf.Page):
 
         def get_chars(char_start, char_end):
             return "-".join(get_char(c) for c in range(char_start, char_end))
+
+        def get_font_name_at_charidx(char_idx):
+            buffer = ctypes.create_string_buffer(MaxFontNameLength + 1)
+            buffer_ptr = ctypes.cast(buffer, ctypes.POINTER(ctypes.c_ushort))
+            flags = ctypes.c_int()
+
+            font_len = pdfium.FPDFText_GetFontInfo(
+                lib_textpage.raw, char_idx, buffer_ptr, MaxFontNameLength, flags
+            )
+            if font_len > MaxFontNameLength:
+                return None
+            else:
+                return buffer.raw.decode("utf-8", errors="ignore")[: font_len - 1]
+
+        def get_font_name(char_start, char_end):
+            font_names = [get_font_name_at_charidx(idx) for idx in range(char_start, char_end)]
+            names_ctr = Counter(font_names)
+            return max(names_ctr, key=names_ctr.get)
 
         def to_str(rects):
             return "|".join(",".join(f"{c:.1f}" for c in rect) for rect in rects)
@@ -276,7 +367,9 @@ class Page(pdf.Page):
                 bottom, x1 = x1, bottom
             else:
                 bottom, top = self.height - y0, self.height - y1
-            words.append(Word(text, (x0, top, x1, bottom)))
+
+            font_name = get_font_name(s_index, e_index)
+            words.append(Word(text, (x0, top, x1, bottom), font_name))
         return words
 
     def build_chars(self, lib_textpage):
@@ -322,10 +415,13 @@ class Page(pdf.Page):
 
     @property
     def images(self):
-        if self._images is None:
-            img_t = pdfium.FPDF_PAGEOBJ_IMAGE
-            self._images = [Image(o, self) for o in self.lib_page.get_objects() if o.type == img_t]
         return self._images
+
+    @property
+    def lines(self):
+        if self._lines is None:
+            self._lines = self.build_lines(self.lib_page)
+        return self._lines
 
     @property
     def rotation(self):
@@ -333,8 +429,8 @@ class Page(pdf.Page):
 
     def page_image_to_pil(self, *, dpi=None):
         dpi = DEFAULT_DPI if dpi is None else dpi
-        h_dpi = max((i.horizontal_dpi for i in self.images), default=dpi)
-        v_dpi = max((i.vertical_dpi for i in self.images), default=dpi)
+        h_dpi = max((i.horizontal_dpi for i in self._images), default=dpi)
+        v_dpi = max((i.vertical_dpi for i in self._images), default=dpi)
         max_dpi = max(h_dpi, v_dpi)
         return self.lib_page.render_to(pdfium.BitmapConv.pil_image, scale=max_dpi / 72.0)
 
@@ -355,17 +451,11 @@ class PDF(pdf.PDF):
             raise NotImplementedError("Incorrect input {type(file_or_buffer)}")
 
         self.lib_pdf = pdfium.PdfDocument(pdf_path)
-        self._pages = None
+        self._pages = [Page(p, idx) for idx, p in enumerate(self.lib_pdf)]
 
     @property
     def pages(self):
-        if self._pages is None:
-            self._pages = [Page(p, idx) for idx, p in enumerate(self.lib_pdf)]
         return self._pages
-
-    def num_pages(self):
-        # TODO can we get the numbers directly as well.
-        return len(self.pages)
 
     def del_page(self, page_idx):
         self.lib_pdf.del_page(page_idx)
@@ -385,3 +475,34 @@ class PDF(pdf.PDF):
 #         non_ascii, num = '',0
 #         print(f'FAILED - {self.page_idx}[{s_index}:{e_index}] Multiple rects {len(rects)} >{text}< >{merged_text}< >{non_ascii}< ={num}= {to_texts(rects)}')
 # #assert len(rects) == 1, f'Multiple rects {len(rects)} >{text}< {to_texts(rects)}'
+
+
+"""
+// Experimental API.
+// Function: FPDFText_GetFontInfo
+//          Get the font name and flags of a particular character.
+// Parameters:
+//          text_page - Handle to a text page information structure.
+//                      Returned by FPDFText_LoadPage function.
+//          index     - Zero-based index of the character.
+//          buffer    - A buffer receiving the font name.
+//          buflen    - The length of |buffer| in bytes.
+//          flags     - Optional pointer to an int receiving the font flags.
+//                      These flags should be interpreted per PDF spec 1.7
+//                      Section 5.7.1 Font Descriptor Flags.
+// Return value:
+//          On success, return the length of the font name, including the
+//          trailing NUL character, in bytes. If this length is less than or
+//          equal to |length|, |buffer| is set to the font name, |flags| is
+//          set to the font flags. |buffer| is in UTF-8 encoding. Return 0 on
+//          failure.
+//
+FPDF_EXPORT unsigned long FPDF_CALLCONV
+FPDFText_GetFontInfo(FPDF_TEXTPAGE text_page,
+                     int index,
+                     void* buffer,
+                     unsigned long buflen,
+                     int* flags);
+
+
+"""
