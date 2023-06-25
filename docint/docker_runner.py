@@ -283,11 +283,11 @@ class DockerRunner:
 
         # mnts += ["-v", f"{str(repo_dir / 'import' / 'models')}:{str(task_ctnr_dir / '.model')}"] #old
 
-        # mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.model')}"]
-        mnts += ["-v", f"/Users/mukund/Software/docInt/.model:{str(task_ctnr_dir / '.model')}"]
+        mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.model')}"]
+        # mnts += ["-v", f"/Users/mukund/Software/docInt/.model:{str(task_ctnr_dir / '.model')}"]
 
-        # mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.img')}"]
-        mnts += ["-v", f"/Users/mukund/Software/docInt/.img:{str(task_ctnr_dir / '.img')}"]
+        mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.img')}"]
+        # mnts += ["-v", f"/Users/mukund/Software/docInt/.img:{str(task_ctnr_dir / '.img')}"]
 
         mnts += [
             "-v",

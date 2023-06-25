@@ -96,17 +96,16 @@ class Doc(BaseModel):
     @classmethod
     def build_doc(cls, pdf_path):
         doc = Doc(pdffile_path=pdf_path)
-        if pdf_path.exists():
-            pdf = pdfwrapper.open(pdf_path)
-            for page_idx, pdf_page in enumerate(pdf.pages):
-                page = Page(
-                    doc=doc,
-                    page_idx=page_idx,
-                    words=[],
-                    width_=pdf_page.width,
-                    height_=pdf_page.height,
-                )
-                doc.pages.append(page)
+        pdf = pdfwrapper.open(pdf_path)
+        for page_idx, pdf_page in enumerate(pdf.pages):
+            page = Page(
+                doc=doc,
+                page_idx=page_idx,
+                words=[],
+                width_=pdf_page.width,
+                height_=pdf_page.height,
+            )
+            doc.pages.append(page)
         return doc
 
     def to_json(self, exclude_defaults=True):

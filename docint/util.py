@@ -112,6 +112,12 @@ def get_arg_names(func: Callable) -> List[str]:
     return list(dict.fromkeys([*argspec.args, *argspec.kwonlyargs]))
 
 
+def get_doc_name(input_path):
+    file_name = Path(input_path).name
+    pdf_pos = file_name.lower().index(".pdf")
+    return file_name[: pdf_pos + 4]
+
+
 def is_readable(path):
     return path.is_file() and os.access(path, os.R_OK)
 
@@ -124,6 +130,10 @@ def is_writeable_dir(path):
 def is_readable_dir(path):
     path = Path(path)
     return path.is_dir() and os.access(path, os.R_OK)
+
+
+def is_readable_nonempty(path):
+    return is_readable(path) and path.stat().st_size > 0
 
 
 def read_config_from_disk(path):

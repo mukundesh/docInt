@@ -1,8 +1,12 @@
+import json
 import logging
 import sys
 from pathlib import Path
 
+from pydantic.json import pydantic_encoder
+
 from ..data_error import DataError
+from ..region import Region
 from ..shape import Box, Coord, Edge
 from ..table import Cell, Row, Table, TableEdges
 from ..util import load_config
@@ -31,6 +35,7 @@ from ..vision import Vision
         "log_level": "debug",
         "heading_offset": 50,
         "num_columns": 9,
+        "output_dir": "output",
     },
 )
 class PDFTableFinder:
@@ -44,6 +49,7 @@ class PDFTableFinder:
         log_level,
         heading_offset,
         num_columns,
+        output_dir,
     ):
         self.pdfplumber_config = pdfplumber_config
         self.edit_doc = edit_doc
@@ -55,6 +61,7 @@ class PDFTableFinder:
         self.num_columns = num_columns
 
         self.conf_dir = Path("conf")
+        self.output_dir = Path(output_dir)
 
         self.lgr = logging.getLogger(f"docint.pipeline.{self.conf_stub}")
         self.lgr.setLevel(logging.DEBUG)
@@ -120,6 +127,9 @@ class PDFTableFinder:
     def build_table_edges(self, page, pdftable_edges):
         row_edges, col_edges = [], []
         for e in pdftable_edges:
+            if not all(c in e for c in ["x0", "x1", "y0", "y1"]):
+                continue
+
             if e["orientation"] == "h":
                 c1 = Coord(x=e["x0"] / page.width, y=e["y0"] / page.height)
                 c2 = Coord(x=e["x1"] / page.width, y=e["y1"] / page.height)
@@ -142,6 +152,29 @@ class PDFTableFinder:
 
         self.add_log_handler(doc)
 
+        doc.add_extra_page_field("tables", ("list", "docint.table", "Table"))
+        doc.add_extra_page_field("heading", ("obj", "docint.region", "Region"))
+        doc.add_extra_page_field("table_edges_list", ("list", "docint.table", "TableEdges"))
+
+        json_path = self.output_dir / f"{doc.pdf_name}.{self.conf_stub}.json"
+        if json_path.exists():
+            json_dict = json.loads(json_path.read_text())
+            for (page, jd_tables) in zip(doc.pages, json_dict["table_infos"]):
+                page.tables = [Table(**d) for d in jd_tables]
+                for table in page.tables:
+                    table.update_links(doc)
+
+            for (page, jd_heading) in zip(doc.pages, json_dict["heading_infos"]):
+                if jd_heading:
+                    page.heading = Region(**jd_heading)
+                    page.heading.update_links(doc)
+
+            for (page, jd_table_edges_list) in zip(doc.pages, json_dict["table_edges_infos"]):
+                page.table_edges_list = [TableEdges(**d) for d in jd_table_edges_list]
+
+            self.remove_log_handler(doc)
+            return doc
+
         doc_config = load_config(self.conf_dir, doc.pdf_name, self.conf_stub)
         old_skip_row_with_merged_cells = self.skip_row_with_merged_cells
         self.skip_row_with_merged_cells = doc_config.get(
@@ -149,10 +182,6 @@ class PDFTableFinder:
         )
 
         pdf = pdfplumber.open(doc.pdf_path)
-
-        doc.add_extra_page_field("tables", ("list", "docint.table", "Table"))
-        doc.add_extra_page_field("heading", ("obj", "docint.region", "Region"))
-        doc.add_extra_page_field("table_edges_list", ("list", __name__, "TableEdges"))
 
         for (page_idx, (page, pdf_page)) in enumerate(zip(doc.pages, pdf.pages)):
             pdf_page = pdf_page.dedupe_chars(tolerance=1)
@@ -199,6 +228,7 @@ class PDFTableFinder:
                 tables.append(Table.build(body_rows, header_rows))
             page.tables = tables
 
+            page.heading = None
             if page_idx == 0 and self.heading_offset:
                 offset = self.heading_offset / page.height
                 page.heading = page.words_to("above", tables[0], offset)
@@ -209,6 +239,16 @@ class PDFTableFinder:
         errors = self.test(doc)
 
         self.lgr.info(f"==Total:{len(errors)} {DataError.error_counts(errors)}")
+
+        table_infos = [p.tables for p in doc.pages]
+        heading_infos = [p.heading for p in doc.pages]
+        table_edges_infos = [p.table_edges_list for p in doc.pages]
+        json_info = {
+            "table_infos": table_infos,
+            "heading_infos": heading_infos,
+            "table_edges_infos": table_edges_infos,
+        }
+        json_path.write_text(json.dumps(json_info, default=pydantic_encoder))
 
         self.skip_row_with_merged_cells = old_skip_row_with_merged_cells
         self.remove_log_handler(doc)

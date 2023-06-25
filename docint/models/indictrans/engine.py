@@ -1,7 +1,9 @@
 import hashlib
+import multiprocessing
 import os
 import re
 import uuid
+from itertools import tee
 from typing import List, Union
 
 import sentencepiece as spm
@@ -15,6 +17,13 @@ from .normalize_punctuation import punc_norm
 from .normalize_regex_inference import EMAIL_PATTERN, normalize
 
 # PWD = os.path.dirname(__file__)
+
+
+def pairwise(iterable):
+    # pairwise('ABCDEFG') --> AB BC CD DE EF FG
+    a, b = tee(iterable)
+    next(b, None)
+    return zip(a, b)
 
 
 def split_sentences(paragraph: str, lang: str) -> List[str]:
@@ -134,29 +143,117 @@ class Model:
 
         self.input_lang_code_format = "flores"
 
+        self.max_batch_size = 1024
+        self.num_threads = multiprocessing.cpu_count() // 2
+        self.queue_len = 4
+
         print("Initializing model for translation")
         # initialize the model
         import ctranslate2
 
         self.translator = ctranslate2.Translator(
-            self.ckpt_dir, device=device
+            self.ckpt_dir,
+            device=device,
+            inter_threads=self.num_threads,
+            intra_threads=1,
         )  # , compute_type="auto")
+
+    def get_errors(self, lines, translations):
+        error_count = 0
+        for (ln, t) in zip(lines, translations):
+            if abs(len(ln) - len(t)) < 0.25 * len(ln):
+                error_count += 1
+        return error_count
 
     def translate_lines(self, lines: List[str]) -> List[str]:
         tokenized_sents = [x.strip().split(" ") for x in lines]
         translations = self.translator.translate_batch(
             tokenized_sents,
-            max_batch_size=9216,
+            max_batch_size=self.max_batch_size,
             batch_type="tokens",
             max_input_length=160,
             max_decoding_length=256,
-            beam_size=5,
+            beam_size=2,
         )
         translations = [" ".join(x.hypotheses[0]) for x in translations]
+
+        assert len(translations) == len(lines)
+        print(f"#Lines: {len(lines)} #Tokens: {sum(len(s) for s in tokenized_sents)}", end=" ")
+        print(f"*** Error Counts: {self.get_errors(lines, translations)}")
         return translations
 
+    def translate_lines_group(self, lines_group: List[List[str]]) -> List[str]:
+        async_results = []
+        for lines in lines_group:
+            tokenized_sents = [x.strip().split(" ") for x in lines]
+            async_results.extend(
+                self.translator.translate_batch(
+                    tokenized_sents,
+                    max_batch_size=self.max_batch_size,
+                    batch_type="tokens",
+                    max_input_length=160,
+                    max_decoding_length=256,
+                    beam_size=2,
+                    asynchronous=True,
+                )
+            )
+
+        trans_sents = []
+        for async_result in async_results:
+            trans_sents.append(" ".join(async_result.result().hypotheses[0]))
+
+        trans_group, start = [], 0
+        for lines in lines_group:
+            trans_group.append(trans_sents[start : start + len(lines)])
+            start = len(lines)
+
+        return trans_group
+
+    def get_partition_size(self):
+        return self.max_batch_size * self.num_threads * self.queue_len
+
+    def group_paragraphs(self, paragraphs, src_lang, tgt_lang):
+        all_para_num_tokens = []
+        for paragraph in paragraphs:
+            sents = split_sentences(paragraph, src_lang)
+            preprocessed_sents = self.preprocess_batch(sents, src_lang, tgt_lang)
+            para_tokens = 0
+            for sent in preprocessed_sents:
+                para_tokens += len(sent.strip().split(" "))
+            all_para_num_tokens.append(para_tokens)
+
+        assert len(all_para_num_tokens) == len(paragraphs)
+
+        para_batch_size = self.get_partition_size()
+
+        partitions, prev_tokens = [0], 0
+        for idx, num_para_tokens in enumerate(all_para_num_tokens):
+            if (num_para_tokens + prev_tokens) > para_batch_size:
+                partitions.append(idx)
+                prev_tokens = num_para_tokens
+            else:
+                prev_tokens += num_para_tokens
+        # end for
+        partitions.append(len(all_para_num_tokens))
+        return partitions
+
+    def group_sents(self, sents, src_lang, tgt_lang):
+        preprocessed_sents = self.preprocess_batch(sents, src_lang, tgt_lang)
+        sent_tokens = [len(s.strip().split(" ")) for s in preprocessed_sents]
+
+        sent_batch_size = self.get_partition_size()
+        partitions, prev_tokens = [0], 0
+        for idx, num_sent_tokens in enumerate(sent_tokens):
+            if (num_sent_tokens + prev_tokens) > sent_batch_size:
+                partitions.append(idx)
+                prev_tokens = num_sent_tokens
+            else:
+                prev_tokens += num_sent_tokens
+        partitions.append(len(sent_tokens))
+        return partitions
+
     # translate a batch of sentences from src_lang to tgt_lang
-    def batch_translate(self, batch: List[str], src_lang: str, tgt_lang: str) -> List[str]:
+    def batch_translate(self, batch, src_lang: str, tgt_lang: str) -> List[str]:
         """
         Translates a batch of input sentences (including pre/post processing)
         from source language to target language.
@@ -170,7 +267,7 @@ class Model:
             List[str]: batch of translated-sentences generated by the model.
         """
 
-        assert isinstance(batch, list)
+        assert isinstance(batch, (list, set)), f" batch expected list is of {type(batch)}"
 
         if self.input_lang_code_format == "iso":
             src_lang, tgt_lang = iso_to_flores[src_lang], iso_to_flores[tgt_lang]
@@ -206,6 +303,45 @@ class Model:
         translated_paragraph = " ".join(postprocessed_sents)
 
         return translated_paragraph
+
+    # translate a paragraph from src_lang to tgt_lang
+    def translate_paragraphs(
+        self, paragraphs: List[str], src_lang: str, tgt_lang: str
+    ) -> List[str]:
+        """
+        Translates an input list of text paragraphs (including pre/post processing)
+        from source language to target language.
+
+        Args:
+            paragraphs (List[str]): input text paragraph to be translated.
+            src_lang (str): flores source language code.
+            tgt_lang (str): flores target language code.
+
+        Returns:
+            List[str]: paragraphs translation generated by the model.
+        """
+
+        assert isinstance(paragraphs, list)
+
+        if self.input_lang_code_format == "iso":
+            flores_src_lang = iso_to_flores[src_lang]
+        else:
+            flores_src_lang = src_lang
+
+        all_sents, sent_partitions = [], [0]
+        for paragraph in paragraphs:
+            sents = split_sentences(paragraph, flores_src_lang)
+            all_sents.extend(sents)
+            sent_partitions.append(len(all_sents))
+
+        postprocessed_sents = self.batch_translate(all_sents, src_lang, tgt_lang)
+        assert len(all_sents) == len(postprocessed_sents)
+
+        translated_paragraphs = []
+        for (s, e) in pairwise(sent_partitions):
+            translated_paragraphs.append(" ".join(postprocessed_sents[s:e]))
+
+        return translated_paragraphs
 
     def preprocess_batch(self, batch: List[str], src_lang: str, tgt_lang: str) -> List[str]:
         """

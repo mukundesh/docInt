@@ -202,6 +202,13 @@ class Region(BaseModel):
         image_box = self.page.get_image_shape(self.shape)
         return [image_box.top.x, image_box.top.y, image_box.bot.x, image_box.bot.y]
 
+    def update_links(self, doc):
+        for region in self.get_regions():
+            region.words = [doc[region.page_idx_][idx] for idx in region.word_idxs]
+            if hasattr(region, "word_lines_idxs") and region.word_lines_idxs is not None:
+                p_idx, wl_idxs = region.page_idx_, region.word_lines_idxs
+                region.word_lines = [[doc[p_idx][idx] for idx in wl] for wl in wl_idxs]
+
     def reduce_width_at(self, direction, ov_shape):
         # edit, word_line
         # reduce with only of the box

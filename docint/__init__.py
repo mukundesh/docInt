@@ -26,6 +26,7 @@ def load(name: Path, *, config: Dict[str, Any] = SimpleFrozenDict()) -> Vision:
         raise IOError(Errors.E001.format(path=path))
 
     config = read_config_from_disk(path)
+    config["pipeline_file"] = str(path)
     return Vision.from_config(config)
 
 

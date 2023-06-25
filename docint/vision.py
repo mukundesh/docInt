@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
+from more_itertools import first, flatten
+
 from .doc import Doc
 from .docker_runner import DockerRunner
 from .errors import Errors
@@ -10,8 +12,10 @@ from .util import (
     SimpleFrozenDict,
     SimpleFrozenList,
     get_arg_names,
+    get_doc_name,
     get_full_path,
     get_object_name,
+    is_readable_nonempty,
     is_repo_path,
     raise_error,
 )
@@ -49,6 +53,9 @@ class Vision:
         self.docker_pipes = []
         self.all_pipe_config = {}
 
+        self.common_config_mtime_ts = 0
+        self.has_processing_fields = None
+
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
         viz = Vision()
@@ -60,6 +67,15 @@ class Vision:
 
         viz.docker_config = config.get("docker_config", {})
         viz.docker = DockerRunner(viz.docker_dir)
+
+        viz.output_dir = config.get("output_dir", None)
+        viz.config_dir = config.get("config_dir", None)
+        viz.output_stub = config.get("output_stub", None)
+        viz.pipeline_file = config.get("pipeline_file", None)
+
+        viz.output_dir = Path(viz.output_dir) if viz.output_dir else viz.output_dir
+        viz.config_dir = Path(viz.config_dir) if viz.config_dir else viz.config_dir
+        viz.pipeline_file = Path(viz.pipeline_file) if viz.pipeline_file else viz.pipeline_file
 
         for pipe_config in config.get("pipeline", []):
             viz.add_pipe(
@@ -212,14 +228,127 @@ class Vision:
                 raise ValueError("Errors.E005.format(name=name)")
         return doc
 
-    def pipe_all(self, paths):
-        def get_pdf_name(path):
-            path = Path(path)
-            name = path.name
-            print(name)
-            pdf_pos = name.lower().index(".pdf")
-            return name[: pdf_pos + 4]
+    def get_files_in_config(self, pipe_config):
+        def rec_items(cfg):
+            dict_items = []
+            if not cfg:
+                return []
+            elif isinstance(cfg, dict):
+                dict_items += list(cfg.items())
+                dict_items += rec_items(list(cfg.values()))
 
+            elif isinstance(cfg, list) and any(isinstance(v, dict) for v in cfg):
+                dict_items += flatten(rec_items(v) for v in cfg if isinstance(v, dict))
+            else:
+                return []
+
+            return dict_items
+
+        def rec_values(value):
+            if not value:
+                return []
+            elif isinstance(value, dict):
+                return rec_values(list(dict.values()))
+            elif isinstance(value, list):
+                if isinstance(value[0], dict):
+                    return rec_values(value)
+                else:
+                    return value
+            else:
+                return [value]
+
+        file_names = []
+        for (key, value) in rec_items(pipe_config):
+            # print(f'\t{key}: {value}')
+            if "file" in key:
+                file_names += rec_values(value)
+
+        result_file_names = []
+        for file_name in file_names:
+            if Path(file_name).exists():
+                result_file_names.append(Path(file_name))
+            elif (self.config_dir / file_name).exists():
+                r = self.config_dir / file_name
+                result_file_names.append(r)
+            elif (self.input_dir / file_name).exists():
+                r = self.input_dir / file_name
+                result_file_names.append(r)
+            else:
+                print("\t{file_name} not found")
+
+        result_file_names = [f for f in result_file_names if is_readable_nonempty(f)]
+        return result_file_names
+
+    def get_common_config_mtime(self):
+        if self.common_config_mtime_ts:
+            return self.common_config_mtime_ts
+
+        for (name, pipe_config) in self.all_pipe_config.items():
+            print(name)
+            pipe_config_files = self.get_files_in_config(pipe_config)
+            pipe_config_mtime_ts = max((f.stat().st_mtime for f in pipe_config_files), default=0.0)
+            self.common_config_mtime_ts = max(self.common_config_mtime_ts, pipe_config_mtime_ts)
+            print(f"\t{name}: {pipe_config_files} {pipe_config_mtime_ts}")
+
+        return self.common_config_mtime_ts
+
+    def get_config_mtime(self, doc_name):
+        doc_config_mtime_ts = 0
+        for (name, pipe_config) in self.all_pipe_config.items():
+            stub = first((v for (k, v) in pipe_config.items() if k.endswith("_stub")), name)
+            pipe_config_file = self.config_dir / f"{doc_name}.{stub}.yml"
+            if pipe_config_file.exists():
+                doc_config_mtime_ts = max(doc_config_mtime_ts, pipe_config_file.stat().st_mtime)
+        return doc_config_mtime_ts
+
+    def doc_needs_processing(self, input_path):
+        def has_processing_fields():
+            if self.has_processing_fields is not None:
+                return self.has_processing_fields
+
+            processing_fields = ["output_stub", "output_dir", "config_dir"]
+            for (field, value) in [(f, getattr(self, f, None)) for f in processing_fields]:
+                if not value:
+                    self.has_processing_fields = False  # missing walrus !
+                    return False
+            self.has_processing_fields = True
+            return self.has_processing_fields
+
+        # TODO
+        # 1. Getting m_time is not good, as it should return the file that has changed
+        #    that way it can be printed, for dummy run etc.
+        # 2.
+
+        if not has_processing_fields():
+            print("No processing fields found")
+            return True
+
+        doc_name = get_doc_name(input_path)
+        output_path = self.output_dir / f"{doc_name}.{self.output_stub}.json"
+
+        output_ts = output_path.stat().st_mtime
+
+        input_ts = input_path.stat().st_mtime
+        if input_ts > output_ts:
+            return True
+
+        pipeline_ts = 0 if not self.pipeline_file else self.pipeline_file.stat().st_mtime
+        if pipeline_ts > output_ts:
+            return True
+
+        common_config_ts = self.get_common_config_mtime()
+        if common_config_ts > output_ts:
+            return True
+
+        config_ts = self.get_config_mtime(doc_name)
+        if config_ts > output_ts:
+            print(f"{doc_name} config is newer")
+            return True
+
+        # print(f'{doc_name} NO NEED')
+        return False
+
+    def pipe_all(self, paths):
         print("INSIDE PIPE")
         pipes = []
         for name, proc in self.pipeline:
@@ -242,7 +371,9 @@ class Vision:
             pipes.append(f)
 
         # print(f"Building docs... #paths: {len(paths)}")
-        paths = (Path(p) for p in paths if get_pdf_name(p) not in self.ignore_docs)
+        paths = (Path(p) for p in paths if get_doc_name(p) not in self.ignore_docs)
+        # paths = (p for p in paths if self.doc_needs_processing(p))
+
         docs = (self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths)
 
         print(f"Read #docs: {type(docs)}, {type(pipes)}")
