@@ -270,11 +270,12 @@ class Vision:
             elif (self.config_dir / file_name).exists():
                 r = self.config_dir / file_name
                 result_file_names.append(r)
-            elif (self.input_dir / file_name).exists():
-                r = self.input_dir / file_name
-                result_file_names.append(r)
+            # can config refer to file in input_dir, preferably NO
+            # elif (self.input_dir / file_name).exists():
+            #     r = self.input_dir / file_name
+            #     result_file_names.append(r)
             else:
-                print("\t{file_name} not found")
+                print(f"\t{file_name} not found")
 
         result_file_names = [f for f in result_file_names if is_readable_nonempty(f)]
         return result_file_names
@@ -326,6 +327,9 @@ class Vision:
         doc_name = get_doc_name(input_path)
         output_path = self.output_dir / f"{doc_name}.{self.output_stub}.json"
 
+        if not output_path.exists():
+            return True
+
         output_ts = output_path.stat().st_mtime
 
         input_ts = input_path.stat().st_mtime
@@ -372,7 +376,7 @@ class Vision:
 
         # print(f"Building docs... #paths: {len(paths)}")
         paths = (Path(p) for p in paths if get_doc_name(p) not in self.ignore_docs)
-        # paths = (p for p in paths if self.doc_needs_processing(p))
+        paths = (p for p in paths if self.doc_needs_processing(p))
 
         docs = (self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths)
 

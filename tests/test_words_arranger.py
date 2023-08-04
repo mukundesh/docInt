@@ -16,10 +16,8 @@ def get_line(page, line_idx):
 
 
 def test_words_arranger(table_rota_path):
-    # ppln = docint.empty(
-    #     config={"docker_pipes": ["gcv_recognizer"], "docker_config": docker_config}
-    # )
-    ppln = docint.empty()
+    ppln = docint.empty(config={"docker_pipes": ["gcv_recognizer"], "docker_config": docker_config})
+    # ppln = docint.empty()
     ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgfound"})
     ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("num_marker")

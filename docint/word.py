@@ -67,6 +67,12 @@ class Word(BaseModel):
         break_str = break_type_str[self.break_type]
         return self.text_ + break_str
 
+    def get_break_str(self, ignore_line_break=False):
+        if ignore_line_break and self.break_type == BreakType.Line_break:
+            return " "
+        else:
+            return break_type_str[self.break_type]
+
     def text_with_break(self, ignore_line_break=False):
         if ignore_line_break and self.break_type == BreakType.Line_break:
             break_str = " "

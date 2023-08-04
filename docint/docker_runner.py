@@ -19,8 +19,8 @@ DEFAULT_PY_PACKAGES = [  # move this to docint
     "PyYaml",
     "more-itertools",
     "polyleven",
-    "pydantic",
     "Pillow",
+    "pydantic == 1.10",
     "python-dateutil",
     "pypdfium2  >= 3.20.1, < 4.0",
     # "wand", # temporary TODO
@@ -283,11 +283,11 @@ class DockerRunner:
 
         # mnts += ["-v", f"{str(repo_dir / 'import' / 'models')}:{str(task_ctnr_dir / '.model')}"] #old
 
-        mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.model')}"]
-        # mnts += ["-v", f"/Users/mukund/Software/docInt/.model:{str(task_ctnr_dir / '.model')}"]
+        # mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.model')}"]
+        mnts += ["-v", f"/Users/mukund/Software/docInt/.model:{str(task_ctnr_dir / '.model')}"]
 
-        mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.img')}"]
-        # mnts += ["-v", f"/Users/mukund/Software/docInt/.img:{str(task_ctnr_dir / '.img')}"]
+        # mnts += ["-v", f"{str(repo_dir)}:{str(task_ctnr_dir / '.img')}"]
+        mnts += ["-v", f"/Users/mukund/Software/docInt/.img:{str(task_ctnr_dir / '.img')}"]
 
         mnts += [
             "-v",

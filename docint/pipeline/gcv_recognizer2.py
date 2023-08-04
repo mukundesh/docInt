@@ -1,4 +1,5 @@
 import functools
+import gzip
 import io
 import json
 import statistics
@@ -47,6 +48,7 @@ _break_type_dict = {
         "check_stub_modified": "doc",  # this should be part of pipeline
         "process_page_image": False,
         "read_lines": False,
+        "compress_output": False,
     },
 )
 class CloudVisionRecognizer2:
@@ -60,6 +62,7 @@ class CloudVisionRecognizer2:
         check_stub_modified,
         process_page_image,
         read_lines,
+        compress_output,
     ):
 
         self.bucket_name = bucket
@@ -70,6 +73,7 @@ class CloudVisionRecognizer2:
         self.check_stub_modified = check_stub_modified
         self.process_page_image = process_page_image
         self.read_lines = read_lines
+        self.compress_output = compress_output
 
     def build_word(self, doc, page_idx, word_idx, ocr_word, page_size):
         coords = []
@@ -127,7 +131,17 @@ class CloudVisionRecognizer2:
     def get_ocr_pages(self, output_path):
         output_paths = output_path if isinstance(output_path, list) else [output_path]
         for o_path in output_paths:
-            ocr_doc = json.loads(o_path.read_bytes())
+
+            if not o_path.exists() and Path(f"{str(output_path)}.gz").exists():
+                o_path = Path(f"{str(output_path)}.gz")
+
+            if o_path.suffix.lower() == ".gz":
+                with gzip.open(o_path, "rb") as f:
+                    ocr_doc = json.loads(f.read())
+            else:
+                print(o_path)
+                ocr_doc = json.loads(o_path.read_bytes())
+
             responses = ocr_doc["responses"]
             ocr_pages = []
             for r in responses:
@@ -141,6 +155,8 @@ class CloudVisionRecognizer2:
     def build_pages(self, doc, output_path):
         if not output_path:
             return doc
+
+        print(output_path)
 
         def get_words(pg):
             if pg:
@@ -178,6 +194,29 @@ class CloudVisionRecognizer2:
             print(f'Eliminate: >{"|".join(w.text for w in elim_words)}<')
         return doc
 
+    def write_output_json(self, output_path, json_dict):
+        if not isinstance(json_dict, dict):
+            json_str = json_dict
+            if not self.compress_output:
+                output_path.write_bytes(json_str)
+            else:
+                with gzip.open(output_path, "wb") as f:
+                    f.write(json_str)
+        else:
+            if not self.compress_output:
+                output_path.write_text(json.dumps(json_dict, sort_keys=True, separators=(",", ":")))
+            else:
+                output_path = (
+                    output_path if output_path.suffix.lower() == ".gz" else f"{str(output_path)}.gz"
+                )
+                with gzip.open(output_path, "wb") as f:
+                    f.write(
+                        bytes(
+                            json.dumps(json_dict, sort_keys=True, separators=(",", ":")),
+                            encoding="utf-8",
+                        )
+                    )
+
     def run_sync_gcv(self, doc, output_path):
         from google.cloud import vision
         from google.protobuf.json_format import MessageToDict
@@ -198,12 +237,13 @@ class CloudVisionRecognizer2:
         # the first, second, and last page of the document to be processed.
         pages = list(range(1, doc.num_pages + 1))
         requests = [{"input_config": input_config, "features": features, "pages": pages}]
-        response = image_client.batch_annotate_files(requests=requests)
+        response = image_client.batch_annotate_files(requests=requests, timeout=60)
 
         # get the protobuffer
         responsesDict = MessageToDict(response._pb)
         responseDict = responsesDict["responses"][0]
-        output_path.write_text(json.dumps(responseDict, sort_keys=True, separators=(",", ":")))
+        self.write_output_json(output_path, responseDict)
+        # output_path.write_text(json.dumps(responseDict, sort_keys=True, separators=(",", ":")))
         return output_path
 
     def run_sync_gcv_image(self, doc, output_path):
@@ -244,9 +284,7 @@ class CloudVisionRecognizer2:
             page_response = responseDict["responses"][0]
             page_response["context"] = {"pageNumber": page_idx + 1}
             all_responses_dict["responses"].append(page_response)
-        output_path.write_text(
-            json.dumps(all_responses_dict, sort_keys=True, separators=(",", ":"))
-        )
+        self.write_output_json(output_path, all_responses_dict)
         return output_path
 
     def run_async_gcv(self, doc, num_pdf_pages):
@@ -264,9 +302,17 @@ class CloudVisionRecognizer2:
 
         def write_json_blobs(json_blobs):
             output_paths = []
+
             for file_name, json_blob in json_blobs:
+                print(file_name)
+                if self.compress_output and Path(file_name).suffix.lower() != ".gz":
+                    file_name = f"{file_name}.gz"
+
                 json_file_path = self.output_dir_path / file_name
-                json_file_path.write_bytes(json_blob.download_as_string())
+
+                # json_file_path.write_bytes(json_blob.download_as_string())
+                self.write_output_json(json_file_path, json_blob.download_as_string())
+
                 output_paths.append(json_file_path)
             return output_paths
 
@@ -344,6 +390,10 @@ class CloudVisionRecognizer2:
 
         output_paths = self.output_dir_path.glob(f"{doc.pdf_name}.{self.output_stub}.*json")
         output_paths = list(output_paths)
+
+        if not output_paths:
+            output_paths = self.output_dir_path.glob(f"{doc.pdf_name}.{self.output_stub}.*json.gz")
+            output_paths = list(output_paths)
 
         if self.read_lines:
             doc.add_extra_page_field("lines", ("list", "docint.region", "Region"))

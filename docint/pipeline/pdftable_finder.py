@@ -36,6 +36,7 @@ from ..vision import Vision
         "heading_offset": 50,
         "num_columns": 9,
         "output_dir": "output",
+        "skip_completely": False,
     },
 )
 class PDFTableFinder:
@@ -50,6 +51,7 @@ class PDFTableFinder:
         heading_offset,
         num_columns,
         output_dir,
+        skip_completely,
     ):
         self.pdfplumber_config = pdfplumber_config
         self.edit_doc = edit_doc
@@ -62,6 +64,7 @@ class PDFTableFinder:
 
         self.conf_dir = Path("conf")
         self.output_dir = Path(output_dir)
+        self.skip_completely = skip_completely
 
         self.lgr = logging.getLogger(f"docint.pipeline.{self.conf_stub}")
         self.lgr.setLevel(logging.DEBUG)
@@ -131,12 +134,12 @@ class PDFTableFinder:
                 continue
 
             if e["orientation"] == "h":
-                c1 = Coord(x=e["x0"] / page.width, y=e["y0"] / page.height)
-                c2 = Coord(x=e["x1"] / page.width, y=e["y1"] / page.height)
+                c1 = Coord(x=e["x0"] / page.width, y=1 - (e["y0"] / page.height))
+                c2 = Coord(x=e["x1"] / page.width, y=1 - (e["y1"] / page.height))
                 row_edges.append(Edge.build_h_oncoords(c1, c2))
             else:
-                c1 = Coord(x=e["x0"] / page.width, y=e["y0"] / page.height)
-                c2 = Coord(x=e["x1"] / page.width, y=e["y1"] / page.height)
+                c1 = Coord(x=e["x0"] / page.width, y=1 - (e["y0"] / page.height))
+                c2 = Coord(x=e["x1"] / page.width, y=1 - (e["y1"] / page.height))
                 col_edges.append(Edge.build_v_oncoords(c1, c2))
 
         return TableEdges(row_edges=row_edges, col_edges=col_edges, col_img_xs=[])
@@ -180,17 +183,27 @@ class PDFTableFinder:
         self.skip_row_with_merged_cells = doc_config.get(
             "skip_row_with_merged_cells", self.skip_row_with_merged_cells
         )
+        old_skip_completely = self.skip_completely
+        self.skip_completely = doc_config.get("skip_completely", self.skip_completely)
+        if self.skip_completely:
+            for page in doc.pages:
+                page.tables = []
+                page.heading = None
+                page.table_edges_list = []
+            self.skip_row_with_merged_cells = old_skip_row_with_merged_cells
+            self.skip_completely = old_skip_completely
+            self.remove_log_handler(doc)
+            return doc
 
         pdf = pdfplumber.open(doc.pdf_path)
 
         for (page_idx, (page, pdf_page)) in enumerate(zip(doc.pages, pdf.pages)):
             pdf_page = pdf_page.dedupe_chars(tolerance=1)
-
             table_finder = pdf_page.debug_tablefinder(self.pdfplumber_config)
             pdf_table_edges = table_finder.edges
             page.table_edges_list = [self.build_table_edges(page, pdf_table_edges)]
 
-            tables = []
+            page.tables = []
             pdf_size = (pdf_page.width, pdf_page.height)
             for (table_idx, pdf_table) in enumerate(table_finder.tables):
 
@@ -225,13 +238,12 @@ class PDFTableFinder:
                     )
                     row_idx += 1 if status != "S" else 0
 
-                tables.append(Table.build(body_rows, header_rows))
-            page.tables = tables
+                page.tables.append(Table.build(body_rows, header_rows))
 
             page.heading = None
             if page_idx == 0 and self.heading_offset:
                 offset = self.heading_offset / page.height
-                page.heading = page.words_to("above", tables[0], offset)
+                page.heading = page.words_to("above", page.tables[0], offset)
                 heading_str = " ".join([w.text for w in page.heading.words])
                 # regSearchInText 'addl[\. ]*s[\.]?p[\.]?' 'dy[\. ]*s[\.]?p[\.]?'
                 self.lgr.debug(f"Heading {offset}: {heading_str}")
@@ -251,5 +263,6 @@ class PDFTableFinder:
         json_path.write_text(json.dumps(json_info, default=pydantic_encoder))
 
         self.skip_row_with_merged_cells = old_skip_row_with_merged_cells
+        self.skip_completely = old_skip_completely
         self.remove_log_handler(doc)
         return doc
