@@ -16,6 +16,7 @@ from .num_marker import NumMarker
 # from .infer_layoutlm import InferLayoutLM
 from .page_orienter import OrientPage
 from .pdf_reader import PDFReader
+from .pdf_cid_reader import PDFCIDReader
 from .pdftable_finder import PDFTableFinder
 from .region_differ import RegionDiffer
 from .rotation_detector import RotationDetector

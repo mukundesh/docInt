@@ -336,13 +336,14 @@ class Vision:
         if input_ts > output_ts:
             return True
 
-        pipeline_ts = 0 if not self.pipeline_file else self.pipeline_file.stat().st_mtime
-        if pipeline_ts > output_ts:
-            return True
+        # pipeline_ts = 0 if not self.pipeline_file else self.pipeline_file.stat().st_mtime
+        # if pipeline_ts > output_ts:
+        #     return True
 
         common_config_ts = self.get_common_config_mtime()
-        if common_config_ts > output_ts:
-            return True
+        # commenting as translation creates files
+        # if common_config_ts > output_ts:
+        #     return True
 
         config_ts = self.get_config_mtime(doc_name)
         if config_ts > output_ts:

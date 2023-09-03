@@ -13,7 +13,7 @@ from indicnlp.tokenize.sentence_tokenize import DELIM_PAT_NO_DANDA, sentence_spl
 from indicnlp.transliterate import unicode_transliterate
 
 # PWD = os.path.dirname(__file__)
-from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
+# from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
 from .flores_codes_map_indic import flores_codes, iso_to_flores
 from .normalize_punctuation import punc_norm
@@ -137,9 +137,9 @@ class Model:
             device (str, optional): where to load the model (defaults: cuda).
         """
         self.ckpt_dir = ckpt_dir
-        self.en_tok = MosesTokenizer(lang="en")
-        self.en_normalizer = MosesPunctNormalizer()
-        self.en_detok = MosesDetokenizer(lang="en")
+        # self.en_tok = MosesTokenizer(lang="en")
+        # self.en_normalizer = MosesPunctNormalizer()
+        # self.en_detok = MosesDetokenizer(lang="en")
 
         self.xliterator = unicode_transliterate.UnicodeIndicTransliterator()
 
@@ -577,8 +577,8 @@ class Model:
         if lang == "eng_Latn":
             for sent in sents:
                 # outfile.write(en_detok.detokenize(sent.split(" ")) + "\n")
-                postprocessed_sents.append(self.en_detok.detokenize(sent.split(" ")))
-                # postprocessed_sents.append(detokenize(sent))
+                # postprocessed_sents.append(self.en_detok.detokenize(sent.split(" ")))
+                postprocessed_sents.append(detokenize(sent))
         else:
             for sent in sents:
                 outstr = indic_detokenize.trivial_detokenize(

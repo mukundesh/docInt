@@ -12,6 +12,20 @@ class Char(ABC):
         pass
 
 
+class CIDWord(ABC):
+    @abstractproperty
+    def cids(self):
+        pass
+
+    @abstractproperty
+    def bounding_box(self):
+        pass
+
+    @abstractproperty
+    def fonts(self):
+        pass
+
+
 class Word(ABC):
     @abstractproperty
     def text(self):
@@ -81,17 +95,28 @@ class Page(ABC):
     def rotation(self):
         raise NotImplementedError("implement width")
 
+    def cid_words(self):
+        raise NotImplementedError("implement cid_words")
+
     @property
     def has_one_large_image(self):
         def area(obj):
-            return obj.width * obj.height
+            if hasattr(obj, "bounding_box"):
+                (x0, y0, x1, y1) = obj.bounding_box
+                return (x1 - x0) * (y1 - y0)
+            else:
+                return obj.width * obj.height
 
         return len(self.images) == 1 and area(self.images[0]) >= 0.9 * area(self)
 
     @property
     def has_large_image(self, area_percent=90):
         def area(obj):
-            return obj.width * obj.height
+            if hasattr(obj, "bounding_box"):
+                (x0, y0, x1, y1) = obj.bounding_box
+                return (x1 - x0) * (y1 - y0)
+            else:
+                return obj.width * obj.height
 
         page_area_cutoff = area(self) * area_percent / 100.0
 
