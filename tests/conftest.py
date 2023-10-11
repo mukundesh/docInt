@@ -130,3 +130,8 @@ def unicode_path():
 @pytest.fixture
 def page_image_path():
     return Path("tests") / "page_image.pdf"
+
+
+@pytest.fixture
+def one_line_path():
+    return Path("tests") / "one_line.pdf"

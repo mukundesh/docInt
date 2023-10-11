@@ -14,7 +14,6 @@ from indicnlp.transliterate import unicode_transliterate
 
 # PWD = os.path.dirname(__file__)
 # from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
-
 from .flores_codes_map_indic import flores_codes, iso_to_flores
 from .normalize_punctuation import punc_norm
 from .normalize_regex_inference import EMAIL_PATTERN, normalize

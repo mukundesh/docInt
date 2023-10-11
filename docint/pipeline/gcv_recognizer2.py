@@ -393,7 +393,18 @@ class CloudVisionRecognizer2:
 
         if not output_paths:
             output_paths = self.output_dir_path.glob(f"{doc.pdf_name}.{self.output_stub}.*json.gz")
-            output_paths = list(output_paths)
+
+            def get_start_idx(p):
+                if ".ocr." not in p.name:
+                    return 0
+                idxs = p.name.replace(doc.pdf_name, "").replace(".ocr.", "")
+                if "-" in idxs:
+                    s, rest = idxs.split("-", 1)
+                    return int(s)
+                else:
+                    return 1
+
+            output_paths = sorted(output_paths, key=get_start_idx)
 
         if self.read_lines:
             doc.add_extra_page_field("lines", ("list", "docint.region", "Region"))

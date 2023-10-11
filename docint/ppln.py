@@ -10,6 +10,10 @@ from typing import Callable, Dict, Iterable, List, Optional, Union
 from pydantic import BaseModel, BaseSettings, DirectoryPath, Field, create_model, validate_model
 from pydantic.fields import FieldInfo
 
+from .audio import Audio
+from .file import File
+from .util import read_config_from_disk
+
 ## This file is still WIP
 # TODO
 # 1. Implement add_scope and pop_scope
@@ -24,6 +28,22 @@ from pydantic.fields import FieldInfo
 # 2. Concept of scope
 # 3. Currently leaning towards passing the config object to the __call__ method, instead of it being a member variable
 # 4. Notion of component and pipeline config
+##
+
+"""
+## Decisions Taken
+1. Pipeline config and component config will be different, pipeline_config needs to be defined
+   in code of ppln.py, I am sceptical of allowing global config by just adding them to the ppln.py
+   file.
+
+2. You can add scoped_config to pipeline.yml, by adding a section called 'scoped_config:'
+   but then you need to define them just like environment variables, 'seperted by '__'
+
+
+
+
+
+"""
 
 
 class PipeConfig:
@@ -44,6 +64,9 @@ class PipeConfig:
 
         self.scopes_dict = self.load_env(pipe_name)
 
+    def __getattr__(self, name):
+        return self.chain_map[name]
+
     def validate(self, config_dict):
         dict_str, set_str, validation_error = validate_model(
             self.component_setting_cls, config_dict
@@ -58,7 +81,7 @@ class PipeConfig:
         prefix = f"{env_prefix}{pipe_name.upper()}{env_nested_delimiter}"
         keys_list = []
         for env_name, env_val in os.environ.items():
-            print("\t", env_name)
+            # print("\t", env_name)
             if not env_name.startswith(prefix):
                 continue
             # remove the prefix before splitting in case prefix has
@@ -142,14 +165,13 @@ class Pipeline:
 
     @classmethod
     def from_file(cls, pipeline_file):
-        ppln_dict = {}  # read_config_from_disk(pipeline_file)
+        ppln_dict = read_config_from_disk(pipeline_file)
         return cls.from_config(ppln_dict)
 
     @classmethod
     def from_config(cls, pipeline_file_dict):
         ppln_dict = pipeline_file_dict.pop("pipeline", [])
         # ppln_config = pipeline_file_dict # TODO use this to initialize pipeline_config
-
         ppln = Pipeline()
         for pipe_dict in ppln_dict:
             if isinstance(pipe_dict, dict):
@@ -192,7 +214,7 @@ class Pipeline:
         print(config_model.__fields__)
         return config_model
 
-    def add_pipe(self, pipe_name, component_name, pipe_config):
+    def add_pipe(self, pipe_name, component_name, configs):
         if component_name not in Pipeline.components:
             raise ValueError(f"Unknown component name {component_name}")
 
@@ -203,6 +225,8 @@ class Pipeline:
         component_settings_cls = self.create_component_settings(component_name)
 
         pipe_config = PipeConfig(pipe_name, component_settings_cls)
+        for (attr, value) in configs.items():
+            setattr(pipe_config, attr, value)
 
         pipe = component_cls(cfg=pipe_config, pipe_name=pipe_name)
         print(pipe)
@@ -240,17 +264,24 @@ class Pipeline:
 
         return register_component_cls
 
-    def __call__(self, path_doc, pipe_configs):
-        if isinstance(path_doc, int):  # Doc
-            doc = path_doc
-        elif isinstance(path_doc, str) or isinstance(path_doc, Path):
-            path = path_doc
+    def exec_pipe(self, name, pipe, doc):
+        doc.add_pipe(name)
+        return pipe(doc, pipe.cfg)
+
+    def __call__(self, file_path, pipe_configs={}):
+        if isinstance(file_path, File):  # Doc
+            doc = file_path
+        elif isinstance(file_path, str) or isinstance(file_path, Path):
+            path = file_path
             if path.suffix.lower() in (".json", ".jsn", ".msgpack"):
                 doc = None  # Doc.from_disk(path)
             elif path.suffix.lower() == ".pdf":
-                doc = None  # Doc.build_doc(path)
+                doc = File.from_file(path)
+            elif path.suffix.lower() in (".webm", ".mp3"):
+                doc = Audio.build(path)
+
         else:
-            raise ValueError(f"Unknown document format {path_doc}")
+            raise ValueError(f"Unknown document format {file_path}")
 
         for (name, pipe) in self._pipes:
             if name in pipe_configs:
@@ -286,7 +317,7 @@ class Component(BaseModel):
 @Pipeline.register_component(
     assigns="words",
     depends=["pip:google-cloud-vision"],
-    needs="pages",
+    requires="pages",
 )
 class Recognizer(Component):
     class Config:
@@ -309,4 +340,4 @@ class Recognizer(Component):
 # os.environ['RECOGNIZER__RAJPOL-32__PAGE_ANGLE'] = 3.0
 # os.environ['RECOGNIZER__RAJPOL-32__PAGEIDX-0__PAGE_ANGLE'] = 2.0
 
-pipeline = Pipeline.from_config({"pipeline": ["Recognizer"]})
+# pipeline = Pipeline.from_config({"pipeline": ["Recognizer"]})

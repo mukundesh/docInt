@@ -1,15 +1,15 @@
 import builtins
 import ctypes
+import functools
 import re
 from collections import Counter
-from operator import itemgetter, attrgetter
-from pathlib import Path
 from itertools import groupby
-import functools
+from operator import attrgetter, itemgetter
+from pathlib import Path
 
 import pdfminer
 from pdfminer.converter import PDFPageAggregator
-from pdfminer.layout import LAParams, LTChar, LTTextBox, LTTextLine, LTFigure
+from pdfminer.layout import LAParams, LTChar, LTFigure, LTTextBox, LTTextLine
 from pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfpage import PDFPage
@@ -49,14 +49,22 @@ EnglishFonts = [
     "verdana",
     "wingdings",
     "timesitalic",
+    "timesnewromanpsmt",
+    "symbolmt",
+    "arialbold",
+    "msmincho",
+    "arialunicodems",
+    "timesnewromanbold",
+    "wingdingsregular",
 ]
 
 
 class CIDWord(pdf.CIDWord):
-    def __init__(self, cids, rect, fonts):
+    def __init__(self, cids, rect, fonts, line_widths=[]):
         self._cids = cids
         self._rect = rect
         self._fonts = [f.replace("\x00", "") for f in fonts]
+        self._line_widths = line_widths
 
     @property
     def cids(self):
@@ -69,6 +77,10 @@ class CIDWord(pdf.CIDWord):
     @property
     def fonts(self):
         return self._fonts
+
+    @property
+    def line_widths(self):
+        return self._line_widths
 
     @property
     def is_bold(self):
@@ -118,6 +130,8 @@ class Page(pdf.Page):
 
     def build_words(self):
         def build_char(c):
+            # assert c.graphicstate.linewidth == 0
+            # print(f'{clean_fontname(c.fontname)} - {c.graphicstate.linewidth}')
             return {
                 "text": int(c._text[5:].strip(")"))
                 if c._text[:5] == "(cid:"
@@ -126,11 +140,15 @@ class Page(pdf.Page):
                 "bbox": [c.x0, height - c.y1, c.x1, height - c.y0],
                 "size": c.size,
                 "upright": c.upright,
+                "linewidth": c.graphicstate.linewidth,
             }
 
         def merge_chars(line_chars, line_idx):
             def char_isspace(c):
                 t = c["text"]
+                # if isinstance(t, int) and t == 3:
+                #     print(f'space_width: {c["bbox"][2] - c["bbox"][0]}')
+
                 return t == 3 if isinstance(t, int) else t.isspace()
 
             # if line_idx == 7:
@@ -143,7 +161,6 @@ class Page(pdf.Page):
             # line_chars.sort(key=itemgetter('bbox'))
             line_chars.sort(key=xmid)
 
-            print("Done sorting")
             return [list(g) for (k, g) in groupby(line_chars, key=char_isspace) if not k]
 
         def build_line_words(line_word_chars):
@@ -160,8 +177,9 @@ class Page(pdf.Page):
 
                 rect = [xmin, ymin, xmax, ymax]
                 fonts = [c["fontname"] for c in word_chars]
+                line_widths = [c["linewidth"] for c in word_chars]
 
-                words.append(CIDWord(cids, rect, fonts))
+                words.append(CIDWord(cids, rect, fonts, line_widths))
             return words
 
         def get_LTChars(objs):
@@ -251,7 +269,7 @@ class PDF(pdf.PDF):
             def get_font(self, objid, spec):
                 font = super().get_font(objid, spec)
                 font_name = clean_fontname(font.fontname)
-                print(f"Processing font: {font_name}")
+                # print(f"Processing font: {font_name}")
                 if font_name in EnglishFonts:
                     print(f"\tReturning: {font_name}")
                     return font
@@ -280,6 +298,7 @@ class PDF(pdf.PDF):
 
 if __name__ == "__main__":
     import sys
+
     from docint import pdfwrapper
 
     for file_path in sys.argv[1:]:
@@ -291,8 +310,13 @@ if __name__ == "__main__":
                     continue
 
                 print(f"Page: {page_idx} # CIDWords: {len(page.cid_words)}")
-                # for cid_word in page.cid_words:
-                #     print('\t' + ''.join(cid_word.cids) + '\t' + ','.join(f[:2] for f in cid_word.fonts))
+                for cid_word in page.cid_words:
+                    print(
+                        "\t"
+                        + "".join(cid_word.cids)
+                        + "\t"
+                        + ",".join(f[:2] for f in cid_word.fonts)
+                    )
 
         except Exception as e:
             sys.stdin.write(f"Exception: {pdf_path.name:20s} {e}\n")

@@ -46,8 +46,11 @@ class OrientPage:
             wCoordIdxs.sort(key=lambda tup: (tup[1].y, tup[1].x))
             idxs = tuple([tup[0] for tup in wCoordIdxs])
             if tuple(idxs) not in angleDict:
-                print(f"idx: {w.page_idx} {w.word_idx} -> {idxs}")
-                assert False, "JSON file could have been corrupted"
+                if len(idxs) == 4:
+                    print(f"idx: {w.page_idx} {w.word_idx} -> {idxs}")
+                    assert False, "JSON file could have been corrupted"
+                else:
+                    print(f"idx: {w.page_idx} {w.word_idx} -> {idxs} incorrect word creted")
             else:
                 angle = angleDict[tuple(idxs)]
             angle_counter[angle] += 1

@@ -111,6 +111,9 @@ class PDFTableFinder:
                 page_idx != 0 and table_idx > 0 and row_idx == 0
             )
 
+        elif self.header_row == "first_table_first_row":
+            return table_idx == 0 and row_idx == 0
+
         else:
             return False
 

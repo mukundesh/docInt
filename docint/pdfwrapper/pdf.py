@@ -25,6 +25,10 @@ class CIDWord(ABC):
     def fonts(self):
         pass
 
+    @abstractproperty
+    def line_widths(self):
+        pass
+
 
 class Word(ABC):
     @abstractproperty

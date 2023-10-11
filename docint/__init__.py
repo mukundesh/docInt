@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Dict
 
-from . import pipeline
+from . import components, pipeline
 from .errors import Errors
 from .util import SimpleFrozenDict, is_readable, read_config_from_disk
 from .vision import Vision

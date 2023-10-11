@@ -1,7 +1,5 @@
 import ctypes
 import re
-from collections import Counter
-from pathlib import Path
 
 import PIL.Image
 import pypdfium2 as pdfium
@@ -526,9 +524,10 @@ Bit Position Flags
 if __name__ == "__main__":
     import sys
     from collections import Counter
-    from pathlib import Path
-    from docint import pdfwrapper
     from operator import itemgetter
+    from pathlib import Path
+
+    from docint import pdfwrapper
 
     for file_path in sys.argv[1:]:
         pdf_path = Path(file_path)

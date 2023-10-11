@@ -72,6 +72,7 @@ class Vision:
         viz.config_dir = config.get("config_dir", None)
         viz.output_stub = config.get("output_stub", None)
         viz.pipeline_file = config.get("pipeline_file", None)
+        viz.read_cache = config.get("read_cache", True)
 
         viz.output_dir = Path(viz.output_dir) if viz.output_dir else viz.output_dir
         viz.config_dir = Path(viz.config_dir) if viz.config_dir else viz.config_dir
@@ -321,7 +322,6 @@ class Vision:
         # 2.
 
         if not has_processing_fields():
-            print("No processing fields found")
             return True
 
         doc_name = get_doc_name(input_path)
@@ -340,7 +340,7 @@ class Vision:
         # if pipeline_ts > output_ts:
         #     return True
 
-        common_config_ts = self.get_common_config_mtime()
+        common_config_ts = self.get_common_config_mtime()  # noqa
         # commenting as translation creates files
         # if common_config_ts > output_ts:
         #     return True
@@ -377,7 +377,9 @@ class Vision:
 
         # print(f"Building docs... #paths: {len(paths)}")
         paths = (Path(p) for p in paths if get_doc_name(p) not in self.ignore_docs)
-        paths = (p for p in paths if self.doc_needs_processing(p))
+
+        if self.read_cache:
+            paths = (p for p in paths if self.doc_needs_processing(p))
 
         docs = (self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths)
 

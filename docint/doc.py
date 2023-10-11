@@ -1,3 +1,4 @@
+import gzip
 import json
 import shlex
 import shutil
@@ -117,7 +118,13 @@ class Doc(BaseModel):
     def to_disk(self, disk_file, format="json", exclude_defaults=True):
         disk_file = Path(disk_file)
         if format == "json":
-            disk_file.write_text(self.to_json(exclude_defaults=exclude_defaults))
+            if disk_file.suffix.lower() in (".gz"):
+                with gzip.open(disk_file, "wb") as f:
+                    f.write(
+                        bytes(self.to_json(exclude_defaults=exclude_defaults), encoding="utf-8")
+                    )
+            else:
+                disk_file.write_text(self.to_json(exclude_defaults=exclude_defaults))
         else:
             raise NotImplementedError(f"Unknown format: {format}")
             # disk_file.write_bytes(self.to_msgpack())
@@ -271,6 +278,9 @@ class Doc(BaseModel):
         json_file = Path(json_file)
         if json_file.suffix.lower() in (".json", ".jsn"):
             doc_dict = json.loads(json_file.read_text())
+        elif json_file.suffix.lower() in (".gz"):
+            with gzip.open(json_file, "rb") as f:
+                doc_dict = json.loads(f.read())
         else:
             # doc_dict = msgpack.unpackb(json_file.read_bytes())
             NotImplementedError(f"Unknown suffix: {json_file.suffix}")
