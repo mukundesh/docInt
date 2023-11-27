@@ -46,8 +46,8 @@ class Vocab:
             result = []
             for t in self._texts.keys():
                 dist = levenshtein(text, t)  # noqa
-                if dist < 5:
-                    print(f"\t{text} == {t} {dist}")
+                # if dist < 5:
+                #     print(f"\t{text} == {t} {dist}")
                 if dist <= dist_cutoff:
                     result.append((t, dist))
             return sorted(result, key=itemgetter(1))

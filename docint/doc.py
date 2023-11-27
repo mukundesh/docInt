@@ -93,6 +93,10 @@ class Doc(BaseModel):
     def pdf_name(self):
         return self.pdffile_path.name
 
+    @property
+    def file_name(self):
+        return self.pdf_name
+
     # move this to document factory
     @classmethod
     def build_doc(cls, pdf_path):

@@ -1,11 +1,22 @@
+import pytest
+
 import docint
 
+docker_config = {
+    "is_recognizer": True,
+    "delete_container_dir": False,
+}
 
+
+@pytest.mark.skip(
+    reason="don't want to install pdfplumber, in docker hard to copy both pdf and doc.json file"
+)
 def test_pdftable_finder(table_path):
-    # ppln = docint.empty(config={"docker_pipes": ["pdftable_finder"]}) # TODO not able to find pdf
-    ppln = docint.empty()
+    ppln = docint.empty(
+        config={"docker_pipes": ["pdftable_finder"], "docker_config": docker_config}
+    )  # TODO not able to find pdf
     ppln.add_pipe("pdf_reader")
-    ppln.add_pipe("pdftable_finder", pipe_config={"num_columns": 4})
+    ppln.add_pipe("pdftable_finder", pipe_config={"num_columns": 4, "heading_offset": 0})
     doc = ppln(table_path)
 
     assert len(doc.pages[0].tables[0].body_rows) == 9

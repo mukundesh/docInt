@@ -3,8 +3,6 @@ import json
 from pathlib import Path
 from typing import List
 
-from google.cloud import speech, speech_v2, storage
-from google.protobuf.json_format import MessageToDict
 from more_itertools import pairwise
 
 from ..audio import AudioWord, get_seconds
@@ -35,6 +33,8 @@ from ..ppln import Component, Pipeline
 
 
 def upload_to_gcs(audio, bucket_name, cloud_dir_path, overwrite=False):
+    from google.cloud import storage
+
     cloud_dir_path = Path(cloud_dir_path)
     cloud_input_path = cloud_dir_path / "input" / audio.file_name
 
@@ -57,6 +57,9 @@ def upload_to_gcs(audio, bucket_name, cloud_dir_path, overwrite=False):
 
 
 def run_async_transcribe(audio, bucket_name, cloud_dir_path):
+    from google.cloud import speech, speech_v2, storage
+    from google.protobuf.json_format import MessageToDict
+
     client = speech.SpeechClient()
     gcs_uri = upload_to_gcs(audio, bucket_name, cloud_dir_path)
 
@@ -80,6 +83,8 @@ def run_async_transcribe(audio, bucket_name, cloud_dir_path):
 
 
 def run_async_transcribe2(audio, bucket_name, cloud_dir_path):
+    from google.cloud import speech, speech_v2, storage
+
     client = speech_v2.SpeechClient()
     gcs_uri = upload_to_gcs(audio, bucket_name, cloud_dir_path)
 
@@ -130,7 +135,7 @@ class TranscribeAudio(Component):
         cloud_dir_path: str = "transcriber"
         overwrite_cloud: bool = False
         compress_output: bool = False
-        split_times: List[int] = []
+        split_times: List[str] = []
 
     def build_words(self, results, audio, start_sec=0):
         word_idx = 0
@@ -168,6 +173,7 @@ class TranscribeAudio(Component):
         if json_path.exists():
             with gzip.open(json_path, "rb") as f:
                 response_dict = json.loads(f.read())
+            audio_words = self.build_words(response_dict["results"], audio)
         else:
             audio_words = []
             if cfg.split_times:

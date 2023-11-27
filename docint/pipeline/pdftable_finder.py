@@ -23,6 +23,7 @@ from ..vision import Vision
 @Vision.factory(
     "pdftable_finder",
     depends=["pdfplumber"],
+    is_recognizer=True,
     default_config={
         "pdfplumber_config": {
             "vertical_strategy": "lines",
@@ -242,8 +243,10 @@ class PDFTableFinder:
                     row_idx += 1 if status != "S" else 0
 
                 page.tables.append(Table.build(body_rows, header_rows))
+                print("TABLE BUILT")
 
             page.heading = None
+            print("HANDLING OFFSET")
             if page_idx == 0 and self.heading_offset:
                 offset = self.heading_offset / page.height
                 page.heading = page.words_to("above", page.tables[0], offset)

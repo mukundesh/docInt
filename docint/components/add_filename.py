@@ -8,9 +8,14 @@ from ..ppln import Component, Pipeline
 )
 class AddFileName(Component):
     class Config:
-        make_lower_case: bool = False
+        make_upper_case: bool = False
 
-    def __call__(self, file):
-        file.add_extract_field("extract_file_name", field_type=str)
-        file.extract_file_name = file.get_file_name()
+    def __call__(self, file, cfg):
+        # file.add_extract_field("extract_file_name", field_type=str)
+        # file.extract_file_name = file.get_file_name()
+        if cfg.make_upper_case:
+            print("MAKING UPPER CASE")
+            file.extract_file_name = file.file_name.upper()
+        else:
+            file.extract_file_name = file.file_name
         return file

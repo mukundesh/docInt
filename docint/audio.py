@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any, List, Tuple
 
 from pydantic import BaseModel
-from pydub import AudioSegment
-from pydub.utils import mediainfo
 
 from .file import File
 
@@ -56,6 +54,8 @@ class Audio(File):
 
     @classmethod
     def load_audio(self):
+        from pydub import AudioSegment
+
         if self.file_path.suffix.lower() == ".mp3":
             self.audio_seg = AudioSegment.from_mp3(self.file_path)
         else:
@@ -75,6 +75,8 @@ class Audio(File):
     @property
     def metadata(self):
         if not self.audio_metadata:
+            from pydub.utils import mediainfo
+
             self.audio_metadata = mediainfo(self.file_path)
         return self.audio_metadata
 
@@ -147,6 +149,10 @@ class Audio(File):
         # ffmpeg -i source.m4v -ss       0 -t  593.3 -c copy part1.m4v
 
         split_file = input_dir / f"{self.file_stem}+{start_secs}-{end_secs}{self.file_suffix}"
+        if split_file.exists():
+            print(f"File exists, using that {split_file}")
+            return Audio.build(split_file)
+
         cmd = [
             "ffmpeg",
             "-i",

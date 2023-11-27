@@ -5,13 +5,14 @@ docker_config = {
         "ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"
     ],
     "is_recognizer": True,
-    "delete_container_dir": False,
+    "delete_container_dir": True,
 }
 
 
 def test_pdftable_finder(table_path):
-    # ppln = docint.empty(config={"docker_pipes": ["table_edge_finder"], "docker_config": docker_config})
-    ppln = docint.empty()
+    ppln = docint.empty(
+        config={"docker_pipes": ["table_edge_finder"], "docker_config": docker_config}
+    )
     ppln.add_pipe("pdf_reader")
     ppln.add_pipe("page_image_builder_raster")
     ppln.add_pipe("num_marker")

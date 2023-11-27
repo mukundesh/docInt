@@ -11,6 +11,7 @@ from ..vision import Vision
 
 @Vision.factory(
     "rotation_detector",
+    depends=["numpy"],
     default_config={
         "min_text_len": 4,
         "min_num_markers": 3,

@@ -6,7 +6,6 @@ docker_config = {
     "post_install_lines": [
         "ENV GOOGLE_APPLICATION_CREDENTIALS /usr/src/app/task_/.secrets/google.token"
     ],
-    "is_recognizer": True,
     "delete_container_dir": True,
 }
 
@@ -16,7 +15,12 @@ def get_line(page, line_idx):
 
 
 def test_words_arranger(table_rota_path):
-    ppln = docint.empty(config={"docker_pipes": ["gcv_recognizer"], "docker_config": docker_config})
+    ppln = docint.empty(
+        config={
+            "docker_pipes": ["gcv_recognizer", "rotation_detector"],
+            "docker_config": docker_config,
+        }
+    )
     # ppln = docint.empty()
     ppln.add_pipe("gcv_recognizer", pipe_config={"bucket": "orgfound"})
     ppln.add_pipe("page_image_builder_raster")

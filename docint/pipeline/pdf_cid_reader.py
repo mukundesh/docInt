@@ -12,7 +12,6 @@ from pydantic import BaseModel
 from .. import pdfwrapper
 from ..doc import Doc
 from ..page import Page
-from ..pdfwrapper.pdfminer_wrapper import EnglishFonts
 from ..shape import Box, Coord, Poly, Shape
 from ..util import load_config
 from ..vision import Vision

@@ -7,6 +7,7 @@ from types import GeneratorType  # TODO: move this to iterable
 import yaml
 from more_itertools import first
 
+n
 from .doc import Doc
 from .errors import Errors
 from .util import get_repo_dir, get_uniq_str, is_repo_path, tail
@@ -53,6 +54,14 @@ DEFAULT_PY_PACKAGES = [  # move this to docint
 #     `-- task_-mwv2                        # one directory per container run
 #         |-- conf
 #         ....
+
+"""
+# Execution
+1. Build Image
+   - generate docker file
+   - search for image_dir
+   - build image_dir if not present
+"""
 
 
 class DockerRunner:

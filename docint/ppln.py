@@ -2,17 +2,19 @@ import logging
 import os
 from collections import ChainMap
 from dataclasses import dataclass
-from itertools import groupby
+from itertools import chain, groupby
 from operator import itemgetter
 from pathlib import Path
+from types import GeneratorType
 from typing import Callable, Dict, Iterable, List, Optional, Union
 
 from pydantic import BaseModel, BaseSettings, DirectoryPath, Field, create_model, validate_model
 from pydantic.fields import FieldInfo
 
 from .audio import Audio
+from .doc import Doc
 from .file import File
-from .util import read_config_from_disk
+from .util import load_config, read_config_from_disk
 
 ## This file is still WIP
 # TODO
@@ -30,6 +32,18 @@ from .util import read_config_from_disk
 # 4. Notion of component and pipeline config
 ##
 
+## Scope order
+# 1. Code Defaults
+# 2. Pipeline File
+# 3. Environment Variables
+# 4. Commandline Variables
+
+# Scoped Configs
+# 1. Pipeline File
+# 2. Scope_config_file
+# 3. Environment Variables
+# 4. Commandline Variables
+
 """
 ## Decisions Taken
 1. Pipeline config and component config will be different, pipeline_config needs to be defined
@@ -38,11 +52,6 @@ from .util import read_config_from_disk
 
 2. You can add scoped_config to pipeline.yml, by adding a section called 'scoped_config:'
    but then you need to define them just like environment variables, 'seperted by '__'
-
-
-
-
-
 """
 
 
@@ -52,11 +61,10 @@ class PipeConfig:
         self.component_setting_cls = component_setting_cls
         self.pipe_name = pipe_name
 
-        self.chain_map = ChainMap()
-        settings = self.component_setting_cls(stub=pipe_name)
+        settings = self.component_setting_cls(stub=pipe_name.lower())
         self.validate(settings.dict())
 
-        self.chain_map = self.chain_map.new_child(settings.dict())
+        self.chain_map = ChainMap(settings.dict())
         self.scopes = []
 
         print(self.chain_map)
@@ -72,6 +80,7 @@ class PipeConfig:
             self.component_setting_cls, config_dict
         )
         if validation_error:
+            print(config_dict)
             raise validation_error
 
     def load_env(self, pipe_name):
@@ -116,27 +125,45 @@ class PipeConfig:
         print(scopes_dict)
         return scopes_dict
 
-    def add_scope_config(self, scope_key, config):
-        self.scopes_dict.setdefault(scope_key, {}).update(config)
+    def add_scope_config(self, scope_str, config_dict):
+        if config_dict:
+            config_dict.setdefault("stub", self.pipe_name.lower())
+            self.validate(config_dict)
+            self.scopes_dict.setdefault(scope_str, []).append(config_dict)
 
-    def add_scope(self, scope):
+    def enter_scope(self, scope):
+        def merge_dicts(dict_list):
+            return {k: v for d in reversed(dict_list) for k, v in d.items()}
+
+        if "=" in scope:
+            raise ValueError("Scope definition cannot have '.'")
+
         self.scopes.append(scope)
-        self.update()
+        scope_str = "=".join(self.scopes)
+        self.chain_map = self.chain_map.new_child(merge_dicts(self.scopes_dict.get(scope_str, [])))
 
-    def pop_scope(self, scope):
+    def exit_scope(self):
         self.scopes.pop(-1)
-        self.update()
-
-    def load_dotfile(self):
-        pass
-
-    def load_configfile(self):
-        pass
+        self.chain_map = self.chain_map.parents
 
 
 class PipelineSettings(BaseSettings):
-    repo_dir: Optional[DirectoryPath] = Field(description="Root directory of processing")
-    ignore_docs: Union[List[str], Dict[str, str]] = []
+    root_dir: Optional[DirectoryPath] = Field(
+        default=".", description="Root directory of processing"
+    )
+    input_dir: Optional[DirectoryPath] = Field(
+        default=".", description="input directory for processing"
+    )
+    output_dir: Optional[DirectoryPath] = Field(
+        default=".", description="output directory for processing"
+    )
+    config_dir: Optional[DirectoryPath] = Field(
+        default=".", description="configuration directory for processing"
+    )
+    ignore_docs: Union[List[str], Dict[str, str]] = Field(
+        default=[], description="files to ignore."
+    )
+    read_cache: bool = Field(default=True, description="Whether to read cached data")
 
     class Config:
         extra = "allow"
@@ -156,12 +183,10 @@ class Pipeline:
     components = {}
     components_meta = {}
 
-    class Config:
-        ignore_docs = []
-        description = ""
-
-    def __init__(self):
+    def __init__(self, pipeline_config={}):
         self._pipes = []
+        self._config = PipelineSettings(**pipeline_config)
+        self._pipe_configs = []
 
     @classmethod
     def from_file(cls, pipeline_file):
@@ -171,16 +196,20 @@ class Pipeline:
     @classmethod
     def from_config(cls, pipeline_file_dict):
         ppln_dict = pipeline_file_dict.pop("pipeline", [])
+        scope_configs = pipeline_file_dict.pop("scope_configs", {})  # noqa
+
         # ppln_config = pipeline_file_dict # TODO use this to initialize pipeline_config
-        ppln = Pipeline()
+        ppln = Pipeline(pipeline_file_dict)
         for pipe_dict in ppln_dict:
             if isinstance(pipe_dict, dict):
                 pipe_name = pipe_dict.pop("name")
                 component_name = pipe_dict.pop("component_name", pipe_name)
-                ppln.add_pipe(pipe_name, component_name, pipe_dict.get("config", {}))
+                ppln.add_pipe(
+                    pipe_name, component_name, pipe_dict.get("config", {}), pipeline_file_dict
+                )
             else:
                 pipe_name = pipe_dict
-                ppln.add_pipe(pipe_name, pipe_name, {})
+                ppln.add_pipe(pipe_name, pipe_name, {}, pipeline_file_dict)
         return ppln
 
     def create_component_settings(self, component_name):
@@ -193,6 +222,8 @@ class Pipeline:
             return annot_dict, vars_dict
 
         component_cls = Pipeline.components[component_name]
+
+        # Read all the fields defined in the Config class
         config_cls_list = [getattr(c, "Config", {}) for c in component_cls.__mro__]
         config_cls_list = [cfg_cls for cfg_cls in config_cls_list if cfg_cls]
 
@@ -214,19 +245,22 @@ class Pipeline:
         print(config_model.__fields__)
         return config_model
 
-    def add_pipe(self, pipe_name, component_name, configs):
+    def add_pipe(self, pipe_name, component_name, component_configs, pipeline_configs):
         if component_name not in Pipeline.components:
             raise ValueError(f"Unknown component name {component_name}")
 
         if pipe_name in [n for (n, c) in self._pipes]:
             raise ValueError(f"Pipe {pipe_name} exists in the pipeline.")
 
+        # create a settings class that is a subclass of pipline_settings
         component_cls = Pipeline.components[component_name]
         component_settings_cls = self.create_component_settings(component_name)
 
+        # create a config
         pipe_config = PipeConfig(pipe_name, component_settings_cls)
-        for (attr, value) in configs.items():
+        for (attr, value) in chain(pipeline_configs.items(), component_configs.items()):
             setattr(pipe_config, attr, value)
+        self._pipe_configs.append(pipe_config)
 
         pipe = component_cls(cfg=pipe_config, pipe_name=pipe_name)
         print(pipe)
@@ -234,7 +268,7 @@ class Pipeline:
 
     @classmethod
     def check_component_definition(cls, component_cls):
-        print("\t check_component_definition")
+        # print("\t check_component_definition")
         pass
 
     @classmethod
@@ -246,7 +280,7 @@ class Pipeline:
         depends: Iterable[str] = [],
     ) -> Callable:
 
-        print("Inside register_component: " + assigns)
+        # print("Inside register_component: " + assigns)
 
         def register_component_cls(component_cls):
             cls.check_component_definition(component_cls)
@@ -259,36 +293,72 @@ class Pipeline:
                 assigns=assigns,
                 depends=depends,
             )
-            print("Inside register_component_cls: " + str(component_cls))
+            # print("Inside register_component_cls: " + str(component_cls))
             return component_cls
 
         return register_component_cls
 
-    def exec_pipe(self, name, pipe, doc):
-        doc.add_pipe(name)
-        return pipe(doc, pipe.cfg)
+    def is_ignored(self, file_name):
+        # print(self._config.ignore_docs)
+        return any(i in file_name.name for i in self._config.ignore_docs)
 
-    def __call__(self, file_path, pipe_configs={}):
+    def build_file(self, file_path):
         if isinstance(file_path, File):  # Doc
-            doc = file_path
-        elif isinstance(file_path, str) or isinstance(file_path, Path):
-            path = file_path
-            if path.suffix.lower() in (".json", ".jsn", ".msgpack"):
-                doc = None  # Doc.from_disk(path)
-            elif path.suffix.lower() == ".pdf":
-                doc = File.from_file(path)
-            elif path.suffix.lower() in (".webm", ".mp3"):
-                doc = Audio.build(path)
+            return file_path
 
+        file_path = Path(file_path)
+        if file_path.suffix.lower() in (".json"):
+            file = Doc.from_disk(file_path)
+        elif file_path.suffix.lower() == ".pdf":
+            file = Doc.build_doc(file_path)
+        elif file_path.suffix.lower() in (".webm", ".mp3"):
+            file = Audio.build(file_path)
         else:
             raise ValueError(f"Unknown document format {file_path}")
+        return file
 
-        for (name, pipe) in self._pipes:
-            if name in pipe_configs:
-                pipe.cfg.load_dict(pipe_configs[name])
+    def exec_pipe(self, pipe_name, pipe, pipe_cfg, files):
+        def setup_pipe(file):
+            file.add_pipe(pipe_name)  # please change the name of method
 
+            # read config directory
+            file_cfg_dict = load_config(pipe_cfg.config_dir, file.file_name, pipe_cfg.stub)
+            scope_configs = file_cfg_dict.pop("scope_configs", {})
+            pipe_cfg.add_scope_config(file.file_name, file_cfg_dict)
+            for file_scope_str, scope_config in scope_configs.items():
+                scope_str = f"{file.file_name}={file_scope_str}"
+                pipe_cfg.add_scope_config(scope_str, file_cfg_dict)
+
+            # configure loggers
+            pipe_cfg.enter_scope(file.file_name)
+
+        def tear_down(file):
+            pipe_cfg.exit_scope()
+            assert len(pipe_cfg.scopes) == 0
+
+        for file in files:
+            setup_pipe(file)
             try:
-                doc = self.exec_pipe(name, pipe, doc)
+                file = pipe(file, pipe_cfg)
+            except Exception as e:
+                print(f"*** Failed *** {e}")
+                continue
+            finally:
+                tear_down(file)
+            if file is None:
+                raise ValueError("Document not returned")
+            yield file
+
+    def __call__(self, file_paths):
+        if isinstance(file_paths, (list, GeneratorType)):
+            files = (self.build_file(f) for f in file_paths if not self.is_ignored(f))
+        else:
+            # A single file is never ignored !
+            files = [self.build_file(file_paths)]
+
+        for ((pipe_name, pipe), pipe_cfg) in zip(self._pipes, self._pipe_configs):
+            try:
+                files = self.exec_pipe(pipe_name, pipe, pipe_cfg, files)
             except KeyError as e:  # noqa
                 # This typically happens if a component is not initialized
                 raise ValueError("Key errorr, looks like config changed")
@@ -296,24 +366,24 @@ class Pipeline:
                 raise e
                 # error_handler(name, proc, [doc], e)
 
-            if doc is None:
-                raise ValueError("Empty document returned")
-        return doc
+        if isinstance(file_paths, (list, GeneratorType)):
+            return files
+        else:
+            files = list(files)
+            return files[0] if len(files) == 1 else None
 
 
 class Component(BaseModel):
     lgr: logging.Logger = None
-    cfg: PipeConfig
+    cfg: PipeConfig  # Needs to go, as cfg should be passed
     pipe_name: str
 
     class Config:
         arbitrary_types_allowed = True
-
         stub: str
-        conf_dif: Optional[Path] = Path("conf")
-        log_config: Dict[str, str] = {}
 
 
+"""
 @Pipeline.register_component(
     assigns="words",
     depends=["pip:google-cloud-vision"],
@@ -333,7 +403,8 @@ class Recognizer(Component):
 
             # do stuff
 
-            self.cfg.pop_scope(f"page[{page.page_idx}]")
+            self.cfg.exit_scope(f"page[{page.page_idx}]")
+"""
 
 
 # os.environ['RECOGNIZER__PAGE_ANGLE'] = 4.0
