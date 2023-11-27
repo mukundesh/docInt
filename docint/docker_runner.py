@@ -7,7 +7,6 @@ from types import GeneratorType  # TODO: move this to iterable
 import yaml
 from more_itertools import first
 
-n
 from .doc import Doc
 from .errors import Errors
 from .util import get_repo_dir, get_uniq_str, is_repo_path, tail
