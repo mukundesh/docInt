@@ -307,7 +307,7 @@ class FindNumMarker:
     def test(self, doc, num_type):
         errors, exp_val = [], 1
         mIter = [(i, m, p) for p in doc.pages for (i, m) in enumerate(p.num_markers)]
-        for (m_idx, marker, page) in mIter:
+        for m_idx, marker, page in mIter:
             if marker.num_type != num_type:
                 continue
 

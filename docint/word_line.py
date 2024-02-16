@@ -208,7 +208,7 @@ class LineWord(Region):
 
 def print_word_lines(word_lines):
     print("****************")
-    for (line_idx, line) in enumerate(word_lines):
+    for line_idx, line in enumerate(word_lines):
         line = " ".join([w.text for w in line])
         print(f"[{line_idx}]: {line}")
 

@@ -605,7 +605,7 @@ class Doc(BaseModel):
 
         data_edits = []  # list of lists, constisting of items edited
 
-        for (edit, line_num) in zip_longest(edits, line_nums, fillvalue=""):
+        for edit, line_num in zip_longest(edits, line_nums, fillvalue=""):
             # print(f"Edit: {edit}")
             editList = shlex.split(edit.strip())
             proc = editList.pop(0)

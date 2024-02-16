@@ -130,13 +130,13 @@ class DocTranslatorAI4Bharat:
         para_trans = [
             self.model.translate_paragraph(p, self.src_lang, self.tgt_lang) for p in para_texts
         ]
-        for (p, t) in zip(para_texts, para_trans):
+        for p, t in zip(para_texts, para_trans):
             self.indic2en_trans[p] = t
         self.save_translations()
 
     def sentences_translate(self, sents):
         sents_trans = self.model.batch_translate(sents, self.src_lang, self.tgt_lang)
-        for (s, t) in zip(sents, sents_trans):
+        for s, t in zip(sents, sents_trans):
             self.indic2en_trans[s] = t
         self.save_translations()
 

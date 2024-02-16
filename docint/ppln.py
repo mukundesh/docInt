@@ -15,6 +15,7 @@ from .audio import Audio
 from .doc import Doc
 from .file import File
 from .util import load_config, read_config_from_disk
+from .video import Video
 
 ## This file is still WIP
 # TODO
@@ -113,10 +114,10 @@ class PipeConfig:
         # group all scope_keys
         scopes_dict = {}
         keys_list.sort(key=itemgetter(0))
-        for (scope_str, keys_group) in groupby(keys_list, key=itemgetter(0)):
+        for scope_str, keys_group in groupby(keys_list, key=itemgetter(0)):
             scope_key = tuple(scope_str.split(env_nested_delimiter))
             scope_dict = scopes_dict.setdefault(scope_key, {})
-            for (_, config_keys, env_val) in keys_group:
+            for _, config_keys, env_val in keys_group:
                 env_var = scope_dict
                 for key in config_keys[:-1]:
                     env_var = env_var.setdefault(key, {})
@@ -187,6 +188,7 @@ class Pipeline:
         self._pipes = []
         self._config = PipelineSettings(**pipeline_config)
         self._pipe_configs = []
+        self._single_file = False  # pipeline invoked with 1 file, TODO should this be called debug?
 
     @classmethod
     def from_file(cls, pipeline_file):
@@ -258,7 +260,7 @@ class Pipeline:
 
         # create a config
         pipe_config = PipeConfig(pipe_name, component_settings_cls)
-        for (attr, value) in chain(pipeline_configs.items(), component_configs.items()):
+        for attr, value in chain(pipeline_configs.items(), component_configs.items()):
             setattr(pipe_config, attr, value)
         self._pipe_configs.append(pipe_config)
 
@@ -279,7 +281,6 @@ class Pipeline:
         assigns: Iterable[str] = [],
         depends: Iterable[str] = [],
     ) -> Callable:
-
         # print("Inside register_component: " + assigns)
 
         def register_component_cls(component_cls):
@@ -298,9 +299,37 @@ class Pipeline:
 
         return register_component_cls
 
-    def is_ignored(self, file_name):
+    def is_ignored(self, file_path):
         # print(self._config.ignore_docs)
-        return any(i in file_name.name for i in self._config.ignore_docs)
+        return any(i in file_path.name for i in self._config.ignore_docs)
+
+    def file_needs_processing(self, file_path):
+        # TODO: Needs processing fields
+        # 3 fields needed are not defined return True for all
+        if not self.has_processing_fields:
+            return True
+
+        # if output_file does not exist, return True
+        file_name = file_path.name
+        output_path = self.pipe_cfg.output_dir / f"{file_name}.{self.pipe_cfg.output_stub}.json"
+        if not output_path.exists():
+            return True
+
+        output_ts = output_path.stat().st_mtime
+
+        # if output_time < input_time do the processing
+        if file_path.exists():
+            input_ts = file_path.stat().st_mtime
+            if input_ts > output_ts:
+                return True
+
+        # if pipe_config_time > output_time do the processing, config changed
+        for (pipe_name, pipe), pipe_cfg in zip(self._pipes, self._pipe_configs):
+            pipe_cfg_path = self.pipe_cfg.config_dir / f"{file_name}.{pipe_cfg.stub}.yml"
+            if pipe_cfg_path.exists() and pipe_cfg_path.stat().st_mtime > output_ts:
+                return True
+
+        return False
 
     def build_file(self, file_path):
         if isinstance(file_path, File):  # Doc
@@ -313,6 +342,8 @@ class Pipeline:
             file = Doc.build_doc(file_path)
         elif file_path.suffix.lower() in (".webm", ".mp3"):
             file = Audio.build(file_path)
+        elif file_path.suffix.lower() in (".mp4"):
+            file = Video.build(file_path)
         else:
             raise ValueError(f"Unknown document format {file_path}")
         return file
@@ -342,7 +373,10 @@ class Pipeline:
                 file = pipe(file, pipe_cfg)
             except Exception as e:
                 print(f"*** Failed *** {e}")
-                continue
+                if self._single_file:
+                    raise
+                else:
+                    continue
             finally:
                 tear_down(file)
             if file is None:
@@ -351,12 +385,15 @@ class Pipeline:
 
     def __call__(self, file_paths):
         if isinstance(file_paths, (list, GeneratorType)):
+            # files = (self.build_file(f) for f in file_paths if not self.is_ignored(f) and self.file_needs_processing(f))
             files = (self.build_file(f) for f in file_paths if not self.is_ignored(f))
+            self._single_file = False
         else:
             # A single file is never ignored !
+            self._single_file = True
             files = [self.build_file(file_paths)]
 
-        for ((pipe_name, pipe), pipe_cfg) in zip(self._pipes, self._pipe_configs):
+        for (pipe_name, pipe), pipe_cfg in zip(self._pipes, self._pipe_configs):
             try:
                 files = self.exec_pipe(pipe_name, pipe, pipe_cfg, files)
             except KeyError as e:  # noqa

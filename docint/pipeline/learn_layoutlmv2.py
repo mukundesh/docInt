@@ -69,7 +69,7 @@ def generate_dataset(learn_pages, model_dir, model_name, has_labels=True):
 
         lr_items = page.word_labels.items()
         label_region_iter = ((lab, r.words) for lab, rs in lr_items for r in rs)
-        for (label, words) in label_region_iter:
+        for label, words in label_region_iter:
             ner_tags[words[0].word_idx] = f"B-{label}".replace("_", "").upper()
             for w in words[1:]:
                 ner_tags[w.word_idx] = f"I-{label}".replace("_", "").upper()
@@ -247,7 +247,7 @@ class LearnLayout:
         fold_size = num_examples / self.num_folds
         fold_idxs = [int(i * fold_size) for i in range(self.num_folds)] + [num_examples]
 
-        for (start_idx, end_idx) in pairwise(fold_idxs):
+        for start_idx, end_idx in pairwise(fold_idxs):
             test_idxs = list(range(start_idx, end_idx))
             train_idxs = list(range(0, start_idx)) + list(range(end_idx, num_examples))
             yield train_idxs, test_idxs

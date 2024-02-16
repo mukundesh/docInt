@@ -42,7 +42,6 @@ def rotate_words_inpage(page):
     old_size = page.size
     new_size = rotate_xy(page.width, page.height, -1 * angle)
     for word in page.words:
-
         new_coords = [rotate_coord(c, old_size, new_size, -1 * angle) for c in word.shape_.coords]
         new_word = copy.copy(word)  # this doesn't copy coords
         if isinstance(word.shape_, Poly):

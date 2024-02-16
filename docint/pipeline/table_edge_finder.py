@@ -284,7 +284,6 @@ class TableEdgeFinder:
         return col_edges, col_img_xs
 
     def get_row_edges(self, page_image, page_idx, row_markers, crop_coords, conf):
-
         if len(row_markers) > 1:
             row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))
         else:

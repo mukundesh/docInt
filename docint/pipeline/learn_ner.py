@@ -22,7 +22,7 @@ def get_text_paras(docs):
 
 def get_ner_tags(labels):
     ner_tags = []
-    for (idx, label) in enumerate(labels):
+    for idx, label in enumerate(labels):
         if label is None:
             ner_tags.append("O")
             continue
@@ -124,7 +124,7 @@ class LearnNER:
         fold_size = num_examples / self.num_folds
         fold_idxs = [int(i * fold_size) for i in range(self.num_folds)] + [num_examples]
 
-        for (start_idx, end_idx) in pairwise(fold_idxs):
+        for start_idx, end_idx in pairwise(fold_idxs):
             test_idxs = list(range(start_idx, end_idx))
             train_idxs = list(range(0, start_idx)) + list(range(end_idx, num_examples))
             yield train_idxs, test_idxs
@@ -139,14 +139,14 @@ class LearnNER:
             para = doc[para_config["page_idx"]].text_paras[para_config["para_idx"]]
             para.clear_labels()
 
-            for (label, spans) in para_config.items():
+            for label, spans in para_config.items():
                 if label == "para_idx" or label == "page_idx":
                     continue
 
                 if not spans or not spans[0]:
                     continue
 
-                for (start, end) in spans:
+                for start, end in spans:
                     span = Span(start=start, end=end)
                     para.add_label(span, label)
                     print(f"Adding {label}: {span}")
@@ -187,7 +187,7 @@ class LearnNER:
         data_dict = {"id": [], "tokens": [], "ner_tags": []}
         class_labels = set()
 
-        for (para_id, para) in get_text_paras(docs):
+        for para_id, para in get_text_paras(docs):
             data_dict["id"].append(para_id)
 
             tokens, labels = para.get_texts_labels(para)

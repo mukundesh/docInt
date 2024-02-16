@@ -135,7 +135,6 @@ class LineFinder:
         return self.newline_height_multiple
 
     def __call__(self, doc):
-
         cfg = self.load_config(doc)
 
         edits = cfg.get("edits", [])
@@ -149,7 +148,7 @@ class LineFinder:
         json_path = self.output_dir / f"{doc.pdf_name}.{self.conf_stub}.json"
         if json_path.exists():
             jd = json.loads(json_path.read_text())
-            for (page, lines_word_idxs) in zip(doc.pages, jd["lines_info"]):
+            for page, lines_word_idxs in zip(doc.pages, jd["lines_info"]):
                 lines = [[page[idx] for idx in line_idxs] for line_idxs in lines_word_idxs]
                 page.lines = [
                     Region.from_words(wl) if wl else Region.no_words(page.page_idx) for wl in lines

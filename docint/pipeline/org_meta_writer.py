@@ -40,7 +40,7 @@ def is_multi_order(doc, page_languages):
     c_x_range, c_y_range = (0.0, 0.4), (0.0, 1.0)
 
     o_pages, c_pages = [], []
-    for (page, lang) in zip(doc.pages, page_languages):
+    for page, lang in zip(doc.pages, page_languages):
         o = (
             ["आदेश", "आज्ञा", "आंज्ञा", "संशोधन"]
             if lang.lower() == "devanagari"

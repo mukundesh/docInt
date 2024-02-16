@@ -124,7 +124,7 @@ class PageImageBuilderEmbedded:
         pdf = pdfwrapper.open(doc.pdf_path, library_name="pypdfium2")
 
         page_images = []
-        for (page, pdf_page) in zip(doc.pages, pdf.pages):
+        for page, pdf_page in zip(doc.pages, pdf.pages):
             if len(pdf_page.images) == 1:
                 pdf_image = pdf_page.images[0]
 

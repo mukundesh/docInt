@@ -64,7 +64,6 @@ class CloudVisionRecognizer2:
         read_lines,
         compress_output,
     ):
-
         self.bucket_name = bucket
         self.cloud_dir_path = Path(cloud_dir_path)
         self.output_dir_path = Path(output_dir_path)
@@ -131,7 +130,6 @@ class CloudVisionRecognizer2:
     def get_ocr_pages(self, output_path):
         output_paths = output_path if isinstance(output_path, list) else [output_path]
         for o_path in output_paths:
-
             if not o_path.exists() and Path(f"{str(output_path)}.gz").exists():
                 o_path = Path(f"{str(output_path)}.gz")
 
@@ -167,7 +165,7 @@ class CloudVisionRecognizer2:
         def is_small_word(word):
             return word.box.height < mean_height * 0.4
 
-        for (page_idx, ocr_page) in enumerate(self.get_ocr_pages(output_path)):
+        for page_idx, ocr_page in enumerate(self.get_ocr_pages(output_path)):
             ocr_words = get_words(ocr_page)
             width, height = ocr_page.get("width", 0), ocr_page.get("height", 0)
             page_size = (width, height)
@@ -181,13 +179,13 @@ class CloudVisionRecognizer2:
                 page.page_image.image_type = "raster"  # TODO CHANGE THIS TO ROTATED
 
             page_words = []
-            for (word_idx, ocr_word) in enumerate(ocr_words):
+            for word_idx, ocr_word in enumerate(ocr_words):
                 page_words.append(self.build_word(doc, page_idx, word_idx, ocr_word, page_size))
 
             mean_height = avg((w.box.height for w in page_words), default=0.02)
             keep_words, elim_words = partition(is_small_word, page_words)
 
-            for (idx, word) in enumerate(keep_words):
+            for idx, word in enumerate(keep_words):
                 word.word_idx = idx
                 page.words.append(word)
 
@@ -254,7 +252,7 @@ class CloudVisionRecognizer2:
 
         mime_type = "image/tiff"
         all_responses_dict = {"responses": []}
-        for (page_idx, page) in enumerate(doc.pages):
+        for page_idx, page in enumerate(doc.pages):
             print(f"Fetching image for page: {page_idx}")
             image_path = page.page_image.get_image_path()
 

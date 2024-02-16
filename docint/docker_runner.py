@@ -11,7 +11,7 @@ from .doc import Doc
 from .errors import Errors
 from .util import get_repo_dir, get_uniq_str, is_repo_path, tail
 
-PYTHON_VERSION = "3.7-slim"
+PYTHON_VERSION = "3.8-slim"
 WORK_DIR = Path("/usr/src/app")
 REPORT_LAST_LINES_COUNT = 3
 DEFAULT_OS_PACKAGES = []  # "libmagickwand-dev"]

@@ -217,7 +217,7 @@ class HierarchySpanGroup(SpanGroup):
     @classmethod
     def select_non_overlapping(cls, span_groups):
         retain_idxs = [True] * len(span_groups)
-        for (idx1, idx2) in it.combinations(range(len(span_groups)), 2):
+        for idx1, idx2 in it.combinations(range(len(span_groups)), 2):
             m1, m2 = span_groups[idx1], span_groups[idx2]
             if m1.overlaps(m2) and retain_idxs[idx1] and retain_idxs[idx2]:
                 min_len, min_idx = min((m1.span_len, idx1), (m2.span_len, idx2))
@@ -421,7 +421,6 @@ class Hierarchy:
     ]
 
     def __init__(self, file_path, noparse_file_path=None, save_unmatched=False):
-
         self.file_path = Path(file_path)
         if not is_readable(self.file_path):
             raise ValueError(f"Path is not readable: {self.file_path}")
@@ -437,7 +436,7 @@ class Hierarchy:
 
         self.expand_names_dict = yml_dict.get("expand_names", {})
         if self.expand_names_dict:
-            for (old_sub_str, new_sub_str) in self.expand_names_dict.items():
+            for old_sub_str, new_sub_str in self.expand_names_dict.items():
                 lgr.info(f"Expanding names >{old_sub_str}< >{new_sub_str}<")
                 assert old_sub_str != new_sub_str
                 self.expand_names(old_sub_str, new_sub_str)

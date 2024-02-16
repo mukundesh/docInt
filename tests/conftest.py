@@ -135,3 +135,8 @@ def page_image_path():
 @pytest.fixture
 def one_line_path():
     return Path("tests") / "one_line.pdf"
+
+
+@pytest.fixture
+def small_video_path():
+    return Path("tests") / Path("files") / "small.mp4"

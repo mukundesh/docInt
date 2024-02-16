@@ -103,6 +103,6 @@ elif len(sys.argv) > 1:
 else:
     # generate the info files.
 
-    for (name, pdf_dir) in PDF_DIRS:
+    for name, pdf_dir in PDF_DIRS:
         pdf_infos = test_info_directory("pypdfium2", Path(pdf_dir))
         Path(f"{name}.info.json").write_text(json.dumps(pdf_infos))

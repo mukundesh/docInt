@@ -305,7 +305,7 @@ if __name__ == "__main__":
         pdf_path = Path(file_path)
         try:
             pdf = pdfwrapper.open(pdf_path, library_name="pdfminer")
-            for (page_idx, page) in enumerate(pdf.pages):
+            for page_idx, page in enumerate(pdf.pages):
                 if page_idx > 2:
                     continue
 

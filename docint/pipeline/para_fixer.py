@@ -53,7 +53,6 @@ class ParaFixer:
         ner_model_name,
         officer_at_start,
     ):
-
         ignore_puncts = string.punctuation
         self.punct_tbl = str.maketrans(ignore_puncts, " " * len(ignore_puncts))
         self.item_name = item_name
@@ -283,7 +282,7 @@ class ParaFixer:
 
     def set_config(self, doc_config):
         old_config = {}
-        for (k, v) in doc_config:
+        for k, v in doc_config:
             if k != "edits" and (getattr(self, k, None) is not None):
                 old_config[k] = getattr(self, k)
                 setattr(self, k, doc_config[k])
@@ -311,7 +310,7 @@ class ParaFixer:
         for page_idx, page in enumerate(doc.pages):
             # access what to fix through path
             items = getattr(page, self.item_name, [])
-            for (list_idx, list_item) in enumerate(items):
+            for list_idx, list_item in enumerate(items):
                 item_path = f"pa{page.page_idx}.{self.item_name[:2]}{list_idx}"  # noqa
                 indent_str = f"{doc.pdf_name}:{page_idx}>{list_idx}"  # noqa: F841
                 list_item.t = None

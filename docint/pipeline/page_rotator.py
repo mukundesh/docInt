@@ -5,7 +5,6 @@ from pathlib import Path
 from ..shape import Coord
 from ..vision import Vision
 
-
 # TODO: 1. make image rotation optional -- why ???
 # TODO: 2. no need to provide image dir as that should be picked up separately
 # TODO: 3. logging

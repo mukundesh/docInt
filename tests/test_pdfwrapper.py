@@ -17,7 +17,6 @@ def float_eq(a, b):
 
 @pytest.mark.parametrize("library_name", ["pypdfium2"])
 def test_page(images_path, library_name):
-
     pdf = pdfwrapper.open(images_path, library_name=library_name)
     assert len(pdf.pages) == 1
 

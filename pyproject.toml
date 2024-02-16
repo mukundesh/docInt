@@ -35,6 +35,8 @@ more-itertools = "^8.14.0"
 pillow = "^10.0.1"
 python-dateutil = "^2.8.2"
 pypdfium2 = "^3.20.1"
+ruff = "^0.2.1"
+opencv-python = "^4.9.0.80"
 
 
 [tool.poetry.group.test.dependencies]
@@ -43,10 +45,6 @@ pytest-cov = "^4.0.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
-ruff = "^0.0.243"
-
-[tool.poetry.group.docs.dependencies]
-
 
 [build-system]
 requires = ["poetry-core"]
@@ -147,12 +145,12 @@ commands =
 
 [tool.ruff]
 # Enable Pyflakes `E` and `F` codes by default.
-select = ["E", "F", "W", "I001"]
-ignore = ['F401', 'E501']
+lint.select = ["E", "F", "W", "I001"]
+lint.ignore = ['F401', 'E501']
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
-fixable = ["I001"] # fix only isort issues
-unfixable = []
+lint.fixable = ["I001"] # fix only isort issues
+lint.unfixable = []
 
 # Exclude a variety of commonly ignored directories.
 exclude = [
@@ -167,7 +165,7 @@ exclude = [
     "venv",
     ".bak",
 ]
-per-file-ignores = {}
+lint.per-file-ignores = {}
 
 # Same as Black.
 line-length = 100

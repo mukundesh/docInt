@@ -159,7 +159,7 @@ class TranscribeAudio(Component):
             return w
 
         words = []
-        for (idx, chunk) in enumerate(results):
+        for idx, chunk in enumerate(results):
             alts = chunk["alternatives"][0]
             words += [build_word(idx, w) for w in alts["words"]]
 
@@ -181,7 +181,7 @@ class TranscribeAudio(Component):
 
                 split_secs = [0] + split_secs + [audio.duration]
 
-                for (idx, (start_sec, end_sec)) in enumerate(pairwise(split_secs)):
+                for idx, (start_sec, end_sec) in enumerate(pairwise(split_secs)):
                     audio_slice = audio.split(start_sec, end_sec, Path("input"))
                     response_dict = run_async_transcribe(
                         audio_slice, cfg.bucket, cfg.cloud_dir_path

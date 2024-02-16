@@ -19,7 +19,7 @@ from ..word import BreakType, Word
 
 
 def rev_enumerate(lst, start_idx):
-    for (idx, val) in zip(range(start_idx - 1, -1, -1), lst[start_idx - 1 :: -1]):
+    for idx, val in zip(range(start_idx - 1, -1, -1), lst[start_idx - 1 :: -1]):
         yield idx, val
 
 
@@ -60,7 +60,7 @@ class PDFCIDReader:
 
     def get_cid_str(self, info):
         cid_str_dict = {}
-        for (font, cid) in zip(info.fonts, info.cids):
+        for font, cid in zip(info.fonts, info.cids):
             if isinstance(cid, str):
                 cid_str_dict[cid] = cid
             else:
@@ -104,7 +104,7 @@ class PDFCIDReader:
     def reorder_cids2(self, w_cids, w_fonts):
         def get_cmds(cmd):
             cmds = []
-            for (idx, (cid, font)) in enumerate(zip(result, fonts)):
+            for idx, (cid, font) in enumerate(zip(result, fonts)):
                 cid_char = self.get_cid_char(cid, font)
                 if isinstance(cid_char, list) and cid_char[0] == cmd:
                     cmds.append((idx, cid_char))
@@ -121,7 +121,7 @@ class PDFCIDReader:
 
         replace_cmds = get_cmds("replace")
         num_cids_added = 0
-        for (repl_idx, repl_cmd) in replace_cmds:
+        for repl_idx, repl_cmd in replace_cmds:
             repl_idx += num_cids_added
             result.pop(repl_idx)
             repl_font = fonts.pop(repl_idx)
@@ -132,7 +132,7 @@ class PDFCIDReader:
             num_cids_added += len(repl_cmd[1:]) - 1  # since first value is replaced
 
         move_left_cmds = get_cmds("move_left")
-        for (ml_idx, ml_cmd) in move_left_cmds:
+        for ml_idx, ml_cmd in move_left_cmds:
             if ml_cmd[-1] == "र्" and is_vovel_i(ml_idx - 1):  # is इ
                 print("REMOVING Reph as it is mistaken for इ")
                 result.pop(ml_idx)
@@ -161,7 +161,7 @@ class PDFCIDReader:
             result.insert(ins_idx, ml_cmd[-1])
 
         move_right_cmds = get_cmds("move_right")
-        for (mr_idx, mr_cmd) in move_right_cmds:
+        for mr_idx, mr_cmd in move_right_cmds:
             ins_idxs = [
                 idx
                 for (idx, cid) in enumerate(result[mr_idx:], mr_idx)
@@ -184,7 +184,7 @@ class PDFCIDReader:
         # keep the original orders
         reordered_cids, reordered_fonts = self.reorder_cids2(cid_word.cids, cid_word.fonts)
 
-        for (font, cid) in zip(reordered_fonts, reordered_cids):
+        for font, cid in zip(reordered_fonts, reordered_cids):
             if isinstance(cid, str):
                 text.append(cid)
             else:
@@ -254,7 +254,6 @@ class PDFCIDReader:
 
         assert all(sf not in edit_cids for sf in space_fonts), "space_fonts & edit_cids shld be xcl"
         for word_idx, cid_word in enumerate(cid_words):
-
             # if page_idx == 1 and word_idx == 171:
             #     import pdb
             #     pdb.set_trace()
@@ -339,7 +338,6 @@ class PDFCIDReader:
         pdf = pdfwrapper.open(doc.pdf_path, library_name="pdfminer")
         missing_found = False
         for pdf_page, page in zip(pdf.pages, doc.pages):
-
             page_cid_words = self.merge_word_cids(pdf_page.cid_words, page.page_idx)
             page_cid_words = self.edit_word_cids(page_cid_words, page.page_idx, cfg)
 

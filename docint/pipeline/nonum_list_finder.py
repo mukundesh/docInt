@@ -252,7 +252,7 @@ class NonumberListFinder:
             return r_config
 
         # Todo explore dictionary merge
-        for (key, value) in self.rotation_config.items():
+        for key, value in self.rotation_config.items():
             if key not in r_config:
                 r_config[key] = doc_config.get(key, value)
         return r_config

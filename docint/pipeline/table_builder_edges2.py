@@ -388,7 +388,7 @@ class TableBuilderOnEdges2:
             else:
                 assert json_path.exists(), f"edges files is not present {json_path}"
                 json_dict = json.loads(json_path.read_text())
-                for (page, jd_table_edges_list) in zip(doc.pages, json_dict["table_edges_infos"]):
+                for page, jd_table_edges_list in zip(doc.pages, json_dict["table_edges_infos"]):
                     page.table_edges_list = [TableEdges(**d) for d in jd_table_edges_list]
 
     def build_tables(self, page, table_edges_list):

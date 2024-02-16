@@ -20,7 +20,7 @@ def test_check_path(one_word_doc):
 def test_replaceStr(one_word_doc):
     doc = one_word_doc
     edit_args_exp = [("One Two", "Two"), ("<all> One", "One"), ("O T", "Tne")]
-    for (args, exp) in edit_args_exp:
+    for args, exp in edit_args_exp:
         edits = [f"replaceStr pa0.wo0 {args}"]
         doc.edit(edits)
         assert doc[0][0].text == exp

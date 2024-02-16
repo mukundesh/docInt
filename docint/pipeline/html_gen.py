@@ -226,7 +226,7 @@ class HtmlGenerator:
                 .replace("HEIGHT", str(ph))
                 .replace("IMG_URL", img_url)
             )
-            for (item_name, color) in self.color_dict.items():
+            for item_name, color in self.color_dict.items():
                 items = get_items(page, item_name)
                 svg_strs = [self.get_svg_str(i, color, page, item_name=item_name) for i in items]
                 svg_file.write("\t" + "\n\t".join(svg_strs) + "\n")
@@ -240,7 +240,7 @@ class HtmlGenerator:
         doc_name = doc.pdf_name
 
         svgs = []
-        for (page_idx, page) in enumerate(doc.pages):
+        for page_idx, page in enumerate(doc.pages):
             page_num = page_idx + 1
             angle = getattr(page, "reoriented_angle", 0)
             if angle != 0:

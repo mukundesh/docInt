@@ -85,7 +85,7 @@ class PageImageBuilderRaster:
         pdf = pdfwrapper.open(doc.pdf_path, library_name="pypdfium2")
 
         page_images = []
-        for (page, pdf_page) in zip(doc.pages, pdf.pages):
+        for page, pdf_page in zip(doc.pages, pdf.pages):
             page_image = build_raster_page_image(page, pdf_page, self.image_dir, self.image_format)
             page.page_image = page_image
             page_images.append(page_image)

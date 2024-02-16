@@ -155,7 +155,7 @@ class InferLayoutLM:
             boxes = examples["bboxes"]
             word_labels = examples["ner_tags"]
 
-            for (path, exWords, exBoxes) in zip(examples["image_path"], words, boxes):
+            for path, exWords, exBoxes in zip(examples["image_path"], words, boxes):
                 maxVal = max([max(box) for box in exBoxes])
                 if maxVal > 1000:
                     print(f"{path}")
@@ -297,11 +297,11 @@ class InferLayoutLM:
                 assert len(true_words) == len(true_boxes) == len(true_predictions)
 
                 docDicts = []
-                for (doc_preds, doc_words, doc_boxes) in zip(
+                for doc_preds, doc_words, doc_boxes in zip(
                     true_predictions, true_words, true_boxes
                 ):
                     docDict = {}
-                    for (wordIdx, (pred, word, box)) in enumerate(
+                    for wordIdx, (pred, word, box) in enumerate(
                         zip(doc_preds, doc_words, doc_boxes)
                     ):
                         wordDict = {"text": word, "box": box, "idx": wordIdx}

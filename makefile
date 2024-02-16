@@ -4,17 +4,16 @@ sources = docint tests
 test: format lint unittest
 
 format:
-	black $(sources)
-	ruff $(sources)
+	poetry run ruff format $(sources)
 
 lint:
-	ruff $(sources)
+	poetry run ruff $(sources)
 
 unittest:
-	pytest
+	poetry run pytest
 
 coverage:
-	pytest --cov=$(sources) --cov-branch --cov-report=term-missing tests
+	poetry run pytest --cov=$(sources) --cov-branch --cov-report=term-missing tests
 
 pre-commit:
 	pre-commit run --all-files

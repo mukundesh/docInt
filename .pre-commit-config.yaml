@@ -12,14 +12,9 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
         args: [ --unsafe ]
-  - repo: https://github.com/ambv/black
-    rev: 22.3.0
-    hooks:
-      - id: black
-        language_version: python3.8
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: 'v0.0.241'
+    rev: 'v0.2.1'
     hooks:
       - id: ruff
-        language_version: python3.7
+        language_version: python3.8
         files: src/.*\.py$

@@ -5,6 +5,8 @@ from .do_nothing import DoNothing
 from .gcv_recognizer import CloudVisionRecognizer
 from .gcv_recognizer2 import CloudVisionRecognizer2
 
+from .tess_recognizer import TesseractRecognizer
+
 from .html_gen import HtmlGenerator
 from .svg_gen import SVGGenerator
 from .list_finder import ListFinder

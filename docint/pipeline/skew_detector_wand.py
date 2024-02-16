@@ -104,7 +104,7 @@ class SkewDetectorWand:
             jd = json.loads(json_path.read_text())
             skew_infos = jd["skew_infos"]
             assert len(doc.pages) == len(skew_infos)
-            for (page, skew_info) in zip(doc.pages, skew_infos):
+            for page, skew_info in zip(doc.pages, skew_infos):
                 page.horz_skew_angle = skew_info["horz_skew_angle"]
                 page.horz_skew_method = skew_info["horz_skew_method"]
 

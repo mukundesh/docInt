@@ -140,7 +140,7 @@ class SVGGenerator:
         first_detail = doc.order.details[0]
         first_svg_info = first_detail.get_svg_info()
 
-        for (page_idx, page) in enumerate(doc.pages):
+        for page_idx, page in enumerate(doc.pages):
             page_num = page_idx + 1
 
             img_url = f"p-{page_num:03}.jpg"

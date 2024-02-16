@@ -12,7 +12,6 @@ from ..table import Cell, Row, Table, TableEdges
 from ..util import load_config
 from ..vision import Vision
 
-
 # TODO 1: rename body_rows to rows, keep header_rows as it is
 # TODO 2: don't add heading detection in this, it should be a separate component
 # TODO 3: explore if skip_rows_with_merged_cells can be moved to a separate component
@@ -120,8 +119,8 @@ class PDFTableFinder:
 
     def test(self, doc):
         errors = []
-        for (page_idx, page) in enumerate(doc.pages):
-            for (table_idx, table) in enumerate(page.tables):
+        for page_idx, page in enumerate(doc.pages):
+            for table_idx, table in enumerate(page.tables):
                 table_path = f"p{page_idx}.t{table_idx}"
                 if self.is_header_row(page_idx, table_idx, 0):
                     errors += table.test(table_path)
@@ -166,17 +165,17 @@ class PDFTableFinder:
         json_path = self.output_dir / f"{doc.pdf_name}.{self.conf_stub}.json"
         if json_path.exists():
             json_dict = json.loads(json_path.read_text())
-            for (page, jd_tables) in zip(doc.pages, json_dict["table_infos"]):
+            for page, jd_tables in zip(doc.pages, json_dict["table_infos"]):
                 page.tables = [Table(**d) for d in jd_tables]
                 for table in page.tables:
                     table.update_links(doc)
 
-            for (page, jd_heading) in zip(doc.pages, json_dict["heading_infos"]):
+            for page, jd_heading in zip(doc.pages, json_dict["heading_infos"]):
                 if jd_heading:
                     page.heading = Region(**jd_heading)
                     page.heading.update_links(doc)
 
-            for (page, jd_table_edges_list) in zip(doc.pages, json_dict["table_edges_infos"]):
+            for page, jd_table_edges_list in zip(doc.pages, json_dict["table_edges_infos"]):
                 page.table_edges_list = [TableEdges(**d) for d in jd_table_edges_list]
 
             self.remove_log_handler(doc)
@@ -201,7 +200,7 @@ class PDFTableFinder:
 
         pdf = pdfplumber.open(doc.pdf_path)
 
-        for (page_idx, (page, pdf_page)) in enumerate(zip(doc.pages, pdf.pages)):
+        for page_idx, (page, pdf_page) in enumerate(zip(doc.pages, pdf.pages)):
             pdf_page = pdf_page.dedupe_chars(tolerance=1)
             table_finder = pdf_page.debug_tablefinder(self.pdfplumber_config)
             pdf_table_edges = table_finder.edges
@@ -209,8 +208,7 @@ class PDFTableFinder:
 
             page.tables = []
             pdf_size = (pdf_page.width, pdf_page.height)
-            for (table_idx, pdf_table) in enumerate(table_finder.tables):
-
+            for table_idx, pdf_table in enumerate(table_finder.tables):
                 body_rows, header_rows, row_idx = [], [], 0
                 for pdf_row in pdf_table.rows:
                     row_box = build_box(pdf_row.bbox, pdf_size)

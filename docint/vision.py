@@ -154,12 +154,12 @@ class Vision:
             return self.component_names.index(after) + 1
         # We're only accepting indices referring to components that exist
         # (can't just do isinstance here because bools are instance of int, too)
-        elif type(before) == int:
+        elif isinstance(before, int):
             if before >= len(self._components) or before < 0:
                 err = Errors.E008.format(dir="before", idx=before, opts=self.component_names)
                 raise ValueError(err)
             return before
-        elif type(after) == int:
+        elif isinstance(after, int):
             if after >= len(self._components) or after < 0:
                 err = Errors.E009.format(dir="after", idx=after, opts=self.component_names)
                 raise ValueError(err)
@@ -195,7 +195,6 @@ class Vision:
         path: Path,
         component_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Doc:
-
         if isinstance(path, Doc):
             doc = path
         elif isinstance(path, str) or isinstance(path, Path):
@@ -259,7 +258,7 @@ class Vision:
                 return [value]
 
         file_names = []
-        for (key, value) in rec_items(pipe_config):
+        for key, value in rec_items(pipe_config):
             # print(f'\t{key}: {value}')
             if "file" in key:
                 file_names += rec_values(value)
@@ -285,7 +284,7 @@ class Vision:
         if self.common_config_mtime_ts:
             return self.common_config_mtime_ts
 
-        for (name, pipe_config) in self.all_pipe_config.items():
+        for name, pipe_config in self.all_pipe_config.items():
             print(name)
             pipe_config_files = self.get_files_in_config(pipe_config)
             pipe_config_mtime_ts = max((f.stat().st_mtime for f in pipe_config_files), default=0.0)
@@ -296,7 +295,7 @@ class Vision:
 
     def get_config_mtime(self, doc_name):
         doc_config_mtime_ts = 0
-        for (name, pipe_config) in self.all_pipe_config.items():
+        for name, pipe_config in self.all_pipe_config.items():
             stub = first((v for (k, v) in pipe_config.items() if k.endswith("_stub")), name)
             pipe_config_file = self.config_dir / f"{doc_name}.{stub}.yml"
             if pipe_config_file.exists():
@@ -309,7 +308,7 @@ class Vision:
                 return self.has_processing_fields
 
             processing_fields = ["output_stub", "output_dir", "config_dir"]
-            for (field, value) in [(f, getattr(self, f, None)) for f in processing_fields]:
+            for field, value in [(f, getattr(self, f, None)) for f in processing_fields]:
                 if not value:
                     self.has_processing_fields = False  # missing walrus !
                     return False
@@ -569,7 +568,6 @@ class Vision:
         requires: Iterable[str] = SimpleFrozenList(),
         func: Optional["Pipe"] = None,  # noqa: F821 todo
     ) -> Callable:
-
         if name is not None and not isinstance(name, str):
             raise ValueError('Errors.E963.format(decorator="component")')
 

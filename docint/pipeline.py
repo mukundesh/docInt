@@ -81,10 +81,10 @@ class PipeConfig:
         # group all scope_keys
         scopes_dict = {}
         keys_list.sort(key=itemgetter(0))
-        for (scope_str, keys_group) in groupby(keys_list, key=itemgetter(0)):
+        for scope_str, keys_group in groupby(keys_list, key=itemgetter(0)):
             scope_key = tuple(scope_str.split(env_nested_delimiter))
             scope_dict = scopes_dict.setdefault(scope_key, {})
-            for (_, config_keys, env_val) in keys_group:
+            for _, config_keys, env_val in keys_group:
                 env_var = scope_dict
                 for key in config_keys[:-1]:
                     env_var = env_var.setdefault(key, {})
@@ -221,7 +221,6 @@ class Pipeline:
         assigns: Iterable[str] = [],
         depends: Iterable[str] = [],
     ) -> Callable:
-
         print("Inside register_component: " + assigns)
 
         def register_component_cls(component_cls):
@@ -252,7 +251,7 @@ class Pipeline:
         else:
             raise ValueError(f"Unknown document format {path_doc}")
 
-        for (name, pipe) in self._pipes:
+        for name, pipe in self._pipes:
             if name in pipe_configs:
                 pipe.cfg.load_dict(pipe_configs[name])
 

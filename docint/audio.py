@@ -23,12 +23,15 @@ class AudioWord(BaseModel):
         }
 
 
-def get_seconds(time_str):
+def get_seconds(time_str, get_milli=False):
     if not isinstance(time_str, str):
         return time_str
 
     hrs, mins, secs = time_str.split(":", 2)
-    return (int(hrs) * 60 * 60) + (int(mins) * 60) + int(secs)
+    if not get_milli:
+        return (int(hrs) * 60 * 60) + (int(mins) * 60) + int(secs)
+    else:
+        return (int(hrs) * 60 * 60) + (int(mins) * 60) + float(secs)
 
 
 class Audio(File):
@@ -98,7 +101,7 @@ class Audio(File):
 
     def get_trimmed_audio(self):
         audio_intervals, prev_start = [], 0
-        for (s, e) in self.rm_intervals:
+        for s, e in self.rm_intervals:
             audio_intervals.append(self.audio_seg[prev_start : s * 1000])
             prev_start = e * 1000
         audio_intervals.append(self.audio_seg[prev_start : len(self.audio_seg)])

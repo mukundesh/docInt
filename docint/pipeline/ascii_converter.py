@@ -16,7 +16,7 @@ class AsciiConverter:
 
     def __call__(self, doc):
         edits = []
-        for (page, word) in [(p, w) for p in doc.pages for w in p.words]:
+        for page, word in [(p, w) for p in doc.pages for w in p.words]:
             if not word.text.isascii():
                 path = f"pa{page.page_idx}.wo{word.word_idx}"
                 new_text, err = self.convert_text(word.text)

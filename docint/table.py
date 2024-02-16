@@ -112,7 +112,7 @@ class Row(Region):
             msg = f"{path}: expected {num_cols} columns, but actual {len(self.cells)}"
             errors.append(TableMismatchColsError(path=path, msg=msg, name="TableMismatchCols"))
 
-        for (idx, cell) in enumerate(self.cells):
+        for idx, cell in enumerate(self.cells):
             if not cell:
                 cell_path = f"{path}.c{idx}"
                 is_none = True if cell is None else False
@@ -258,9 +258,7 @@ class Table(Region):
         all_tests = ["TableEmptyError", "TableEmptyBodyError", "TableEmptyHeaderError"]
         do_tests = [t for t in all_tests if t not in ignore]
 
-        if (
-            "TableEmptyError" in do_tests and not self.header_rows and not self.body_rows
-        ):  # noqa: W503  # noqa: W503
+        if "TableEmptyError" in do_tests and not self.header_rows and not self.body_rows:  # noqa: W503  # noqa: W503
             msg = f"{path}: Both header and body rows are empty"
             errors.append(TableEmptyError(path=path, msg=msg, name="TableEmpty"))
 

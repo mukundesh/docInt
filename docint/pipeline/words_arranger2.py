@@ -96,7 +96,6 @@ class WordsArranger2:
         old_size = page.size
         new_size = size_after_rotation(page.size, -1 * angle)
         for word in page.words:
-
             new_coords = [
                 rotate_image_coord(c, -1 * angle, old_size, new_size) for c in word.shape_.coords
             ]

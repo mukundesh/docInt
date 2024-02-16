@@ -74,7 +74,6 @@ def normalize(text, patterns=[EMAIL_PATTERN, URL_PATTERN, NUMERAL_PATTERN, OTHER
 
 
 if __name__ == "__main__":
-
     src_infname = sys.argv[1]
     src_outfname = sys.argv[2]
 
@@ -84,7 +83,6 @@ if __name__ == "__main__":
     with open(src_infname, "r", encoding="utf-8") as src_infile, open(
         src_outfname, "w", encoding="utf-8"
     ) as src_outfile:
-
         for src_line in tqdm(src_infile):  # noqa this is removed at top
             src_line = normalize(src_line, patterns)
             src_outfile.write(src_line.strip() + "\n")

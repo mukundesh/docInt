@@ -257,7 +257,7 @@ class TableEdgeFinderWand:
         edge_lengths = []
 
         if entity == "row" and conf.language.lower() == "devanagari":
-            for (s, e) in one_ranges:
+            for s, e in one_ranges:
                 range_index = np.zeros(colIdentity.shape, dtype=bool)
                 range_index[s:e] = True
                 edgeIdentity = img_vh2_inv.sum(axis=1, where=range_index)
@@ -279,9 +279,7 @@ class TableEdgeFinderWand:
             print(f"max_gap: {max_gap} cutoff: {length_cutoff} {sorted(edge_lengths)}")
             self.lgr.info(f"max_gap: {max_gap} cutoff: {length_cutoff} {sorted(edge_lengths)}")
             if max_gap > 0.05 * max(edge_lengths):
-                one_ranges = [
-                    r for (r, l) in zip(one_ranges, edge_lengths) if l > length_cutoff  # noqa
-                ]
+                one_ranges = [r for (r, ln) in zip(one_ranges, edge_lengths) if ln > length_cutoff]
             else:
                 print(f"===== IGNORING trivial max_gap on {page_idx} ========")
                 self.lgr.info(f"===== IGNORING trivial max_gap on {page_idx} ========")
@@ -356,7 +354,6 @@ class TableEdgeFinderWand:
         return col_edges, col_img_xs
 
     def get_row_edges(self, page_image, page_idx, row_markers, crop_coords, conf):
-
         if len(row_markers) > 1:
             row_ht = mean((m2.ymin - m1.ymin) for (m1, m2) in pairwise(row_markers))
         else:
@@ -642,7 +639,7 @@ class TableEdgeFinderWand:
         json_path = self.output_dir / f"{doc.pdf_name}.{self.conf_stub}.json"
         if json_path.exists():
             json_dict = json.loads(json_path.read_text())
-            for (page, jd_table_edges_list) in zip(doc.pages, json_dict["table_edges_infos"]):
+            for page, jd_table_edges_list in zip(doc.pages, json_dict["table_edges_infos"]):
                 page.table_edges_list = [TableEdges(**d) for d in jd_table_edges_list]
 
             self.remove_log_handler(doc)

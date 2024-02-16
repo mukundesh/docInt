@@ -3,6 +3,7 @@ import os
 import random
 import statistics
 import string
+import time
 from pathlib import Path
 from subprocess import run
 from typing import Any, Callable, List, Mapping
@@ -391,3 +392,32 @@ def avg(iter, default):
         return statistics.mean(iter)
     except statistics.StatisticsError:
         return default
+
+
+# decorator to record the time taken for the function
+def record_timing(func):
+    total_time = 0
+    num_count = 0
+
+    def wrapper(*args, **kwargs):
+        nonlocal total_time, num_count
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        total_time += elapsed_time
+        num_count += 1
+        # print(f"{func.__name__} took {elapsed_time:.6f} seconds (Total: {total_time:.6f} seconds)")
+        return result
+
+    def get_total_time():
+        return total_time
+
+    def get_avg_time():
+        return total_time / num_count
+
+    # Attach the get_total_time function to the wrapper so it can be accessed from outside
+    wrapper.get_total_time = get_total_time
+    wrapper.get_avg_time = get_avg_time
+
+    return wrapper

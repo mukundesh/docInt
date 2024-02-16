@@ -285,7 +285,7 @@ class ListFinder:
             return r_config
 
         # Todo explore dictionary merge
-        for (key, value) in self.rotation_config.items():
+        for key, value in self.rotation_config.items():
             if key not in r_config:
                 r_config[key] = doc_config.get(key, value)
         return r_config
@@ -310,7 +310,6 @@ class ListFinder:
 
         doc.add_extra_page_field("list_items", ("list", __name__, "ListItem"))
         for page in doc.pages:
-
             if hasattr(page, "arranged_word_lines_idxs"):
                 word_lines = self.get_arranged_word_lines(page)
             elif rotate_page(page, rotation_config):

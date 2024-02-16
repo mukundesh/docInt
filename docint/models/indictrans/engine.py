@@ -169,7 +169,7 @@ class Model:
 
     def get_errors(self, lines, translations):
         error_count = 0
-        for (ln, t) in zip(lines, translations):
+        for ln, t in zip(lines, translations):
             if abs(len(ln) - len(t)) < 0.25 * len(ln):
                 error_count += 1
         return error_count
@@ -410,7 +410,7 @@ class Model:
         assert len(all_sents) == len(postprocessed_sents)
 
         translated_paragraphs = []
-        for (s, e) in pairwise(sent_partitions):
+        for s, e in pairwise(sent_partitions):
             translated_paragraphs.append(" ".join(postprocessed_sents[s:e]))
 
         return translated_paragraphs

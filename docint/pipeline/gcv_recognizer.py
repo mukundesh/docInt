@@ -61,7 +61,6 @@ class CloudVisionRecognizer:
         read_lines,
         compress_output,
     ):
-
         self.bucket_name = bucket
         self.cloud_dir_path = pathlib.Path(cloud_dir_path)
         self.output_dir_path = pathlib.Path(output_dir_path)
@@ -146,11 +145,11 @@ class CloudVisionRecognizer:
             else:
                 return []
 
-        for (page_idx, ocr_page) in enumerate(self.get_ocr_pages(output_path)):
+        for page_idx, ocr_page in enumerate(self.get_ocr_pages(output_path)):
             ocr_words = get_words(ocr_page)
 
             words = []
-            for (word_idx, ocr_word) in enumerate(ocr_words):
+            for word_idx, ocr_word in enumerate(ocr_words):
                 words.append(self.build_word(doc, page_idx, word_idx, ocr_word))
 
             width, height = ocr_page.get("width", 0), ocr_page.get("height", 0)
@@ -182,7 +181,7 @@ class CloudVisionRecognizer:
                 paragraphs.append(word_idxs)
             return paragraphs
 
-        for (page_idx, ocr_page) in enumerate(self.get_ocr_pages(output_path)):
+        for page_idx, ocr_page in enumerate(self.get_ocr_pages(output_path)):
             ocr_words = get_words(ocr_page)
             width, height = ocr_page.get("width", 0), ocr_page.get("height", 0)
             page_size = (width, height)
@@ -195,7 +194,7 @@ class CloudVisionRecognizer:
                 page.page_image.image_box = Box.from_bounding_box([0, 0, width, height])
                 page.page_image.image_type = "raster"  # TODO CHANGE THIS TO ROTATED
 
-            for (word_idx, ocr_word) in enumerate(ocr_words):
+            for word_idx, ocr_word in enumerate(ocr_words):
                 page.words.append(self.build_word(doc, page_idx, word_idx, ocr_word, page_size))
 
             if self.read_lines:
@@ -249,7 +248,7 @@ class CloudVisionRecognizer:
 
         mime_type = "image/tiff"
         all_responses_dict = {"responses": []}
-        for (page_idx, page) in enumerate(doc.pages):
+        for page_idx, page in enumerate(doc.pages):
             print(f"Fetching image for page: {page_idx}")
             image_path = page.page_image.get_image_path()
 

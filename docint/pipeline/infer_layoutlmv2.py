@@ -81,7 +81,6 @@ class InferLayoutLMv2:
         examples_loader = DataLoader(ptDataset, batch_size=self.batch_size)
         word_labels_list = []
         for batch in tqdm(examples_loader, desc="Evaluating"):
-
             with torch.no_grad():
                 input_ids = batch["input_ids"].to(device)
                 bbox = batch["bbox"].to(device)
@@ -144,12 +143,12 @@ class InferLayoutLMv2:
             for doc in docs_chunk:
                 doc.add_extra_page_field("word_labels", ("dict", "docint.region", "Region"))
 
-            for (word_labels, page) in zip(word_labels_list, infer_pages):
+            for word_labels, page in zip(word_labels_list, infer_pages):
                 print(
                     f"{page.doc.pdf_name} words: {len(page.words)} labels: {len(word_labels)} -----------"
                 )
                 label_word_dict = {}
-                for (word_idx, label) in enumerate(word_labels[: len(page.words)]):
+                for word_idx, label in enumerate(word_labels[: len(page.words)]):
                     label_word_dict.setdefault(iob2label(label), []).append(page[word_idx])
 
                 lw_iter = label_word_dict.items()

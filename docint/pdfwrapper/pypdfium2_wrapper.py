@@ -287,7 +287,7 @@ class Page(pdf.Page):
         ), f"count_chars mismatch {count_chars} {len(page_text)}\n{page_text}"
 
         chars = []
-        for (char_idx, char_text) in enumerate(page_text):
+        for char_idx, char_text in enumerate(page_text):
             char_rect = lib_textpage.get_charbox(char_idx)
             x0, y0, x1, y1 = char_rect
             if self.rotation == 90:
