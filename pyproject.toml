@@ -35,8 +35,6 @@ python-dateutil = "^2.8.2"
 pypdfium2 = "^3.20.1"
 pillow = "^10.2.0"
 more-itertools = "^10.2.0"
-indictranslate = {git = "https://github.com/orgpedia/indicTranslate.git"}
-opencv-python = "^4.9.0.80"
 
 
 [tool.poetry.group.test.dependencies]
