@@ -17,4 +17,3 @@ repos:
     hooks:
       - id: ruff
         language_version: python3.8
-        files: src/.*\.py$
