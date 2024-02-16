@@ -27,14 +27,16 @@ classifiers=[
 "repository" = "https://github.com/mukundesh/docInt"
 
 [tool.poetry.dependencies]
-python = ">3.8.1"
+python = ">3.8.1 <4.0"
 pydantic = "^1.10"
 polyleven = "^0.8"
 pyyaml = "^6.0"
-more-itertools = "^8.14.0"
 python-dateutil = "^2.8.2"
 pypdfium2 = "^3.20.1"
 pillow = "^10.2.0"
+more-itertools = "^10.2.0"
+indictranslate = {git = "https://github.com/orgpedia/indicTranslate.git"}
+opencv-python = "^4.9.0.80"
 
 
 [tool.poetry.group.test.dependencies]
@@ -51,7 +53,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.black]
 line-length = 100
 # skip-string-normalization = true
-target-version = ['py36', 'py37', 'py38', 'py39', 'py310']
+target-version = ['py38', 'py39', 'py310']
 include = '\.pyi?$'
 exclude = '''
 /(

@@ -24,10 +24,10 @@ BatchSize = 100
     ],
     default_config={
         "stub": "doctranslator",
-        "model_name": "ai4bharat:IndicTrans2-en/ct2_int8_model",
-        "glossary_file": "glossary.yml",
-        "src_lang": "hindi",
-        "tgt_lang": "",
+        "model_name": "ai4bharat/indictrans2-en-indic-dist-200M",
+        "glossary_path": "conf/glossary.yml",
+        "src_lang": "eng_Latn",
+        "tgt_lang": "hin_Deva",
         "entities": ["paras", "table"],
     },
 )
@@ -36,24 +36,45 @@ class DocTranslator:
         self,
         stub,
         model_name,
+        glossary_path,
         src_lang,
         tgt_lang,
         entities,
     ):
-        from indicTranslate import Translator
+        from indictranslate import Translator
 
         self.conf_dir = Path("conf")
         self.stub = stub
-        self.translator = Translator(model_name, src_lang, tgt_lang)
+        self.glossary_path = Path(glossary_path)
+        if self.glossary_path.exists():
+            self.translator = Translator(
+                model_name,
+                src_lang,
+                tgt_lang,
+                glossary_path=self.glossary_path,
+                enable_numeric=True,
+            )
+        else:
+            self.translator = Translator(model_name, src_lang, tgt_lang, enable_numeric=True)
         self.src_lang = src_lang
         self.tgt_lang = tgt_lang
         self.entities = entities
 
     def get_table_trans(self, table, cell_trans_dict):
         t_table = []
-        for row in table.rows:
-            t_table.append([c if c.isascii() else cell_trans_dict[c] for c in get_row_texts(row)])
+        for row in table.all_rows:
+            # t_table.append([c if c.isascii() else cell_trans_dict[c] for c in get_row_texts(row)])
+            t_table.append(
+                [c if self.in_tgt_lang(c) else cell_trans_dict[c] for c in get_row_texts(row)]
+            )
         return t_table
+
+    def in_tgt_lang(self, s):
+        if self.tgt_lang == "eng_Latn":
+            return s.isascii()
+        else:
+            # Todo check and compare but leaving it for now
+            return False
 
     def __call__(self, doc):
         doc.add_extra_page_field("para_trans", ("noparse", "", ""))
@@ -72,11 +93,14 @@ class DocTranslator:
 
         para_texts, cell_texts = [], []
         for page in doc.pages:
-            pts = [p.text_with_break().strip() for p in page.paras]
-            para_texts += [pt for pt in pts if not pt.isascii()]
-
-            for row in [r for t in page.tables for r in t.all_rows]:
-                cell_texts += [c for c in get_row_texts(row) if not c.isascii()]
+            page_paras = page.paras if hasattr(page, "paras") else []
+            pts = [p.text_with_break().strip() for p in page_paras]
+            # para_texts += [pt for pt in pts if not pt.isascii()]
+            para_texts += [pt for pt in pts if not self.in_tgt_lang(pt)]
+            page_tables = page.tables if hasattr(page, "tables") else []
+            for row in [r for t in page_tables for r in t.all_rows]:
+                # cell_texts += [c for c in get_row_texts(row) if not c.isascii()]
+                cell_texts += [c for c in get_row_texts(row) if not self.in_tgt_lang(c)]
 
         para_trans = self.translator.translate_paragraphs(para_texts)
         cell_trans = self.translator.translate_sentences(cell_texts)
@@ -85,13 +109,16 @@ class DocTranslator:
         cell_trans_dict = {c: t for (c, t) in zip(cell_texts, cell_trans)}
 
         for page in doc.pages:
-            para_texts = [p.text_with_break().strip() for p in page.paras]
+            page_paras = page.paras if hasattr(page, "paras") else []
+            para_texts = [p.text_with_break().strip() for p in page_paras]
             page.para_trans = [pt if pt.is_ascii() else para_trans_dict[pt] for pt in para_texts]
-            page.table_trans = [self.get_table_trans(t, cell_trans_dict) for t in page.tables]
 
-        all_para_tans = [pg.para_trans for pg in doc.pages]
+            page_tables = page.tables if hasattr(page, "tables") else []
+            page.table_trans = [self.get_table_trans(t, cell_trans_dict) for t in page_tables]
+
+        all_para_trans = [pg.para_trans for pg in doc.pages]
         all_table_trans = [pg.table_trans for pg in doc.pages]
-        trans_dict = {"all_para_tans": all_para_tans, "all_table_trans": all_table_trans}
+        trans_dict = {"all_para_trans": all_para_trans, "all_table_trans": all_table_trans}
 
         json_path.write_text(json.dumps(trans_dict))
         return doc

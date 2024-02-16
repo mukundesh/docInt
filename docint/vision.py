@@ -220,7 +220,7 @@ class Vision:
                 doc = self.exec_task(name, doc, proc)
             except KeyError as e:
                 # This typically happens if a component is not initialized
-                raise ValueError(Errors.E109.format(name=name)) from e
+                raise ValueError(Errors.E109.format(name=name, error_str=str(e))) from e
             except Exception as e:
                 raise e
                 # error_handler(name, proc, [doc], e)

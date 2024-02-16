@@ -40,3 +40,4 @@ class Errors:
     E033 = "docker pip --version failed with exit code: {exit_code}"
     E034 = "docker pip --dry-run failed {image_dir} error: {err_str}"
     E035 = "docker run failed check: {log_path} exit_code:{exit_code} err_str: {err_str}"
+    E109 = "task name: {name} failed with keyError and {error_str}"
