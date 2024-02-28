@@ -6,7 +6,6 @@ from .gcv_recognizer import CloudVisionRecognizer
 from .gcv_recognizer2 import CloudVisionRecognizer2
 
 from .tess_recognizer import TesseractRecognizer
-from .tess_recognizer2 import TesseractRecognizer2
 
 from .html_gen import HtmlGenerator
 from .svg_gen import SVGGenerator

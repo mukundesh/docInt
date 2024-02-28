@@ -20,10 +20,10 @@ docker_config = {
 )
 def test_word_count(pdf_path, word_count, word_text):
     ppln = docint.empty(
-        config={"docker_pipes": ["tess_recognizer2"], "docker_config": docker_config}
+        config={"docker_pipes": ["tess_recognizer"], "docker_config": docker_config}
     )
     # ppln = docint.empty()
-    ppln.add_pipe("tess_recognizer2")
+    ppln.add_pipe("tess_recognizer")
     doc = ppln(Path("tests") / pdf_path)
     total_words = sum(len(p.words) for p in doc.pages)
 
