@@ -6,6 +6,7 @@ from .gcv_recognizer import CloudVisionRecognizer
 from .gcv_recognizer2 import CloudVisionRecognizer2
 
 from .tess_recognizer import TesseractRecognizer
+from .tess_recognizer2 import TesseractRecognizer2
 
 from .html_gen import HtmlGenerator
 from .svg_gen import SVGGenerator
@@ -19,6 +20,7 @@ from .num_marker import NumMarker
 from .page_orienter import OrientPage
 from .pdf_reader import PDFReader
 from .pdf_cid_reader import PDFCIDReader
+from .pdf_cid_info import PDFCIDInfoReader
 from .pdftable_finder import PDFTableFinder
 from .region_differ import RegionDiffer
 from .rotation_detector import RotationDetector

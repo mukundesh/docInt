@@ -209,6 +209,16 @@ class Page(BaseModel):
         image_box = shape.box
         return self.page_image.get_base64_image(image_box.top, image_box.bot, "png", height=height)
 
+    # TODO add svg also to the page.
+    @classmethod
+    def get_base64_image_from_pil(self, pil_image, shape, height=50):
+        image_box = shape.box
+        img_w, img_h = pil_image.size
+
+        img_x1, img_y1 = int(image_box.top.x * img_w), int(image_box.top.y * img_h)
+        img_x2, img_y2 = int(image_box.bot.x * img_w), int(image_box.bot.y * img_h)
+        return pil_image.crop((img_x1, img_y1, img_x2, img_y2))
+
     @classmethod
     def build_rotated(cls, page, angle):
         def rotate_coord(coord):

@@ -24,7 +24,7 @@ BatchSize = 100
     ],
     default_config={
         "stub": "doctranslator",
-        "model_name": "ai4bharat/indictrans2-en-indic-dist-200M",
+        "model_name": "default",
         "glossary_path": "conf/glossary.yml",
         "src_lang": "eng_Latn",
         "tgt_lang": "hin_Deva",
@@ -91,19 +91,32 @@ class DocTranslator:
                 page.table_trans = page_table_trans
             return doc
 
+        last_trans_page_idx = max(
+            i for (i, page) in enumerate(doc.pages) if getattr(page, "paras", [])
+        )
+
         para_texts, cell_texts = [], []
         for page in doc.pages:
             page_paras = page.paras if hasattr(page, "paras") else []
             pts = [p.text_with_break().strip() for p in page_paras]
             # para_texts += [pt for pt in pts if not pt.isascii()]
             para_texts += [pt for pt in pts if not self.in_tgt_lang(pt)]
+
+            if page.page_idx > last_trans_page_idx:
+                continue
+
             page_tables = page.tables if hasattr(page, "tables") else []
             for row in [r for t in page_tables for r in t.all_rows]:
                 # cell_texts += [c for c in get_row_texts(row) if not c.isascii()]
                 cell_texts += [c for c in get_row_texts(row) if not self.in_tgt_lang(c)]
 
-        para_trans = self.translator.translate_paragraphs(para_texts)
+        print(f"Paras: #{len(para_texts)} Sentences: #{len(cell_texts)}")
+
         cell_trans = self.translator.translate_sentences(cell_texts)
+        print("Done translating sentences")
+
+        para_trans = self.translator.translate_paragraphs(para_texts)
+        print("Done translating paras")
 
         para_trans_dict = {p: t for (p, t) in zip(para_texts, para_trans)}
         cell_trans_dict = {c: t for (c, t) in zip(cell_texts, cell_trans)}
@@ -111,10 +124,13 @@ class DocTranslator:
         for page in doc.pages:
             page_paras = page.paras if hasattr(page, "paras") else []
             para_texts = [p.text_with_break().strip() for p in page_paras]
-            page.para_trans = [pt if pt.is_ascii() else para_trans_dict[pt] for pt in para_texts]
+            page.para_trans = [pt if pt.isascii() else para_trans_dict[pt] for pt in para_texts]
 
-            page_tables = page.tables if hasattr(page, "tables") else []
-            page.table_trans = [self.get_table_trans(t, cell_trans_dict) for t in page_tables]
+            if page.page_idx <= last_trans_page_idx:
+                page_tables = page.tables if hasattr(page, "tables") else []
+                page.table_trans = [self.get_table_trans(t, cell_trans_dict) for t in page_tables]
+            else:
+                page.table_trans = []
 
         all_para_trans = [pg.para_trans for pg in doc.pages]
         all_table_trans = [pg.table_trans for pg in doc.pages]

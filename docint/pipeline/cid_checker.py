@@ -15,6 +15,9 @@ from ..shape import Box, Coord, Poly, Shape, doc_to_image
 from ..vision import Vision
 from ..word import BreakType, Word
 
+# This componet creates an html file with cids and images
+# As far as I could read it only shows which words have cid: embedded in them
+
 
 @Vision.factory(
     "cid_checker",

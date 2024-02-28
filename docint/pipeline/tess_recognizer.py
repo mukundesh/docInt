@@ -57,6 +57,9 @@ class TesseractRecognizer:
     def __call__(self, doc):
         print(f"Processing {doc.pdf_name}")
 
+        # commenting lines read the explanation below.
+        # doc.add_extra_page_field("lines", ("list", "docint.region", "Region"))
+
         json_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
         if json_path.exists():
             doc = Doc.from_disk(json_path)
@@ -72,7 +75,12 @@ class TesseractRecognizer:
         for page, pdf_page in zip(doc.pages, pdf.pages):
             img_width, img_height = pdf_page.page_image_save(temp_file, dpi=600)
 
-            tess_data = pytesseract.image_to_data(temp_file, lang=lang_str, output_type="dict")
+            tess_data = pytesseract.image_to_data(
+                temp_file,
+                lang=lang_str,
+                output_type="dict",
+                config="-c preserve_interword_spaces=1",
+            )
             info_iter = zip(*[tess_data[k] for k in "text-left-top-width-height-conf".split("-")])
 
             word_idx = 0
@@ -86,29 +94,38 @@ class TesseractRecognizer:
                 x1, y1 = x0 + w / img_width, y0 + h / img_height
 
                 word = self.build_word(page, word_idx, text, [x0, y0, x1, y1], BreakType.Space)
-                page.words.append(word)
-                tess_page_words.append(word)
-                word_idx += 1
+                if word.text == " " and word.box.width > 0.2:
+                    tess_page_words.append(None)
+                else:
+                    page.words.append(word)
+                    tess_page_words.append(word)
+                    word_idx += 1
 
             # line_numbers are defined only inside a block, they start from 0 for every block
             # need to define page_level line_numbers, storing prev_block_line number t
 
-            prev_block_lines = [None] * len(tess_data["line_num"])
-            start_idx, total_prev_block_lines = 0, 0
-            for block_num, blocks in groupby(tess_data["block_num"]):
-                end_idx = start_idx + len(list(blocks))
-                prev_block_lines[start_idx:end_idx] = [total_prev_block_lines] * (
-                    end_idx - start_idx
-                )
+            # Commenting this line number logic as if two blocks are horizontaally adjasecent
+            # then line numbering can get confusing.
 
-                total_prev_block_lines += max(tess_data["line_num"][start_idx:end_idx]) + 1
-                start_idx = end_idx
+            # Also because our empty line has no words,it has no shape, makeing it difficult
+            # to sort a list of lines
 
-            page_line_nums = [pl + bl for (pl, bl) in zip(prev_block_lines, tess_data["line_num"])]
+            # prev_block_lines = [None] * len(tess_data["line_num"])
+            # start_idx, total_prev_block_lines = 0, 0
+            # for block_num, blocks in groupby(tess_data["block_num"]):
+            #     end_idx = start_idx + len(list(blocks))
+            #     prev_block_lines[start_idx:end_idx] = [total_prev_block_lines] * (
+            #         end_idx - start_idx
+            #     )
 
-            page.lines = self.build_lines(
-                page, page_line_nums, tess_data["word_num"], tess_page_words
-            )
+            #     total_prev_block_lines += max(tess_data["line_num"][start_idx:end_idx]) + 1
+            #     start_idx = end_idx
+
+            # page_line_nums = [pl + bl for (pl, bl) in zip(prev_block_lines, tess_data["line_num"])]
+
+            # page.lines = self.build_lines(
+            #    page, page_line_nums, tess_data["word_num"], tess_page_words
+            # )
 
         doc.to_disk(json_path)
         return doc

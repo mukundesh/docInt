@@ -40,6 +40,7 @@ EnglishFonts = [
     "microsoftsansserif",
     "mincho",
     "myriadpro",
+    "poppinsregular",
     "symbol",
     "tahoma",
     "timesbold",
@@ -97,6 +98,7 @@ class Page(pdf.Page):
         self.page_impl = page_impl
         self.pdf = pdf
         self._cid_words = None
+        self.str_words = {}
 
     @property
     def width(self):
@@ -130,8 +132,13 @@ class Page(pdf.Page):
 
     def build_words(self):
         def build_char(c):
-            # assert c.graphicstate.linewidth == 0
-            # print(f'{clean_fontname(c.fontname)} - {c.graphicstate.linewidth}')
+            # Sometimes c._text contains string and not (cid:xxx) not sure
+            # why this is happening
+
+            if c._text[:5] != "(cid:":
+                # print(f"MISMATCH: {c.fontname} >{c._text}<")
+                self.str_words.setdefault(c._text, []).append(len(self._cid_words))
+
             return {
                 "text": int(c._text[5:].strip(")"))
                 if c._text[:5] == "(cid:"
@@ -149,6 +156,7 @@ class Page(pdf.Page):
                 # if isinstance(t, int) and t == 3:
                 #     print(f'space_width: {c["bbox"][2] - c["bbox"][0]}')
 
+                # In most fonts cid == 3 is for space
                 return t == 3 if isinstance(t, int) else t.isspace()
 
             # if line_idx == 7:
@@ -178,7 +186,6 @@ class Page(pdf.Page):
                 rect = [xmin, ymin, xmax, ymax]
                 fonts = [c["fontname"] for c in word_chars]
                 line_widths = [c["linewidth"] for c in word_chars]
-
                 words.append(CIDWord(cids, rect, fonts, line_widths))
             return words
 
@@ -223,14 +230,6 @@ class Page(pdf.Page):
             line_words = build_line_words(line_word_chars)
             self._cid_words.extend(line_words)
 
-        # for box in get_LTTextBoxes(layout._objs):
-        #     for line in (ln for ln in box._objs if isinstance(ln, LTTextLine)):
-        #         line_chars = [ build_char(c) for c in line._objs if isinstance(c, LTChar)]
-        #         line_chars = [ c for c in line_chars if c['text']]
-        #         line_word_chars = merge_chars(line_chars)
-        #         line_words = build_line_words(line_word_chars)
-        #         self._cid_words.extend(line_words)
-
     @property
     def cid_words(self):
         if not self._cid_words:
@@ -250,7 +249,7 @@ def clean_fontname(f):
 
 
 class PDF(pdf.PDF):
-    def __init__(self, file_or_buffer, password=None):
+    def __init__(self, file_or_buffer, password=None, font_unicode_maps=None):
         if isinstance(file_or_buffer, str):
             pdf_path = file_or_buffer
         elif isinstance(file_or_buffer, Path):
@@ -261,6 +260,8 @@ class PDF(pdf.PDF):
         fp = builtins.open(pdf_path, "rb")
         parser = PDFParser(fp)
         self.document = PDFDocument(parser, password="")
+
+        self.font_unicode_maps = local_font_unicode_maps = {}
 
         if not self.document.is_extractable:
             raise "Not extractable"
@@ -275,7 +276,9 @@ class PDF(pdf.PDF):
                     return font
 
                 if hasattr(font, "unicode_map") and not isinstance(font.unicode_map, dict):
+                    nonlocal local_font_unicode_maps
                     if font.unicode_map is not None:
+                        local_font_unicode_maps[font_name] = font.unicode_map
                         print(f"\tDeleting unicode map: {font_name}")
                         font.unicode_map = {}  # remove the unicode so that we only get cids
                 return font

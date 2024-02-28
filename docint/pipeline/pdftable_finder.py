@@ -58,7 +58,7 @@ class PDFTableFinder:
         self.skip_row_with_merged_cells = skip_row_with_merged_cells
         self.header_row = header_row
         self.conf_stub = conf_stub
-        self.log_level = logging.DEBUG if log_level == "debug" else logging.INFO
+        self.log_level = logging.DEBUG  # if log_level == "debug" else logging.INFO
         self.heading_offset = heading_offset
         self.num_columns = num_columns
 
@@ -234,7 +234,7 @@ class PDFTableFinder:
                     else:
                         status = "B"
                         body_rows.append(row)
-                    row_text = ", ".join(cell_texts)
+                    row_text = "|".join(cell_texts)
                     self.lgr.debug(
                         f"{page_idx}>{table_idx}:{row_idx} {len(cells)} {status} {row_text}"
                     )

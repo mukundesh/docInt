@@ -14,7 +14,7 @@ def open(pdf_path, *, password=None, library_name="pypdfium2"):
     if password:
         return _PDFImpl.open(pdf_path, password)
     else:
-        return _PDFImpl.open(pdf_path)
+        return _PDFImpl.open(pdf_path, password=None)
 
 
 def load_impl(library_name):

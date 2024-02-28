@@ -39,14 +39,24 @@ class WordInfo(BaseModel):
         "cmaps_dir": "conf/cmaps",
         "stub": "pdf_cid_reader",
         "output_dir": "output",
+        "fix_number_strs": True,
+        "edit_cid_words": {},
+        "edit_words": {},
+        "swap_cids": [],
     },
 )
 class PDFCIDReader:
-    def __init__(self, cmaps_dir, stub, output_dir):
+    def __init__(
+        self, cmaps_dir, stub, output_dir, fix_number_strs, edit_cid_words, edit_words, swap_cids
+    ):
         self.cmaps_dir = Path(cmaps_dir)
         self.output_dir_path = Path(output_dir)
         self.stub = stub
         self.conf_dir = Path("conf")
+        self.fix_number_strs = fix_number_strs
+        self.edit_cid_words = {}
+        self.edit_words = {}
+        self.swap_cids = swap_cids
 
         self.font_cmap_dict = {}
 
@@ -55,7 +65,11 @@ class PDFCIDReader:
             return self.font_cmap_dict[font]
 
         yaml_file = self.cmaps_dir / f"{font}.yml"
-        self.font_cmap_dict[font] = yaml.load(yaml_file.read_text(), Loader=yaml.FullLoader)
+        if yaml_file.exists():
+            self.font_cmap_dict[font] = yaml.load(yaml_file.read_text(), Loader=yaml.FullLoader)
+        else:
+            self.font_cmap_dict[font] = {}
+
         return self.font_cmap_dict[font]
 
     def get_cid_str(self, info):
@@ -82,6 +96,7 @@ class PDFCIDReader:
         if not uc:
             return False
         if len(uc) == 1:
+            # 2325:क, 2361:ह, 2309:अ 2314:ऊ,
             return (2325 <= ord(uc) <= 2361) or (2309 <= ord(uc) <= 2314)
         elif len(uc) >= 3:
             return True
@@ -95,13 +110,17 @@ class PDFCIDReader:
             return cid
         else:
             cmap = self.get_cmap(font)
+            if not cmap:
+                print(f"cmap NotFound {font} {cid}")
+                return None
+
             cid_char = cmap.get(cid, None)
             # assert cid_char, f'{font} {cid}'
             if cid_char is None:
                 print(f"NotFound {font} {cid}")
             return cid_char
 
-    def reorder_cids2(self, w_cids, w_fonts):
+    def reorder_cids(self, w_cids, w_fonts):
         def get_cmds(cmd):
             cmds = []
             for idx, (cid, font) in enumerate(zip(result, fonts)):
@@ -148,10 +167,6 @@ class PDFCIDReader:
             if not ins_idxs:
                 continue
 
-                import pdb
-
-                pdb.set_trace()
-
             # assert ins_idxs, f'{result} {move_left_cmds}'
 
             ins_idx = ins_idxs[0]
@@ -161,7 +176,7 @@ class PDFCIDReader:
             result.insert(ins_idx, ml_cmd[-1])
 
         move_right_cmds = get_cmds("move_right")
-        for mr_idx, mr_cmd in move_right_cmds:
+        for mr_idx, mr_cmd in reversed(move_right_cmds):
             ins_idxs = [
                 idx
                 for (idx, cid) in enumerate(result[mr_idx:], mr_idx)
@@ -182,13 +197,17 @@ class PDFCIDReader:
         # : कार्य -> क ा र ् य
 
         # keep the original orders
-        reordered_cids, reordered_fonts = self.reorder_cids2(cid_word.cids, cid_word.fonts)
+        reordered_cids, reordered_fonts = self.reorder_cids(cid_word.cids, cid_word.fonts)
 
         for font, cid in zip(reordered_fonts, reordered_cids):
             if isinstance(cid, str):
                 text.append(cid)
             else:
                 cmap = self.get_cmap(font)
+                if not cmap:
+                    text.append(f"({font}-cid:{cid})")
+                    continue
+
                 cid_char = cmap.get(cid, None)
                 if cid_char:
                     # TODO this should be removed
@@ -204,16 +223,9 @@ class PDFCIDReader:
         return unicode_text
 
     def merge_word_cids(self, cid_words, page_idx):
+        "Merge words that are closeby and are x overlapping, bounding box is increased."
+
         def is_mergeable(w1, w2):
-            # cid_char = self.get_cid_char(w1.cids[-1], w1.fonts[-1])
-
-            # if cid_char is None:
-            #     print(f'Missing {w1.cids[-1]} {w1.fonts[-1]}')
-            #     return False
-            # assert cid_char is not None,
-            # print(f'cid_char: {cid_char} w2_xmin: {w2_xmin:.2f} w1_xmax: {w1_xmax:.2f} diff: {w2_xmin - w1_xmax}')
-            # return "्" in cid_char  and (w2_xmin - w1_xmax < 3)
-
             w1_xmax, w2_xmin = w1.bounding_box[2], w2.bounding_box[0]
             return (w2_xmin - w1_xmax < 2) and abs(w1.bounding_box[1] - w2.bounding_box[1]) < 1
 
@@ -243,6 +255,20 @@ class PDFCIDReader:
         return functools.reduce(merge_cids, cid_words, [])
 
     def edit_word_cids(self, cid_words, page_idx, cfg):
+        """This methods makes edits as per config file, each is document specific
+        1. space_cid_fonts: Remove all words with this font, useful for removing gibberish.
+                            # [ 'sakalmarathi' ]
+        2. space_words: Replace these words with space, useful for removing words
+                        # space_words: [ 'pa37.wo81' ]
+        3. edit_cid_words: change text based on *(font and cids)*.
+                           # {'mangal': [{'cids': [1,2,3], 'text': 'उद्भवत'}], 'sakalbharti'...}
+        4. edit_words: change text based on *word_idx*
+                       # {'pa17.wo224': 'उद्भवल्याचे', 'pa17.wo224': 'श्री जयंत'}
+
+        5. swap_cids: swap the cids of these consecutive two words
+                       # [['sakalmarathi', 161, 245]]
+
+        """
         if not cfg:
             return cid_words
 
@@ -254,11 +280,6 @@ class PDFCIDReader:
 
         assert all(sf not in edit_cids for sf in space_fonts), "space_fonts & edit_cids shld be xcl"
         for word_idx, cid_word in enumerate(cid_words):
-            # if page_idx == 1 and word_idx == 171:
-            #     import pdb
-            #     pdb.set_trace()
-            #     pass
-
             fonts = set(cid_word.fonts)
             word_path = f"pa{page_idx}.wo{word_idx}"
             if word_path in space_words:
@@ -281,7 +302,34 @@ class PDFCIDReader:
                 if cid_info:
                     cid_word._cids = list(cid_info["text"])
                     print(f'editing_cid_words: {word_path}: {font}: {cid_info["text"]}')
+
+            if cfg["swap_cids"] and cid_word.cids:
+                cids, fonts, swap_idxs = cid_word._cids, cid_word._fonts, []
+                for font, cid1, cid2 in cfg["swap_cids"]:
+                    for idx in range(len(cid_word.cids) - 1):
+                        if (
+                            (fonts[idx] == font)
+                            and (fonts[idx + 1] == font)
+                            and (cids[idx] == cid1)
+                            and cids[idx + 1] == cid2
+                        ):
+                            swap_idxs.append(idx)
+                if swap_idxs:
+                    for idx in swap_idxs:
+                        cid_word._cids[idx], cid_word._cids[idx + 1] = (
+                            cid_word._cids[idx + 1],
+                            cid_word._cids[idx],
+                        )
+
         return cid_words
+
+    def fix_word_str(self, cid_word):
+        def to_fix(cid_char):
+            return isinstance(cid_char, str) and cid_char.isdigit()
+
+        deva = "०१२३४५६७८९"
+        cid_word._cids = [deva[int(c)] if to_fix(c) else c for c in cid_word.cids]
+        return cid_word
 
     def __call__(self, doc):
         def to_doc_coords(bbox, page):
@@ -295,10 +343,6 @@ class PDFCIDReader:
             return coords
 
         def build_word(cid_word, word_idx, page):
-            # if word_idx == 203 and page.page_idx == 4 :
-            #      import pdb
-            #      pdb.set_trace()
-
             text = self.get_text(cid_word, word_idx)
             doc_bbox = to_doc_coords(cid_word.bounding_box, page)
             box = Shape.build_box(doc_bbox)
@@ -335,126 +379,47 @@ class PDFCIDReader:
         doc.add_extra_page_field("word_infos", ("list", __name__, "WordInfo"))
         cfg = load_config(self.conf_dir, doc.pdf_name, self.stub)
 
+        cfg["edit_cid_words"] = cfg.get("edit_cid_words", self.edit_cid_words)
+        cfg["edit_words"] = cfg.get("edit_words", self.edit_words)
+        cfg["swap_cids"] = cfg.get("swap_cids", self.swap_cids)
+
         pdf = pdfwrapper.open(doc.pdf_path, library_name="pdfminer")
         missing_found = False
         for pdf_page, page in zip(pdf.pages, doc.pages):
             page_cid_words = self.merge_word_cids(pdf_page.cid_words, page.page_idx)
             page_cid_words = self.edit_word_cids(page_cid_words, page.page_idx, cfg)
 
+            if self.fix_number_strs:
+                page_cid_words = [self.fix_word_str(w) for w in page_cid_words]
+
+            page_cid_word_strs = [f"{c.cids}" for c in page_cid_words]
+
             page.words = [build_word(w, idx, page) for (idx, w) in enumerate(page_cid_words)]
             page.word_infos = [build_word_info(w) for w in page_cid_words]
 
             # page.words, page.word_infos = self.merge_words_infos(page_words, page_infos)
+            print(
+                "\n".join(
+                    [
+                        f"{page.page_idx}[{w.word_idx}]: {w.text}-{s}"
+                        for idx, (w, s) in enumerate(zip(page.words, page_cid_word_strs))
+                    ]
+                )
+            )
 
-            for word, info in zip(page.words, page.word_infos):
-                if "cid:" in word.text:
-                    missing_found = True
-                    has_width = any(lw != 0 for lw in info.line_widths)
-                    print(
-                        f"{doc.pdf_name} {page.page_idx}-{word.word_idx}: {word.text:40} {self.get_cid_str(info)} has_width: {has_width}"
-                    )
+            # for word, info in zip(page.words, page.word_infos):
+            #     if "cid:" in word.text:
+            #         missing_found = True
+            #         has_width = any(lw != 0 for lw in info.line_widths)
+            #         print(
+            #             f"MISSING {doc.pdf_name} {page.page_idx}-{word.word_idx}: {word.text:40} {self.get_cid_str(info)} has_width: {has_width}"
+            #         )
 
         if missing_found:
             print(f"Missing Found {doc.pdf_name}, quitting")
             raise ValueError(f"Missing found in {doc.pdf_name}")
 
-        doc.to_disk(doc_gz_path)
+        # doc.to_disk(doc_gz_path)
 
         print(f"< pdf_cid_reader: {doc.pdf_name}")
         return doc
-
-    # def reorder_cids(self, w_cids, w_fonts):
-    #     double_cids = {
-    #         568: (91, 546),
-    #         569: (91, 546),
-    #         570: (91, 546),
-    #         571: (91, 546),
-    #         572: (91, 546),
-    #         573: (91, 546),
-    #         574: (91, 554),
-    #         575: (91, 555),
-    #         576: (91, 558),
-    #         577: (91, 553),
-    #         588: (91, 561),
-    #         589: (91, 562),
-
-    #         600: (91, 546, 562),
-    #         601: (91, 546, 562),
-    #         602: (91, 546, 562),
-    #         603: (91, 546, 562),
-    #         604: (91, 546, 562),
-    #         605: (91, 546, 562),
-
-    #     }
-
-    #     #result, fonts = w_cids[:], w_fonts[:]
-    #     result, fonts = w_cids, w_fonts
-
-    #     num_cids_added = 0
-
-    #     double_idxs = [idx for (idx, cid) in enumerate(result) if cid in double_cids]
-    #     for (idx, double_idx) in enumerate(double_idxs):
-
-    #         double_idx += num_cids_added  # as we are adding an extra character
-    #         double_cid = result.pop(double_idx)
-
-    #         assert double_cid in double_cids
-    #         double_font = fonts.pop(double_idx)
-
-    #         new_cids = double_cids[double_cid]
-
-    #         for new_cid in reversed(new_cids):
-    #             result.insert(double_idx, new_cid)
-    #             fonts.insert(double_idx, double_font)
-    #         num_cids_added += len(new_cids) - 1
-
-    #     rph_idxs = [idx for (idx, cid) in enumerate(result) if cid == 91]
-    #     for rph_idx in rph_idxs:
-    #         u_idxs = [
-    #             idx
-    #             for (idx, cid) in rev_enumerate(result, rph_idx)
-    #             if self.is_unichr_cid(cid, fonts[idx])
-    #         ]
-    #         u_idx = u_idxs[0]
-    #         rph = result.pop(rph_idx)
-    #         result.insert(u_idx, rph)
-
-    #     matra_cids = [464, 465, 466, 467, 468, 871, 872, 873, 874, 875, 876, 877, 878, 879]
-    #     matra_idxs = [idx for (idx, cid) in enumerate(result) if cid in matra_cids]
-
-    #     for matra_idx in matra_idxs:
-    #         u_idxs = [
-    #             idx
-    #             for (idx, cid) in enumerate(result[matra_idx:], matra_idx)
-    #             if self.is_unichr_cid(cid, fonts[idx])
-    #         ]
-    #         u_idx = u_idxs[0] if u_idxs else len(result)
-    #         matra = result.pop(matra_idx)
-    #         result.insert(u_idx, matra)
-
-    #     return result, fonts
-
-    # def merge_words_infos(self, page_words, page_infos):
-    #     def is_mergeable(t1, t2):
-    #         w1, w2 = t1[0], t2[0]
-    #         # both are adjascent
-    #         return w1.text[-1] == "्" and (w1.xmax - w2.xmin < 0.03)
-
-    #     def merge_tuples(page_tuples, page_tuple):
-    #         if not page_tuples:
-    #             page_tuples.append(page_tuple)
-
-    #         elif is_mergeable(page_tuples[-1], page_tuple):
-    #             page_tuples[-1][0].mergeWord(page_tuple[0])
-    #             page_tuples[-1][1].merge_info(page_tuple[1])
-
-    #         else:
-    #             page_tuples.append(page_tuple)
-
-    #         return page_tuples
-
-    #     page_tuples = zip(page_words, page_infos)
-    #     merged_page_tuples = functools.reduce(merge_tuples, page_tuples, [])
-
-    #     m_words, m_infos = [t[0] for t in merged_page_tuples], [t[1] for t in merged_page_tuples]
-    #     return m_words, m_infos
