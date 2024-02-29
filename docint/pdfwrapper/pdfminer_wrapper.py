@@ -153,15 +153,8 @@ class Page(pdf.Page):
         def merge_chars(line_chars, line_idx):
             def char_isspace(c):
                 t = c["text"]
-                # if isinstance(t, int) and t == 3:
-                #     print(f'space_width: {c["bbox"][2] - c["bbox"][0]}')
-
                 # In most fonts cid == 3 is for space
                 return t == 3 if isinstance(t, int) else t.isspace()
-
-            # if line_idx == 7:
-            #     import pdb
-            #     pdb.set_trace()
 
             def xmid(c):
                 return (c["bbox"][0] + c["bbox"][2]) / 2.0

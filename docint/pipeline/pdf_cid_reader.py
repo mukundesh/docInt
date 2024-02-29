@@ -384,7 +384,7 @@ class PDFCIDReader:
         cfg["swap_cids"] = cfg.get("swap_cids", self.swap_cids)
 
         pdf = pdfwrapper.open(doc.pdf_path, library_name="pdfminer")
-        missing_found = False
+
         for pdf_page, page in zip(pdf.pages, doc.pages):
             page_cid_words = self.merge_word_cids(pdf_page.cid_words, page.page_idx)
             page_cid_words = self.edit_word_cids(page_cid_words, page.page_idx, cfg)
@@ -392,32 +392,19 @@ class PDFCIDReader:
             if self.fix_number_strs:
                 page_cid_words = [self.fix_word_str(w) for w in page_cid_words]
 
-            page_cid_word_strs = [f"{c.cids}" for c in page_cid_words]
+            # page_cid_word_strs = [f"{c.cids}" for c in page_cid_words]
 
             page.words = [build_word(w, idx, page) for (idx, w) in enumerate(page_cid_words)]
             page.word_infos = [build_word_info(w) for w in page_cid_words]
 
-            # page.words, page.word_infos = self.merge_words_infos(page_words, page_infos)
-            print(
-                "\n".join(
-                    [
-                        f"{page.page_idx}[{w.word_idx}]: {w.text}-{s}"
-                        for idx, (w, s) in enumerate(zip(page.words, page_cid_word_strs))
-                    ]
-                )
-            )
-
-            # for word, info in zip(page.words, page.word_infos):
-            #     if "cid:" in word.text:
-            #         missing_found = True
-            #         has_width = any(lw != 0 for lw in info.line_widths)
-            #         print(
-            #             f"MISSING {doc.pdf_name} {page.page_idx}-{word.word_idx}: {word.text:40} {self.get_cid_str(info)} has_width: {has_width}"
-            #         )
-
-        if missing_found:
-            print(f"Missing Found {doc.pdf_name}, quitting")
-            raise ValueError(f"Missing found in {doc.pdf_name}")
+            # print(
+            #     "\n".join(
+            #         [
+            #             f"{page.page_idx}[{w.word_idx}]: {w.text}-{s}"
+            #             for idx, (w, s) in enumerate(zip(page.words, page_cid_word_strs))
+            #         ]
+            #     )
+            # )
 
         # doc.to_disk(doc_gz_path)
 
