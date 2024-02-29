@@ -20,7 +20,7 @@ BatchSize = 100
     depends=[
         "docker:python:3.8-slim",
         "apt:git",
-        "git+https://github.com/orgpedia/indicTranslate.git",
+        "git+https://github.com/orgpedia/translateIndic.git",
     ],
     default_config={
         "stub": "doctranslator",
@@ -41,7 +41,7 @@ class DocTranslator:
         tgt_lang,
         entities,
     ):
-        from indictranslate import Translator
+        from translateindic import Translator
 
         self.conf_dir = Path("conf")
         self.stub = stub
@@ -91,23 +91,19 @@ class DocTranslator:
                 page.table_trans = page_table_trans
             return doc
 
-        last_trans_page_idx = max(
-            i for (i, page) in enumerate(doc.pages) if getattr(page, "paras", [])
-        )
-
+        last_trans_page_idx = max([p.page_idx for p in doc.pages if getattr(p, "paras", [])], default=0)
         para_texts, cell_texts = [], []
         for page in doc.pages:
+            if page.page_idx > last_trans_page_idx:
+                break
+
             page_paras = page.paras if hasattr(page, "paras") else []
             pts = [p.text_with_break().strip() for p in page_paras]
             # para_texts += [pt for pt in pts if not pt.isascii()]
             para_texts += [pt for pt in pts if not self.in_tgt_lang(pt)]
 
-            if page.page_idx > last_trans_page_idx:
-                continue
-
             page_tables = page.tables if hasattr(page, "tables") else []
             for row in [r for t in page_tables for r in t.all_rows]:
-                # cell_texts += [c for c in get_row_texts(row) if not c.isascii()]
                 cell_texts += [c for c in get_row_texts(row) if not self.in_tgt_lang(c)]
 
         print(f"Paras: #{len(para_texts)} Sentences: #{len(cell_texts)}")
