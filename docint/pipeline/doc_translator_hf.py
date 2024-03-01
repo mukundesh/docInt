@@ -91,7 +91,9 @@ class DocTranslator:
                 page.table_trans = page_table_trans
             return doc
 
-        last_trans_page_idx = max([p.page_idx for p in doc.pages if getattr(p, "paras", [])], default=0)
+        last_trans_page_idx = max(
+            [p.page_idx for p in doc.pages if getattr(p, "paras", [])], default=0
+        )
         para_texts, cell_texts = [], []
         for page in doc.pages:
             if page.page_idx > last_trans_page_idx:
@@ -106,13 +108,13 @@ class DocTranslator:
             for row in [r for t in page_tables for r in t.all_rows]:
                 cell_texts += [c for c in get_row_texts(row) if not self.in_tgt_lang(c)]
 
-        print(f"Paras: #{len(para_texts)} Sentences: #{len(cell_texts)}")
+        print(f"    Paras: #{len(para_texts)} Sentences: #{len(cell_texts)}")
 
         cell_trans = self.translator.translate_sentences(cell_texts)
-        print("Done translating sentences")
+        # print("Done translating sentences")
 
         para_trans = self.translator.translate_paragraphs(para_texts)
-        print("Done translating paras")
+        # print("Done translating paras")
 
         para_trans_dict = {p: t for (p, t) in zip(para_texts, para_trans)}
         cell_trans_dict = {c: t for (c, t) in zip(cell_texts, cell_trans)}

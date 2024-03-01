@@ -325,7 +325,7 @@ class PDFCIDReader:
 
     def fix_word_str(self, cid_word):
         def to_fix(cid_char):
-            return isinstance(cid_char, str) and cid_char.isdigit()
+            return isinstance(cid_char, str) and cid_char.isdigit() and cid_char.isascii()
 
         deva = "०१२३४५६७८९"
         cid_word._cids = [deva[int(c)] if to_fix(c) else c for c in cid_word.cids]
@@ -360,7 +360,7 @@ class PDFCIDReader:
                 cids=cid_word.cids, fonts=cid_word.fonts, line_widths=cid_word.line_widths
             )
 
-        print(f"> pdf_cid_reader: {doc.pdf_name}")
+        # print(f"> pdf_cid_reader: {doc.pdf_name}")
 
         doc_path = self.output_dir_path / f"{doc.pdf_name}.ocr.json"
         doc_gz_path = self.output_dir_path / f"{doc.pdf_name}.ocr.json.gz"
@@ -408,5 +408,5 @@ class PDFCIDReader:
 
         # doc.to_disk(doc_gz_path)
 
-        print(f"< pdf_cid_reader: {doc.pdf_name}")
+        # print(f"< pdf_cid_reader: {doc.pdf_name}")
         return doc

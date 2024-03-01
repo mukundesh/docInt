@@ -61,7 +61,7 @@ class LineFinder:
         handler_name = f"{doc.pdf_name}.{self.conf_stub}.log"
         log_path = Path("logs") / handler_name
         self.file_handler = logging.FileHandler(log_path, mode="w")
-        self.lgr.info(f"adding handler {log_path}")
+        # self.lgr.info(f"adding handler {log_path}")
 
         self.file_handler.setLevel(logging.DEBUG)
         self.lgr.addHandler(self.file_handler)
@@ -75,9 +75,9 @@ class LineFinder:
         if not page.words:
             return []
 
-        print(
-            f"nhm: {newline_height_multiple} angle: {angle} coords: {str(page.words[0].coords)} >>>"
-        )
+        # print(
+        #     f"nhm: {newline_height_multiple} angle: {angle} coords: {str(page.words[0].coords)} >>>"
+        # )
         if angle:
             rota_page = Page.build_rotated(page, angle)
             word_lines = words_in_lines(

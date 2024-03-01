@@ -189,8 +189,8 @@ class Table(Region):
         word_idxs = [w.word_idx for w in words]
         page_idx = words[0].page_idx if words else None
 
-        num_cols = len(body_rows[0].cells) if body_rows else 0
-        print(f"INSIDE: num_rows: {len(body_rows)} num_cols: {num_cols}")
+        num_cols = len(body_rows[0].cells) if body_rows else 0  # noqa
+        # print(f"INSIDE: num_rows: {len(body_rows)} num_cols: {num_cols}")
 
         return Table(
             words=words,

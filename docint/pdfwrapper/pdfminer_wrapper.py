@@ -265,14 +265,14 @@ class PDF(pdf.PDF):
                 font_name = clean_fontname(font.fontname)
                 # print(f"Processing font: {font_name}")
                 if font_name in EnglishFonts:
-                    print(f"\tReturning: {font_name}")
+                    # print(f"\tReturning: {font_name}")
                     return font
 
                 if hasattr(font, "unicode_map") and not isinstance(font.unicode_map, dict):
                     nonlocal local_font_unicode_maps
                     if font.unicode_map is not None:
                         local_font_unicode_maps[font_name] = font.unicode_map
-                        print(f"\tDeleting unicode map: {font_name}")
+                        # print(f"\tDeleting unicode map: {font_name}")
                         font.unicode_map = {}  # remove the unicode so that we only get cids
                 return font
 

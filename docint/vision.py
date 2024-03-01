@@ -55,6 +55,8 @@ class Vision:
 
         self.common_config_mtime_ts = 0
         self.has_processing_fields = None
+        self.total_docs = 0
+        self.unprocessed_docs = 0
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
@@ -167,7 +169,7 @@ class Vision:
         raise ValueError(Errors.E006.format(args=all_args, opts=self.component_names))
 
     def exec_task(self, name, doc, proc, kwargs={}):
-        print(f"exec_task: {name}")
+        print(f"  exec_task: {name} ")
         if name in self.docker_pipes:
             print(">> Docker")
             depends = self.factories_meta[name].depends
@@ -209,6 +211,7 @@ class Vision:
         if component_cfg is None:
             component_cfg = {}
 
+        print(f"Processing: {doc.pdf_name}")
         for name, proc in self.pipeline:
             if not (hasattr(proc, "__call__") or hasattr(proc, "pipe")):
                 print(f"ERROR: {type(proc)} name={name}")
@@ -320,6 +323,8 @@ class Vision:
         #    that way it can be printed, for dummy run etc.
         # 2.
 
+        self.total_docs += 1
+
         if not has_processing_fields():
             return True
 
@@ -329,31 +334,35 @@ class Vision:
         if not output_path.exists():
             return True
 
-        output_ts = output_path.stat().st_mtime
+        # Modification time does not work in github actions
+        # output_ts = output_path.stat().st_mtime
 
-        input_ts = input_path.stat().st_mtime
-        if input_ts > output_ts:
-            return True
+        # input_ts = input_path.stat().st_mtime
+        # if input_ts > output_ts:
+        #     return True
 
         # pipeline_ts = 0 if not self.pipeline_file else self.pipeline_file.stat().st_mtime
         # if pipeline_ts > output_ts:
         #     return True
 
-        common_config_ts = self.get_common_config_mtime()  # noqa
+        # commenting common_config as it has issues on GA
+        # common_config_ts = self.get_common_config_mtime()  # noqa
+
         # commenting as translation creates files
         # if common_config_ts > output_ts:
         #     return True
 
-        config_ts = self.get_config_mtime(doc_name)
-        if config_ts > output_ts:
-            print(f"{doc_name} config is newer")
-            return True
+        # Modification time does not work in github actions
+        # config_ts = self.get_config_mtime(doc_name)
+        # if config_ts > output_ts:
+        #     print(f"{doc_name} config is newer")
+        #     return True
 
+        self.unprocessed_docs += 1
         # print(f'{doc_name} NO NEED')
         return False
 
     def pipe_all(self, paths):
-        print("INSIDE PIPE")
         pipes = []
         for name, proc in self.pipeline:
             kwargs = {}
@@ -382,11 +391,9 @@ class Vision:
 
         docs = (self.build_doc(p) if p.suffix == ".pdf" else Doc.from_disk(p) for p in paths)
 
-        print(f"Read #docs: {type(docs)}, {type(pipes)}")
         for pipe in pipes:
-            print(f"Processing {type(pipe)}")
             docs = pipe(docs)
-            print(f"docs {type(docs)}")
+
         return docs
 
     def pipe_partial(

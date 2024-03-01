@@ -82,7 +82,7 @@ class PDFCIDInfoReader:
         return functools.reduce(merge_cids, cid_words, [])
 
     def __call__(self, doc):
-        print(f"> pdf_cid_info: {doc.pdf_name}")
+        # print(f"> pdf_cid_info: {doc.pdf_name}")
         doc.add_extra_field("cid_info", ("noparse", "", ""))
 
         json_path = self.output_dir / f"{doc.pdf_name}.{self.stub}.json"
@@ -114,5 +114,5 @@ class PDFCIDInfoReader:
             doc.cid_info["font_cmaps"][font] = unicode_map.cid2unichr
 
         json_path.write_text(json.dumps(doc.cid_info))
-        print(f"< pdf_cid_info: {doc.pdf_name}")
+        # print(f"< pdf_cid_info: {doc.pdf_name}")
         return doc

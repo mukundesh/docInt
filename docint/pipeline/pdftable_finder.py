@@ -78,7 +78,7 @@ class PDFTableFinder:
         handler_name = f"{doc.pdf_name}.{self.conf_stub}.log"
         log_path = Path("logs") / handler_name
         self.file_handler = logging.FileHandler(log_path, mode="w")
-        self.lgr.info(f"adding handler {log_path}")
+        # self.lgr.info(f"adding handler {log_path}")
 
         self.file_handler.setLevel(logging.DEBUG)
         self.lgr.addHandler(self.file_handler)
@@ -241,10 +241,10 @@ class PDFTableFinder:
                     row_idx += 1 if status != "S" else 0
 
                 page.tables.append(Table.build(body_rows, header_rows))
-                print("TABLE BUILT")
+                # print("TABLE BUILT")
 
             page.heading = None
-            print("HANDLING OFFSET")
+            # print("HANDLING OFFSET")
             if page_idx == 0 and self.heading_offset:
                 offset = self.heading_offset / page.height
                 page.heading = page.words_to("above", page.tables[0], offset)
@@ -254,7 +254,7 @@ class PDFTableFinder:
                 # print(f'Heading {offset}: {heading_str}')
         errors = self.test(doc)
 
-        self.lgr.info(f"==Total:{len(errors)} {DataError.error_counts(errors)}")
+        self.lgr.info(f"\t==Total:{len(errors)} {DataError.error_counts(errors)}")
 
         table_infos = [p.tables for p in doc.pages]
         heading_infos = [p.heading for p in doc.pages]
