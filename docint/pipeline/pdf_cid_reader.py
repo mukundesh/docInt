@@ -113,7 +113,7 @@ class PDFCIDReader:
             cmap = self.get_cmap(font)
             if not cmap:
                 self.missing_cmaps.add(font)
-                #print(f"cmap NotFound {font} {cid}")
+                # print(f"cmap NotFound {font} {cid}")
                 return None
 
             cid_char = cmap.get(cid, None)
