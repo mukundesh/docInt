@@ -57,6 +57,7 @@ class PDFCIDReader:
         self.edit_cid_words = {}
         self.edit_words = {}
         self.swap_cids = swap_cids
+        self.missing_cmaps = set()
 
         self.font_cmap_dict = {}
 
@@ -111,7 +112,8 @@ class PDFCIDReader:
         else:
             cmap = self.get_cmap(font)
             if not cmap:
-                print(f"cmap NotFound {font} {cid}")
+                self.missing_cmaps.add(font)
+                #print(f"cmap NotFound {font} {cid}")
                 return None
 
             cid_char = cmap.get(cid, None)
@@ -409,4 +411,6 @@ class PDFCIDReader:
         # doc.to_disk(doc_gz_path)
 
         # print(f"< pdf_cid_reader: {doc.pdf_name}")
+        if self.missing_cmaps:
+            print(f'\t{doc.pdf_name} missing_cmaps: {", ".join(self.missing_cmaps)}')
         return doc

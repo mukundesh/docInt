@@ -87,7 +87,7 @@ class OrientPage:
         [updateCoords(w, angle, page.width, page.height) for w in page.words]
 
     def __call__(self, doc):
-        print(f"Processing {doc.pdf_name}")
+        #print(f"Processing {doc.pdf_name}")
         doc.add_extra_page_field("reoriented_angle", ("noparse", "", ""))
         for page in doc.pages:
             angle = self.calc_reorient_angle(page)
