@@ -43,11 +43,20 @@ class WordInfo(BaseModel):
         "edit_cid_words": {},
         "edit_words": {},
         "swap_cids": [],
+        "max_pages": None,
     },
 )
 class PDFCIDReader:
     def __init__(
-        self, cmaps_dir, stub, output_dir, fix_number_strs, edit_cid_words, edit_words, swap_cids
+        self,
+        cmaps_dir,
+        stub,
+        output_dir,
+        fix_number_strs,
+        edit_cid_words,
+        edit_words,
+        swap_cids,
+        max_pages,
     ):
         self.cmaps_dir = Path(cmaps_dir)
         self.output_dir_path = Path(output_dir)
@@ -57,6 +66,8 @@ class PDFCIDReader:
         self.edit_cid_words = {}
         self.edit_words = {}
         self.swap_cids = swap_cids
+        self.max_pages = max_pages
+
         self.missing_cmaps = set()
 
         self.font_cmap_dict = {}
@@ -92,6 +103,9 @@ class PDFCIDReader:
             return False
 
         cmap = self.get_cmap(font)
+        if not cmap:
+            return False
+
         uc = cmap[cid]
 
         if not uc:
@@ -387,7 +401,13 @@ class PDFCIDReader:
 
         pdf = pdfwrapper.open(doc.pdf_path, library_name="pdfminer")
 
-        for pdf_page, page in zip(pdf.pages, doc.pages):
+        if self.max_pages is not None:
+            max_pages = self.max_pages
+            doc.pages = doc.pages[:max_pages]
+        else:
+            max_pages = int(self.max_pages)
+
+        for pdf_page, page in zip(pdf.pages[:max_pages], doc.pages[:max_pages]):
             page_cid_words = self.merge_word_cids(pdf_page.cid_words, page.page_idx)
             page_cid_words = self.edit_word_cids(page_cid_words, page.page_idx, cfg)
 

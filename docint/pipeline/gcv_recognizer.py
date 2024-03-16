@@ -359,7 +359,7 @@ class CloudVisionRecognizer:
             print("IMAGES")
             output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
             return self.run_sync_gcv_image(doc, output_path)
-        elif num_pdf_pages < 5:
+        elif num_pdf_pages <= 5:
             print("Running in sync")
             output_path = self.output_dir_path / f"{doc.pdf_name}.{self.output_stub}.json"
             return self.run_sync_gcv(doc, output_path)
