@@ -402,10 +402,10 @@ class PDFCIDReader:
         pdf = pdfwrapper.open(doc.pdf_path, library_name="pdfminer")
 
         if self.max_pages is not None:
-            max_pages = self.max_pages
+            max_pages = int(self.max_pages)
             doc.pages = doc.pages[:max_pages]
         else:
-            max_pages = int(self.max_pages)
+            max_pages = len(doc.pages)
 
         for pdf_page, page in zip(pdf.pages[:max_pages], doc.pages[:max_pages]):
             page_cid_words = self.merge_word_cids(pdf_page.cid_words, page.page_idx)
