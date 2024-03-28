@@ -55,3 +55,4 @@ from .page_rotator import RotatePage
 from .ascii_converter import AsciiConverter
 from .doc_translator_a4b import DocTranslatorAI4Bharat
 from .doc_translator_hf import DocTranslator
+from .docx_gen import DocxGenerator
