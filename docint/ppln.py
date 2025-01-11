@@ -8,7 +8,7 @@ from pathlib import Path
 from types import GeneratorType
 from typing import Callable, Dict, Iterable, List, Optional, Union
 
-from pydantic import BaseModel, BaseSettings, DirectoryPath, Field, create_model, validate_model
+from pydantic import BaseModel, DirectoryPath, Field, create_model
 from pydantic.fields import FieldInfo
 
 from .audio import Audio
@@ -71,18 +71,19 @@ class PipeConfig:
         print(self.chain_map)
         self.config_keys = list(k.lower() for k in self.chain_map.keys())
 
-        self.scopes_dict = self.load_env(pipe_name)
+        self.scopes_dict = self.load_env(pipe_name)  # break this in two functions
 
     def __getattr__(self, name):
         return self.chain_map[name]
 
     def validate(self, config_dict):
-        dict_str, set_str, validation_error = validate_model(
-            self.component_setting_cls, config_dict
-        )
-        if validation_error:
-            print(config_dict)
-            raise validation_error
+        # dict_str, set_str, validation_error = validate_model(
+        #     self.component_setting_cls, config_dict
+        # )
+        # if validation_error:
+        #     print(config_dict)
+        #     raise validation_error
+        pass
 
     def load_env(self, pipe_name):
         env_prefix = self.component_setting_cls.__config__.env_prefix
@@ -148,7 +149,7 @@ class PipeConfig:
         self.chain_map = self.chain_map.parents
 
 
-class PipelineSettings(BaseSettings):
+class PipelineSettings:
     root_dir: Optional[DirectoryPath] = Field(
         default=".", description="Root directory of processing"
     )

@@ -32,10 +32,7 @@ class DocxGenerator:
         for line_idx, line in enumerate(page.lines):
             print(f"{line_idx}:", end=" ")
             last_xmin = para_lines[-1].xmin if para_lines else None
-            if (
-                (not line)
-                or (not line.arranged_text().strip())
-            ):
+            if (not line) or (not line.arranged_text().strip()):
                 if para_lines:
                     print("build_para", end=" ")
                     paras.append(para_lines[:])
